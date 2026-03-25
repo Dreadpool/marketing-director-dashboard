@@ -1,0 +1,434 @@
+import { db } from "@/db";
+import {
+  workflowRuns,
+  workflowStepRuns,
+  periodMetrics,
+  actionItems,
+  workflowStepPrompts,
+} from "@/db/schema";
+import { eq, and, desc } from "drizzle-orm";
+import { execFile } from "node:child_process";
+import { getWorkflowBySlug } from "@/lib/workflows";
+import { getExecutor } from "./executors";
+import { getDefaultPrompt } from "./prompts";
+import type { MonthPeriod } from "@/lib/schemas/types";
+
+export type WorkflowRunResult = {
+  id: string;
+  workflowSlug: string;
+  period: MonthPeriod;
+  status: string;
+  steps: StepRunResult[];
+  startedAt: Date;
+  completedAt: Date | null;
+};
+
+export type StepRunResult = {
+  id: string;
+  stepId: string;
+  stepOrder: number;
+  status: string;
+  outputData: unknown;
+  aiOutput: string | null;
+  error: string | null;
+  startedAt: Date | null;
+  completedAt: Date | null;
+};
+
+/** Load the framework prompt for a step from DB, falling back to defaults */
+async function loadPrompt(
+  workflowSlug: string,
+  stepId: string,
+): Promise<string | null> {
+  const rows = await db
+    .select()
+    .from(workflowStepPrompts)
+    .where(
+      and(
+        eq(workflowStepPrompts.workflowSlug, workflowSlug),
+        eq(workflowStepPrompts.stepId, stepId),
+      ),
+    )
+    .limit(1);
+
+  if (rows.length > 0) {
+    return rows[0].frameworkPrompt;
+  }
+
+  return getDefaultPrompt(workflowSlug, stepId);
+}
+
+/** Load historical metrics for MoM and YoY context */
+async function loadHistoricalMetrics(
+  workflowSlug: string,
+  period: MonthPeriod,
+): Promise<{ previousMonth?: unknown; previousYear?: unknown }> {
+  const prevMonth =
+    period.month === 1
+      ? { year: period.year - 1, month: 12 }
+      : { year: period.year, month: period.month - 1 };
+
+  const prevYear = { year: period.year - 1, month: period.month };
+
+  const [momRows, yoyRows] = await Promise.all([
+    db
+      .select()
+      .from(periodMetrics)
+      .where(
+        and(
+          eq(periodMetrics.workflowSlug, workflowSlug),
+          eq(periodMetrics.periodYear, prevMonth.year),
+          eq(periodMetrics.periodMonth, prevMonth.month),
+        ),
+      )
+      .limit(1),
+    db
+      .select()
+      .from(periodMetrics)
+      .where(
+        and(
+          eq(periodMetrics.workflowSlug, workflowSlug),
+          eq(periodMetrics.periodYear, prevYear.year),
+          eq(periodMetrics.periodMonth, prevYear.month),
+        ),
+      )
+      .limit(1),
+  ]);
+
+  return {
+    previousMonth: momRows[0]?.metrics ?? undefined,
+    previousYear: yoyRows[0]?.metrics ?? undefined,
+  };
+}
+
+/** Parse action items from the recommend step's AI output */
+function parseActionItems(
+  aiOutput: string,
+): { text: string; priority: string | null; category: string | null }[] {
+  const items: {
+    text: string;
+    priority: string | null;
+    category: string | null;
+  }[] = [];
+
+  const lines = aiOutput.split("\n");
+  let currentAction: string | null = null;
+  let currentPriority: string | null = null;
+  let currentCategory: string | null = null;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith("ACTION:")) {
+      // Save previous action if exists
+      if (currentAction) {
+        items.push({
+          text: currentAction,
+          priority: currentPriority,
+          category: currentCategory,
+        });
+      }
+      currentAction = trimmed.slice(7).trim();
+      currentPriority = null;
+      currentCategory = null;
+    } else if (trimmed.startsWith("PRIORITY:") && currentAction) {
+      currentPriority = trimmed.slice(9).trim().toLowerCase();
+    } else if (trimmed.startsWith("CATEGORY:") && currentAction) {
+      currentCategory = trimmed.slice(9).trim().toLowerCase();
+    }
+  }
+
+  // Don't forget the last action
+  if (currentAction) {
+    items.push({
+      text: currentAction,
+      priority: currentPriority,
+      category: currentCategory,
+    });
+  }
+
+  return items;
+}
+
+/** Execute a complete workflow run */
+export async function executeWorkflow(
+  slug: string,
+  period: MonthPeriod,
+): Promise<WorkflowRunResult> {
+  const workflow = getWorkflowBySlug(slug);
+  if (!workflow) throw new Error(`Workflow not found: ${slug}`);
+  if (workflow.status !== "active")
+    throw new Error(`Workflow not active: ${slug}`);
+
+  const executor = getExecutor(slug);
+  if (!executor) throw new Error(`No executor for workflow: ${slug}`);
+
+  // Create the run
+  const [run] = await db
+    .insert(workflowRuns)
+    .values({
+      workflowSlug: slug,
+      periodYear: period.year,
+      periodMonth: period.month,
+      status: "running",
+    })
+    .returning();
+
+  // Create step run records
+  const stepInserts = workflow.steps.map((step, i) => ({
+    runId: run.id,
+    stepId: step.id,
+    stepOrder: i,
+    status: "pending" as const,
+  }));
+
+  const stepRows = await db
+    .insert(workflowStepRuns)
+    .values(stepInserts)
+    .returning();
+
+  // Load historical data for comparisons
+  const historical = await loadHistoricalMetrics(slug, period);
+
+  const stepResults: StepRunResult[] = [];
+  const previousStepOutputs: Record<string, unknown> = {};
+
+  for (const stepDef of workflow.steps) {
+    const stepRow = stepRows.find((s) => s.stepId === stepDef.id)!;
+
+    // Mark step as running
+    await db
+      .update(workflowStepRuns)
+      .set({ status: "running", startedAt: new Date() })
+      .where(eq(workflowStepRuns.id, stepRow.id));
+
+    try {
+      let outputData: unknown = null;
+      let aiOutput: string | null = null;
+
+      if (stepDef.type === "fetch") {
+        // Execute the data fetcher
+        outputData = await executor(period);
+      } else {
+        // AI-powered step
+        const prompt = await loadPrompt(slug, stepDef.id);
+        if (!prompt) {
+          throw new Error(`No prompt found for step: ${stepDef.id}`);
+        }
+
+        // Build context from previous steps + historical data
+        const contextParts: string[] = [];
+
+        if (Object.keys(previousStepOutputs).length > 0) {
+          contextParts.push(
+            "## Previous Step Results\n\n" +
+              JSON.stringify(previousStepOutputs, null, 2),
+          );
+        }
+
+        if (historical.previousMonth) {
+          contextParts.push(
+            "## Previous Month Metrics (for MoM comparison)\n\n" +
+              JSON.stringify(historical.previousMonth, null, 2),
+          );
+        }
+
+        if (historical.previousYear) {
+          contextParts.push(
+            "## Same Month Last Year (for YoY comparison)\n\n" +
+              JSON.stringify(historical.previousYear, null, 2),
+          );
+        }
+
+        const userMessage = `Analyze the data for ${period.year}-${String(period.month).padStart(2, "0")}.\n\n${contextParts.join("\n\n")}`;
+
+        const result = await new Promise<string>((resolve, reject) => {
+          execFile(
+            "claude",
+            [
+              "--print",
+              "--system-prompt",
+              prompt,
+              "--allowed-tools",
+              "",
+              "--no-session-persistence",
+              "--output-format",
+              "text",
+              userMessage,
+            ],
+            { maxBuffer: 1024 * 1024, timeout: 300_000 },
+            (err, stdout, stderr) => {
+              if (err) reject(new Error(stderr || err.message));
+              else resolve(stdout.trim());
+            },
+          );
+        });
+
+        aiOutput = result;
+        outputData = { analysis: result };
+      }
+
+      // Mark step completed
+      const completedAt = new Date();
+      await db
+        .update(workflowStepRuns)
+        .set({
+          status: "completed",
+          outputData: outputData as Record<string, unknown>,
+          aiOutput,
+          completedAt,
+        })
+        .where(eq(workflowStepRuns.id, stepRow.id));
+
+      // Chain output to next step
+      previousStepOutputs[stepDef.id] = outputData;
+
+      // Parse action items from recommend step
+      if (stepDef.type === "recommend" && aiOutput) {
+        const parsed = parseActionItems(aiOutput);
+        if (parsed.length > 0) {
+          await db.insert(actionItems).values(
+            parsed.map((item) => ({
+              runId: run.id,
+              stepId: stepDef.id,
+              workflowSlug: slug,
+              periodYear: period.year,
+              periodMonth: period.month,
+              text: item.text,
+              priority: item.priority,
+              category: item.category,
+            })),
+          );
+        }
+      }
+
+      stepResults.push({
+        id: stepRow.id,
+        stepId: stepDef.id,
+        stepOrder: stepRow.stepOrder,
+        status: "completed",
+        outputData,
+        aiOutput,
+        error: null,
+        startedAt: stepRow.startedAt,
+        completedAt,
+      });
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+
+      await db
+        .update(workflowStepRuns)
+        .set({ status: "failed", error: errorMsg, completedAt: new Date() })
+        .where(eq(workflowStepRuns.id, stepRow.id));
+
+      stepResults.push({
+        id: stepRow.id,
+        stepId: stepDef.id,
+        stepOrder: stepRow.stepOrder,
+        status: "failed",
+        outputData: null,
+        aiOutput: null,
+        error: errorMsg,
+        startedAt: stepRow.startedAt,
+        completedAt: new Date(),
+      });
+
+      // Continue to next step instead of aborting the whole run
+    }
+  }
+
+  // Store period metrics snapshot from the fetch step
+  const fetchOutput = previousStepOutputs["fetch"];
+  if (fetchOutput) {
+    // Upsert: delete existing then insert
+    await db
+      .delete(periodMetrics)
+      .where(
+        and(
+          eq(periodMetrics.workflowSlug, slug),
+          eq(periodMetrics.periodYear, period.year),
+          eq(periodMetrics.periodMonth, period.month),
+        ),
+      );
+    await db.insert(periodMetrics).values({
+      workflowSlug: slug,
+      periodYear: period.year,
+      periodMonth: period.month,
+      runId: run.id,
+      metrics: fetchOutput as Record<string, unknown>,
+    });
+  }
+
+  // Update run status
+  const allCompleted = stepResults.every((s) => s.status === "completed");
+  const completedAt = new Date();
+
+  await db
+    .update(workflowRuns)
+    .set({
+      status: allCompleted ? "completed" : "failed",
+      completedAt,
+    })
+    .where(eq(workflowRuns.id, run.id));
+
+  return {
+    id: run.id,
+    workflowSlug: slug,
+    period,
+    status: allCompleted ? "completed" : "failed",
+    steps: stepResults,
+    startedAt: run.startedAt,
+    completedAt,
+  };
+}
+
+/** Get all runs for a workflow */
+export async function getWorkflowRuns(slug: string) {
+  return db
+    .select()
+    .from(workflowRuns)
+    .where(eq(workflowRuns.workflowSlug, slug))
+    .orderBy(desc(workflowRuns.createdAt));
+}
+
+/** Get a single run with all step details and action items */
+export async function getRunDetails(runId: string) {
+  const [run] = await db
+    .select()
+    .from(workflowRuns)
+    .where(eq(workflowRuns.id, runId))
+    .limit(1);
+
+  if (!run) return null;
+
+  const [steps, items] = await Promise.all([
+    db
+      .select()
+      .from(workflowStepRuns)
+      .where(eq(workflowStepRuns.runId, runId))
+      .orderBy(workflowStepRuns.stepOrder),
+    db
+      .select()
+      .from(actionItems)
+      .where(eq(actionItems.runId, runId)),
+  ]);
+
+  return { ...run, steps, actionItems: items };
+}
+
+/** Get the latest completed run for a workflow */
+export async function getLatestRun(slug: string) {
+  const rows = await db
+    .select()
+    .from(workflowRuns)
+    .where(
+      and(
+        eq(workflowRuns.workflowSlug, slug),
+        eq(workflowRuns.status, "completed"),
+      ),
+    )
+    .orderBy(desc(workflowRuns.createdAt))
+    .limit(1);
+
+  return rows[0] ?? null;
+}

@@ -1,65 +1,140 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DollarSign, Users, Megaphone, TrendingUp, Activity } from "lucide-react";
+import {
+  StaggerContainer,
+  StaggerItem,
+} from "@/components/motion/page-transition";
+import type { DashboardMetrics } from "@/lib/schemas";
+import { formatUSD } from "@/lib/schemas";
+import { useEffect, useState } from "react";
+
+function buildMetrics(data: DashboardMetrics | null) {
+  if (!data) {
+    return [
+      { title: "Revenue", value: "--", icon: DollarSign, description: "Total monthly revenue" },
+      { title: "New Customers", value: "--", icon: Users, description: "First-time purchasers" },
+      { title: "Ad Spend", value: "--", icon: Megaphone, description: "Combined Meta + Google" },
+      { title: "ROAS", value: "--", icon: TrendingUp, description: "Return on ad spend" },
+    ];
+  }
+
+  const roas = data.efficiency.roas[0];
+
+  return [
+    {
+      title: "Revenue",
+      value: formatUSD(data.revenue.actual.amount),
+      icon: DollarSign,
+      description: `${data.revenue.totalOrders.toLocaleString()} orders, ${formatUSD(data.revenue.avgOrderValue)} avg`,
+    },
+    {
+      title: "New Customers",
+      value: data.customers.new.toLocaleString(),
+      icon: Users,
+      description: `${data.customers.returning.toLocaleString()} returning, ${formatUSD(data.customers.newAvgRevenue)} avg revenue`,
+    },
+    {
+      title: "Ad Spend",
+      value: formatUSD(data.adSpend.total),
+      icon: Megaphone,
+      description: data.adSpend.total > 0
+        ? `CAC: ${formatUSD(data.efficiency.cac.value)}`
+        : "No ad spend data",
+    },
+    {
+      title: "ROAS",
+      value: roas ? `${roas.value.toFixed(1)}x` : "--",
+      icon: TrendingUp,
+      description: roas
+        ? `${formatUSD(roas.revenue)} revenue / ${formatUSD(roas.spend)} spend`
+        : "Return on ad spend",
+    },
+  ];
+}
+
+export default function DashboardPage() {
+  const [data, setData] = useState<DashboardMetrics | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/dashboard")
+      .then((res) => {
+        if (!res.ok) throw new Error(`Failed to load: ${res.status}`);
+        return res.json();
+      })
+      .then((result) => { if (!cancelled) setData(result); })
+      .catch((err) => { if (!cancelled) setError(err.message); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const metrics = buildMetrics(data);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <StaggerContainer>
+      <StaggerItem>
+        <div className="mb-8">
+          <h1 className="font-heading text-2xl font-semibold tracking-tight">
+            Dashboard
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="mt-1 text-sm text-muted-foreground">
+            Your marketing command center
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+      </StaggerItem>
+
+      {error && (
+        <StaggerItem>
+          <Card className="mb-4 border-destructive/50 bg-destructive/5">
+            <CardContent className="py-3">
+              <p className="text-sm text-destructive">
+                Failed to load metrics: {error}
+              </p>
+            </CardContent>
+          </Card>
+        </StaggerItem>
+      )}
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {metrics.map((metric) => {
+          const Icon = metric.icon;
+          return (
+            <StaggerItem key={metric.title}>
+              <Card className="group transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-gold/5">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    {metric.title}
+                  </CardTitle>
+                  <Icon className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-gold" />
+                </CardHeader>
+                <CardContent>
+                  <div className={`text-2xl font-semibold tracking-tight ${loading ? "animate-pulse text-muted-foreground" : ""}`}>
+                    {metric.value}
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {metric.description}
+                  </p>
+                </CardContent>
+              </Card>
+            </StaggerItem>
+          );
+        })}
+      </div>
+
+      <StaggerItem>
+        <Card className="mt-8">
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <Activity className="mb-3 h-8 w-8 text-muted-foreground/50" />
+            <p className="text-sm text-muted-foreground">
+              Workflow data will appear here once data sources are connected
+            </p>
+          </CardContent>
+        </Card>
+      </StaggerItem>
+    </StaggerContainer>
   );
 }

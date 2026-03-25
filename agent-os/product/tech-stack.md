@@ -14,10 +14,12 @@
 - **Vercel AI SDK** — streaming chat UI, tool use, and Claude integration
 - Server-side data fetching from all external APIs
 
-## Database
+## Data Layer
 
-- **Vercel Postgres** (PostgreSQL) — workflow state, action items, user preferences, cached metric snapshots
-- Zero-config deployment on Vercel, scales as needed
+- **BigQuery** — single source of truth for sales/customer/revenue data
+- `@google-cloud/bigquery` client in Next.js server components / route handlers
+- **Next.js ISR caching** (`revalidate`) — avoids per-pageload BigQuery queries, revalidates every few hours
+- **Vercel Postgres** — app state only: workflow progress, action items, manual spend entries, user preferences. Not for duplicating source data.
 
 ## AI Integration
 
@@ -57,4 +59,4 @@ A lightweight **shared metric schema** (TypeScript interfaces) normalizes data f
 1. **No Kafka/Spark** — Data volumes are modest (one company's marketing data) and all sources are pull-based REST APIs. Simple server-side fetch calls handle this cleanly.
 2. **No separate backend** — Next.js API routes and server actions provide the server-side logic needed. Avoids maintaining two services.
 3. **Shared metric schema over ontology** — A TypeScript interface layer normalizes cross-platform data without the complexity of a full object-graph ontology system.
-4. **On-demand data fetching** — Data is pulled when workflows run, not continuously streamed. Cached in Postgres for fast re-access within a session.
+4. **On-demand data fetching** — Data is pulled when workflows run, not continuously streamed. Cached via Next.js ISR for fast re-access.
