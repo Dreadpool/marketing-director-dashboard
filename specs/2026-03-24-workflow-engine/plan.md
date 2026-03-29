@@ -15,16 +15,15 @@ The dashboard shell exists and data services are built (BigQuery, Meta Ads, Goog
 ## How a Workflow Step Works
 
 Each step in a workflow has:
-- **Type**: `fetch` | `analyze` | `explore` | `recommend`
+- **Type**: `fetch` | `analyze` | `recommend`
 - **Framework prompt**: Structured instructions that guide Claude (editable, stored in DB)
 - **Input**: Data from previous steps + fetched data
 - **Output**: Structured results that feed into the next step
 
 Example flow for Monthly Analytics Review:
 1. **Fetch** — Pull BigQuery + Meta + Google data for the month
-2. **Analyze** — Initial pass: revenue, customers, CAC, ROAS, promo codes. Follow the calculation framework. Flag anomalies.
-3. **Explore** — Based on Step 2 findings, dig deeper. If CAC spiked, break down by channel. If revenue dropped, decompose into customer count vs AOV. Follow conditional exploration frameworks.
-4. **Recommend** — Synthesize findings into prioritized action items with specific next steps. Compare to previous months. Surface questions the marketing director should investigate.
+2. **Analyze** — Initial pass: revenue, customers, CAC, ROAS, promo codes. Follow the calculation framework. Flag anomalies and patterns.
+3. **Recommend** — Synthesize findings into prioritized action items with specific next steps. Compare to previous months. Surface questions the marketing director should investigate.
 
 Each step can be re-run independently. The user can edit the framework prompt for any step if the analysis has gaps or they want different focus areas.
 
@@ -32,7 +31,7 @@ Each step can be re-run independently. The user can edit the framework prompt fo
 
 - **Vercel Postgres + Drizzle ORM** for persistence
 - **Step-based execution** with per-step framework prompts (not a single monolithic prompt)
-- **First workflow**: Monthly Analytics Review (4 steps: fetch → analyze → explore → recommend)
+- **First workflow**: Monthly Analytics Review (3 steps: fetch → analyze → recommend)
 - **Don't touch the dashboard page** yet
 - **Editable framework prompts** stored in DB per workflow step, seeded from Monthly Analytics Review project frameworks
 - **Step output chains**: each step's output is injected as context into the next step
@@ -160,17 +159,16 @@ Create `agent-os/specs/2026-03-24-workflow-engine/` with:
 ## Task 3: Workflow Types and Definitions
 
 Create `src/lib/workflows/types.ts`:
-- `StepType`: "fetch" | "analyze" | "explore" | "recommend"
+- `StepType`: "fetch" | "analyze" | "recommend"
 - `WorkflowStepDef`: { id, label, description, type, dataSources? }
 - `WorkflowCadence`: "monthly" | "quarterly" | "yearly" | "on-demand"
 
 Update `src/lib/workflows.ts`:
 - Add `cadence`, `dataSources`, `steps: WorkflowStepDef[]` to Workflow interface
-- Define Monthly Analytics Review with 4 steps:
+- Define Monthly Analytics Review with 3 steps:
   1. `fetch` — "Fetch Data" — Pull from BigQuery, Meta, Google
   2. `analyze` — "Initial Analysis" — Revenue, customers, CAC, ROAS calculations and pattern detection
-  3. `explore` — "Deep Exploration" — Dig into anomalies and drivers based on initial findings
-  4. `recommend` — "Recommendations" — Prioritized action items with reasoning
+  3. `recommend` — "Recommendations" — Prioritized action items with reasoning
 - Set Monthly Analytics Review status to "active", others stay "coming-soon"
 
 ---
@@ -185,7 +183,7 @@ Create `src/lib/workflows/engine.ts`:
   4. Executes steps sequentially:
      - Updates step status to "running"
      - For `fetch` steps: calls the data executor, stores result as `output_data`
-     - For `analyze`/`explore`/`recommend` steps: loads framework prompt from DB (or default), injects previous step outputs + historical metrics as context, calls Claude API, stores `ai_output` and `output_data`
+     - For `analyze`/`recommend` steps: loads framework prompt from DB (or default), injects previous step outputs + historical metrics as context, calls Claude API, stores `ai_output` and `output_data`
      - Updates step status to "completed" (or "failed" with error)
   5. After the `recommend` step, parses action items from Claude's output and stores them in `action_items` with `workflow_slug`, `period_year`, `period_month` for cross-workflow querying
   6. After successful completion, upserts a `period_metrics` row with the key metrics snapshot from the fetch step
@@ -209,14 +207,6 @@ Create `src/lib/workflows/prompts/monthly-analytics.ts` with default prompts see
 - Benchmarks: Payback ratio ≥3.0x positive, LTV:CAC ≥5:1 excellent
 - Pattern detection: flag significant MoM changes (>10%), unusual promo activity
 - Output format: structured sections with metrics and flags
-
-**Step: explore**
-- Conditional exploration frameworks:
-  - If CAC increased >15%: break down spend by channel, identify inefficient campaigns
-  - If revenue dropped: decompose into customer count change vs AOV change
-  - If promo usage spiked: check for suspicious activity (>6 uses per customer)
-  - If new customer ratio changed: investigate channel mix shift
-- Dig into the "why" behind every flagged pattern from the analyze step
 
 **Step: recommend**
 - Prioritization framework (impact vs effort)
@@ -269,7 +259,7 @@ Replace `src/app/workflows/[slug]/page.tsx` placeholder.
 │ └──────────────┘  └──────────────────────────┘      │
 │                                                      │
 │ ┌─ Progress ───────────────────────────────────┐    │
-│ │ ✓ Fetch  →  ● Analyze  →  ○ Explore  →  ○   │    │
+│ │ ✓ Fetch  →  ● Analyze  →  ○ Recommend       │    │
 │ └──────────────────────────────────────────────┘    │
 │                                                      │
 │ ┌─ Step: Initial Analysis ─────────────────────┐    │
@@ -284,11 +274,6 @@ Replace `src/app/workflows/[slug]/page.tsx` placeholder.
 │ │                                               │    │
 │ └───────────────────────────────────────────────┘    │
 │                                                      │
-│ ┌─ Step: Exploration ──────────────────────────┐    │
-│ │  [Deeper analysis based on findings above]    │    │
-│ │  ▸ Framework Prompt  [Edit]                   │    │
-│ └───────────────────────────────────────────────┘    │
-│                                                      │
 │ ┌─ Step: Recommendations ──────────────────────┐    │
 │ │  Action Items:                                │    │
 │ │  ☐ High: Reduce Meta CPC by pausing...       │    │
@@ -298,8 +283,8 @@ Replace `src/app/workflows/[slug]/page.tsx` placeholder.
 │ └───────────────────────────────────────────────┘    │
 │                                                      │
 │ ┌─ Run History ────────────────────────────────┐    │
-│ │ Feb 2026  ✓ Completed  4 steps  2m 15s       │    │
-│ │ Jan 2026  ✓ Completed  4 steps  1m 52s       │    │
+│ │ Feb 2026  ✓ Completed  3 steps  2m 15s       │    │
+│ │ Jan 2026  ✓ Completed  3 steps  1m 52s       │    │
 │ └──────────────────────────────────────────────┘    │
 └──────────────────────────────────────────────────────┘
 ```
@@ -396,8 +381,7 @@ Add "Calendar" link to the sidebar
   1. Select a month, click "Run Analysis"
   2. Step 1 (fetch): pulls data from BigQuery + Meta + Google
   3. Step 2 (analyze): Claude follows the framework prompt to calculate and flag patterns
-  4. Step 3 (explore): Claude digs deeper into flagged anomalies
-  5. Step 4 (recommend): Claude generates prioritized action items
+  4. Step 3 (recommend): Claude generates prioritized action items
   6. All step results stored in Postgres
   7. Results visible in the step-by-step UI
 - Edit a framework prompt → re-run → different analysis output

@@ -1,7 +1,8 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DollarSign, Users, Megaphone, TrendingUp, Activity } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { DollarSign, Users, Megaphone, TrendingUp, BarChart3 } from "lucide-react";
 import {
   StaggerContainer,
   StaggerItem,
@@ -13,7 +14,7 @@ import { useEffect, useState } from "react";
 function buildMetrics(data: DashboardMetrics | null) {
   if (!data) {
     return [
-      { title: "Revenue", value: "--", icon: DollarSign, description: "Total monthly revenue" },
+      { title: "Gross Bookings", value: "--", icon: DollarSign, description: "Total monthly bookings" },
       { title: "New Customers", value: "--", icon: Users, description: "First-time purchasers" },
       { title: "Ad Spend", value: "--", icon: Megaphone, description: "Combined Meta + Google" },
       { title: "ROAS", value: "--", icon: TrendingUp, description: "Return on ad spend" },
@@ -24,7 +25,7 @@ function buildMetrics(data: DashboardMetrics | null) {
 
   return [
     {
-      title: "Revenue",
+      title: "Gross Bookings",
       value: formatUSD(data.revenue.actual.amount),
       icon: DollarSign,
       description: `${data.revenue.totalOrders.toLocaleString()} orders, ${formatUSD(data.revenue.avgOrderValue)} avg`,
@@ -112,12 +113,21 @@ export default function DashboardPage() {
                   <Icon className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-gold" />
                 </CardHeader>
                 <CardContent>
-                  <div className={`text-2xl font-semibold tracking-tight ${loading ? "animate-pulse text-muted-foreground" : ""}`}>
-                    {metric.value}
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {metric.description}
-                  </p>
+                  {loading ? (
+                    <>
+                      <Skeleton className="h-8 w-24" />
+                      <Skeleton className="mt-2 h-3 w-36" />
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-2xl font-semibold tracking-tight">
+                        {metric.value}
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {metric.description}
+                      </p>
+                    </>
+                  )}
                 </CardContent>
               </Card>
             </StaggerItem>
@@ -126,11 +136,20 @@ export default function DashboardPage() {
       </div>
 
       <StaggerItem>
-        <Card className="mt-8">
+        <Card className="mt-8 border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <Activity className="mb-3 h-8 w-8 text-muted-foreground/50" />
-            <p className="text-sm text-muted-foreground">
-              Workflow data will appear here once data sources are connected
+            <div className="mb-4 rounded-full bg-gold/10 p-3">
+              <BarChart3 className="h-6 w-6 text-gold" />
+            </div>
+            <p className="text-sm font-medium">
+              Workflow insights will appear here
+            </p>
+            <p className="mt-1 max-w-sm text-xs text-muted-foreground">
+              Run your first workflow from the{" "}
+              <a href="/workflows" className="text-gold transition-colors hover:text-gold/80">
+                Workflows
+              </a>{" "}
+              page to see analysis results and trends.
             </p>
           </CardContent>
         </Card>

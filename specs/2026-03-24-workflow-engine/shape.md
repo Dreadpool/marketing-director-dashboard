@@ -15,7 +15,7 @@ Multi-step workflow engine that turns days-to-weeks marketing analysis into minu
 ## Decisions
 
 - **Vercel Postgres + Drizzle ORM** over JSON file (user plans to deploy to Vercel)
-- **Step-based execution** (fetch/analyze/explore/recommend) over monolithic single-prompt
+- **Step-based execution** (fetch/analyze/recommend) over monolithic single-prompt
 - **Per-step editable prompts** stored in DB, seeded from existing Monthly Analytics Review frameworks
 - **Historical metrics storage** in `period_metrics` table for MoM/YoY comparisons
 - **Action items link back to source analysis** so users can see the reasoning behind each item

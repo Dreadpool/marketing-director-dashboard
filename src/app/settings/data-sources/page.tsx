@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   StaggerContainer,
   StaggerItem,
@@ -112,12 +113,12 @@ export default function DataSourcesPage() {
                       </p>
                     )}
                     {source.error && (
-                      <div className="mt-3 rounded-md border border-destructive/20 bg-destructive/5 p-3">
-                        <p className="text-xs font-medium text-destructive">Error</p>
-                        <p className="mt-1 font-mono text-xs text-destructive/80">
+                      <Alert variant="destructive" className="mt-3">
+                        <AlertTitle className="text-xs">Connection Failed</AlertTitle>
+                        <AlertDescription className="font-mono text-xs">
                           {source.error}
-                        </p>
-                      </div>
+                        </AlertDescription>
+                      </Alert>
                     )}
                     {source.lastChecked && (
                       <p className="mt-2 text-xs text-muted-foreground/60">
