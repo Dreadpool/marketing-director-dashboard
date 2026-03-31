@@ -185,7 +185,7 @@ export function WorkflowDetail({ workflow }: WorkflowDetailProps) {
 
   // Build step statuses for the progress bar
   const stepStatuses = workflow.steps.map((step) => {
-    const stepRun = currentRun?.steps.find((s) => s.stepId === step.id);
+    const stepRun = currentRun?.steps?.find((s) => s.stepId === step.id);
     return {
       id: step.id,
       label: step.label,
