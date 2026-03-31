@@ -1,34 +1,7 @@
-import type { SheetsAdSpendRow, SheetsSEORankingRow } from "../sources/google-sheets";
+import type { SheetsSEORankingRow } from "../sources/google-sheets";
 import type { DateRange } from "../types";
-import type { NormalizedAdSpend, NormalizedSEO } from "../metrics";
+import type { NormalizedSEO } from "../metrics";
 import { createProvenance } from "../utils";
-
-export function normalizeAdSpendFromSheets(
-  rows: SheetsAdSpendRow[],
-  dateRange: DateRange,
-): NormalizedAdSpend {
-  const provenance = createProvenance("google_sheets", dateRange);
-
-  const total = rows.reduce((sum, r) => sum + (r.amount ?? 0), 0);
-  const breakdown: Record<string, number> = {};
-  for (const r of rows) {
-    if (r.amount != null) {
-      breakdown[r.account_name] = (breakdown[r.account_name] ?? 0) + r.amount;
-    }
-  }
-
-  return {
-    total,
-    byPlatform: [
-      {
-        source: "google_sheets",
-        amount: total,
-        breakdown,
-      },
-    ],
-    provenance: [provenance],
-  };
-}
 
 /** Cap OTR/0 at rank 100, handle empty cells as null */
 export function parseRank(value: string | number | null | undefined): number | null {

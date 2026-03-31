@@ -18,6 +18,7 @@ export type DataSource =
   | "google_ads"
   | "bigquery"
   | "ga4"
+  | "quickbooks_gl"
   | "google_sheets"
   | "monthly_analytics";
 

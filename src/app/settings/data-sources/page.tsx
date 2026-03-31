@@ -140,10 +140,13 @@ export default function DataSourcesPage() {
                 <strong>BigQuery &quot;not configured&quot;</strong> - Set <code className="rounded bg-muted px-1">GOOGLE_APPLICATION_CREDENTIALS</code> env var to the service account JSON path, and <code className="rounded bg-muted px-1">BIGQUERY_PROJECT_ID</code> to the GCP project.
               </li>
               <li>
-                <strong>BigQuery &quot;permission denied&quot;</strong> - The service account needs <code className="rounded bg-muted px-1">roles/bigquery.user</code> and <code className="rounded bg-muted px-1">roles/bigquery.dataViewer</code> on the <code className="rounded bg-muted px-1">tds_sales</code> dataset.
+                <strong>BigQuery &quot;permission denied&quot;</strong> - The service account needs <code className="rounded bg-muted px-1">roles/bigquery.user</code> and <code className="rounded bg-muted px-1">roles/bigquery.dataViewer</code> on the <code className="rounded bg-muted px-1">tds_sales</code> and <code className="rounded bg-muted px-1">quickbooks_gl</code> datasets.
               </li>
               <li>
-                <strong>BigQuery &quot;view not found&quot;</strong> - Verify <code className="rounded bg-muted px-1">vw_sle_active_orders</code> and <code className="rounded bg-muted px-1">customer_first_order</code> views exist in the dataset.
+                <strong>BigQuery &quot;view not found&quot;</strong> - Verify <code className="rounded bg-muted px-1">vw_sle_active_orders</code> and <code className="rounded bg-muted px-1">customer_first_order</code> views exist in <code className="rounded bg-muted px-1">tds_sales</code>.
+              </li>
+              <li>
+                <strong>QuickBooks GL &quot;no data&quot;</strong> - Verify <code className="rounded bg-muted px-1">gl_transactions</code> table exists in the <code className="rounded bg-muted px-1">quickbooks_gl</code> dataset with <code className="rounded bg-muted px-1">company = &apos;salt_lake_express&apos;</code> rows.
               </li>
             </ul>
           </CardContent>

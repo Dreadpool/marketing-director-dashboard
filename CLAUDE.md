@@ -29,7 +29,8 @@ Built first for Salt Lake Express (SLE) marketing operations. Designed to suppor
 
 ## Environment Variables
 
-- `GOOGLE_APPLICATION_CREDENTIALS` -- Path to BigQuery service account JSON
+- `GOOGLE_APPLICATION_CREDENTIALS` -- Path to BigQuery service account JSON (local dev)
+- `GOOGLE_CREDENTIALS_JSON` -- Inline service account JSON string (deployment, e.g. Vercel)
 - `BIGQUERY_PROJECT_ID` -- GCP project ID (default: `jovial-root-443516-a7`)
 - `BIGQUERY_DATASET` -- BigQuery dataset (default: `tds_sales`)
 - `META_ACCESS_TOKEN` -- Meta Ads system user token (never expires, `ads_read` scope)
@@ -51,15 +52,32 @@ Built first for Salt Lake Express (SLE) marketing operations. Designed to suppor
 - [x] First workflow end-to-end (Monthly Analytics Review)
 - [x] Fetch step review experience (rich metric visualization)
 - [x] Historical CardPointe data ingestion (2025 auth data loaded to BigQuery, 89,920 rows)
+- [x] Revenue Metric Overhaul: Gross Bookings as primary KPI in Monthly Analytics workflow
+- [x] QuickBooks GL ad spend integration (replaced Google Sheets with BigQuery `quickbooks_gl.gl_transactions`)
+- [x] Progressive workflow rendering (fetch results show immediately, AI steps fill in via polling)
+- [x] Avg Customer Value rework (CardPointe actuals + TDS cash / unique customers, not new-customer-only)
+- [x] YoY comparison badges on all 9 headline metric cards (color-coded: green=good, red=bad, muted=neutral)
+- [x] QB GL pipeline: deduplicated table (587K→387K rows), fixed Cloud Function (batch loads), deployed rev 00005
+- [x] Shared BigQuery client (`bigquery-client.ts`) with portable credentials (GOOGLE_CREDENTIALS_JSON for deployment)
+- [x] Headline metrics restructured: Revenue row, Acquisition row, Efficiency row (CAC / Avg Customer Value / CAC:Value)
+- [x] Removed Revenue Breakdown section (hidden pending TDS call) and Marketing Efficiency section (redundant)
+- [x] Workflow cadence system: period-matched scheduling with per-workflow due dates (replaces timestamp-based isDue)
+- [x] Calendar page: grid with dots on actual due dates + agenda timeline view
+- [x] Workflow roster: 8 workflows (added Email Marketing, Creative/Content, Flyer/Event, Promo Code; removed BigQuery Sales)
+- [x] AI chat panel closed by default
+- [x] Meta Ads Analysis workflow: fetch executor (SDK-based, campaign + ad + audience breakdowns), CTC framework prompts, custom visualization (KPI cards, campaign table, creative/audience sections)
 
 ### In Progress
 
 ### Up Next
-- [ ] Revenue Metric Overhaul: Gross Bookings as primary KPI (spec complete, see `specs/2026-03-27-revenue-metric-overhaul/`)
-- [ ] Manual marketing spend entry (non-platform costs for complete CAC)
+- [ ] Fix action_items insert (recommendation step fails on long text params, needs schema or parsing fix)
+- [ ] Tune analysis + recommendations prompts (currently too opinionated, missing business context. Feed a user prompt before generating. Reform action item parsing.)
+- [ ] Dashboard KPI board (replicate Jacob's spreadsheet metrics on `/` homepage, sourced from BigQuery/QuickBooks GL)
+- [ ] Confirm TDS payment logic (call with TDS: how do cancellations affect payment_amount fields, is total_sale ever different from sum of payment slots)
 - [ ] Historical analysis archive (snapshot completed runs for instant historical access)
 - [ ] AI chat panel with real Claude integration (replace mock chat)
-- [ ] Remaining 4 workflows: Meta Ads Analysis, Google Ads Analysis, BigQuery Sales Analysis, SEO Ranking Analysis
+- [ ] Remaining workflows: build executors for Google Ads, SEO Ranking, Email Marketing, Creative/Content, Flyer/Event
+- [ ] Promo Code Analysis: event-triggered cadence, FTP fetch, auto-run on expiration, route results to james.glass@saltlakeexpress.com
 
 ### Ideas
 - Context-aware chat for historical runs (inject archived run data into chat context)
@@ -75,6 +93,7 @@ Built first for Salt Lake Express (SLE) marketing operations. Designed to suppor
 - 2026-03-24: Neon Postgres for app state only. Never duplicate source data.
 - 2026-03-24: `Promise.allSettled()` for multi-source fetching. BigQuery required, ad platforms optional.
 - 2026-03-27: Gross Bookings as primary revenue KPI (not CardPointe net). Aligns with travel industry standard, avoids double-counting reschedules. CardPointe used for cross-validation only. Full rationale in `specs/2026-03-27-revenue-metric-overhaul/`.
+- 2026-03-30: Period-matched scheduling replaces timestamp-based isDue. A run satisfies the period it was run FOR, not when it was run. Per-workflow due dates (1st, 3rd, 10th, 1st Monday). Cadence config in code, not DB. Full spec in `docs/superpowers/specs/2026-03-30-workflow-cadence-scheduling-design.md`.
 
 ## Structure
 
@@ -147,7 +166,7 @@ Built first for Salt Lake Express (SLE) marketing operations. Designed to suppor
 | Meta Ads | facebook-nodejs-business-sdk | Campaign performance, creative, spend | No |
 | Google Ads | google-ads-api (GAQL) | Campaign spend, search terms, geo | No |
 | GA4 | googleapis | Sessions, traffic, conversions | No |
-| Google Sheets | googleapis | Ad budgets, SEO rankings | No |
+| QuickBooks GL | @google-cloud/bigquery | Ad spend, operating expenses (quickbooks_gl dataset) | Yes |
 
 ## Workflow Instructions
 

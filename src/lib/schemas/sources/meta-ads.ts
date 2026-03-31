@@ -32,4 +32,14 @@ export type MetaAdsInsightRow = {
   action_values?: MetaAdsActionValue[];
   date_start: string;
   date_stop: string;
+  /** Video: 3-second views (string number) */
+  video_3s_views?: string;
+  /** Video: thruplay actions (watched to completion or 15s) */
+  video_thruplay_watched_actions?: MetaAdsAction[];
+  /** Breakdown dimension fields (populated when using breakdowns param) */
+  age?: string;
+  gender?: string;
+  country?: string;
+  device_platform?: string;
+  publisher_platform?: string;
 };

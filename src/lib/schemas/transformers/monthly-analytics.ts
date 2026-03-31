@@ -28,10 +28,10 @@ export function normalizeMonthlyAnalytics(
     ? {
         revenue: {
           direction: "mom",
-          currentValue: revenue.total_revenue,
-          previousValue: mom.previous_revenue ?? 0,
-          absoluteChange: mom.revenue_change_absolute ?? 0,
-          percentChange: mom.revenue_change_percent,
+          currentValue: revenue.gross_bookings,
+          previousValue: mom.previous_gross_bookings ?? 0,
+          absoluteChange: mom.gross_bookings_change_absolute ?? 0,
+          percentChange: mom.gross_bookings_change_percent,
           previousPeriod: dateRange,
         },
         customers: {
@@ -77,10 +77,10 @@ export function normalizeMonthlyAnalytics(
     ? {
         revenue: {
           direction: "yoy",
-          currentValue: revenue.total_revenue,
+          currentValue: revenue.gross_bookings,
           previousValue: 0,
           absoluteChange: 0,
-          percentChange: yoy.revenue_change_percent,
+          percentChange: yoy.gross_bookings_change_percent,
           previousPeriod: dateRange,
         },
         customers: {
@@ -113,7 +113,7 @@ export function normalizeMonthlyAnalytics(
     revenue: {
       actual: {
         source: "bigquery",
-        amount: revenue.total_revenue,
+        amount: revenue.gross_bookings,
         attributionWindow: "none",
         isGroundTruth: true,
         provenance: bqProvenance,
@@ -152,7 +152,7 @@ export function normalizeMonthlyAnalytics(
         value: marketing.cac,
         totalSpend: marketing.ad_spend,
         newCustomers: customers.new_customers,
-        paybackRatio: marketing.payback_ratio,
+        paybackRatio: marketing.cac_to_value_ratio,
         provenance: [monthlyProvenance, bqProvenance],
         comparison: momComparison?.cac,
       },
@@ -161,9 +161,9 @@ export function normalizeMonthlyAnalytics(
         {
           source: "monthly_analytics",
           value: marketing.ad_spend > 0
-            ? revenue.total_revenue / marketing.ad_spend
+            ? revenue.gross_bookings / marketing.ad_spend
             : 0,
-          revenue: revenue.total_revenue,
+          revenue: revenue.gross_bookings,
           spend: marketing.ad_spend,
           attributionWindow: "none",
           provenance: monthlyProvenance,

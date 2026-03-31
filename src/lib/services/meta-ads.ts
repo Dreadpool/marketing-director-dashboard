@@ -40,14 +40,41 @@ export async function testConnection(): Promise<ConnectionStatus> {
   }
 }
 
-const INSIGHT_FIELDS = [
+const CAMPAIGN_FIELDS = [
+  "spend",
+  "impressions",
+  "clicks",
+  "reach",
+  "frequency",
+  "cpm",
+  "ctr",
+  "actions",
+  "action_values",
+  "campaign_name",
+  "campaign_id",
+  "objective",
+];
+
+const AD_FIELDS = [
   "spend",
   "impressions",
   "clicks",
   "actions",
   "action_values",
   "campaign_name",
-  "campaign_id",
+  "ad_id",
+  "ad_name",
+  "adset_name",
+  "video_play_actions",
+  "video_thruplay_watched_actions",
+];
+
+const BREAKDOWN_FIELDS = [
+  "spend",
+  "impressions",
+  "clicks",
+  "actions",
+  "action_values",
 ];
 
 /** Fetch campaign-level insights for a month */
@@ -57,7 +84,7 @@ export async function getMonthlyInsights(
   const { start, end } = monthToDateRange(period);
   const account = getAdAccount();
 
-  const cursor = await account.getInsights(INSIGHT_FIELDS, {
+  const cursor = await account.getInsights(CAMPAIGN_FIELDS, {
     time_range: { since: start, until: end },
     level: "campaign",
     action_attribution_windows: ["28d_click"],
@@ -71,9 +98,15 @@ export async function getMonthlyInsights(
       rows.push({
         campaign_id: String(row.campaign_id ?? ""),
         campaign_name: String(row.campaign_name ?? ""),
+        objective: String(row.objective ?? ""),
+        status: String(row.status ?? ""),
         spend: String(row.spend ?? "0"),
         impressions: String(row.impressions ?? "0"),
         clicks: String(row.clicks ?? "0"),
+        reach: String(row.reach ?? "0"),
+        frequency: String(row.frequency ?? "0"),
+        cpm: String(row.cpm ?? "0"),
+        ctr: String(row.ctr ?? "0"),
         actions: (row.actions as MetaAdsInsightRow["actions"]) ?? [],
         action_values:
           (row.action_values as MetaAdsInsightRow["action_values"]) ?? [],
@@ -90,4 +123,139 @@ export async function getMonthlyInsights(
   }
 
   return rows;
+}
+
+/** Fetch ad-level insights with video metrics for a month */
+export async function getAdInsights(
+  period: MonthPeriod,
+): Promise<MetaAdsInsightRow[]> {
+  const { start, end } = monthToDateRange(period);
+  const account = getAdAccount();
+
+  const cursor = await account.getInsights(AD_FIELDS, {
+    time_range: { since: start, until: end },
+    level: "ad",
+    action_attribution_windows: ["28d_click"],
+  });
+
+  const rows: MetaAdsInsightRow[] = [];
+
+  for (;;) {
+    for (const raw of cursor) {
+      const row = raw as Record<string, unknown>;
+
+      // video_play_actions contains 3-second video view counts
+      const videoPlayActions = row.video_play_actions as MetaAdsInsightRow["actions"];
+      const video3sTotal = videoPlayActions?.find(
+        (a) => a.action_type === "video_view",
+      );
+
+      rows.push({
+        campaign_id: "",
+        campaign_name: String(row.campaign_name ?? ""),
+        ad_id: String(row.ad_id ?? ""),
+        ad_name: String(row.ad_name ?? ""),
+        adset_name: String(row.adset_name ?? ""),
+        spend: String(row.spend ?? "0"),
+        impressions: String(row.impressions ?? "0"),
+        clicks: String(row.clicks ?? "0"),
+        actions: (row.actions as MetaAdsInsightRow["actions"]) ?? [],
+        action_values:
+          (row.action_values as MetaAdsInsightRow["action_values"]) ?? [],
+        video_3s_views: video3sTotal?.value ?? "0",
+        video_thruplay_watched_actions:
+          (row.video_thruplay_watched_actions as MetaAdsInsightRow["video_thruplay_watched_actions"]) ?? [],
+        date_start: start,
+        date_stop: end,
+      });
+    }
+
+    if (cursor.hasNext()) {
+      await cursor.next();
+    } else {
+      break;
+    }
+  }
+
+  return rows;
+}
+
+export type AudienceBreakdowns = {
+  age_gender: MetaAdsInsightRow[];
+  geo: MetaAdsInsightRow[];
+  device: MetaAdsInsightRow[];
+  platform: MetaAdsInsightRow[];
+};
+
+/** Fetch audience breakdown insights (4 parallel calls) */
+export async function getAudienceBreakdowns(
+  period: MonthPeriod,
+): Promise<AudienceBreakdowns> {
+  const { start, end } = monthToDateRange(period);
+  const account = getAdAccount();
+
+  async function fetchBreakdown(
+    breakdowns: string[],
+  ): Promise<MetaAdsInsightRow[]> {
+    const cursor = await account.getInsights(BREAKDOWN_FIELDS, {
+      time_range: { since: start, until: end },
+      level: "account",
+      breakdowns,
+      action_attribution_windows: ["28d_click"],
+    });
+
+    const rows: MetaAdsInsightRow[] = [];
+    for (;;) {
+      for (const raw of cursor) {
+        const row = raw as Record<string, unknown>;
+        rows.push({
+          campaign_id: "",
+          campaign_name: "",
+          spend: String(row.spend ?? "0"),
+          impressions: String(row.impressions ?? "0"),
+          clicks: String(row.clicks ?? "0"),
+          actions: (row.actions as MetaAdsInsightRow["actions"]) ?? [],
+          action_values:
+            (row.action_values as MetaAdsInsightRow["action_values"]) ?? [],
+          age: row.age != null ? String(row.age) : undefined,
+          gender: row.gender != null ? String(row.gender) : undefined,
+          country: row.country != null ? String(row.country) : undefined,
+          device_platform:
+            row.device_platform != null
+              ? String(row.device_platform)
+              : undefined,
+          publisher_platform:
+            row.publisher_platform != null
+              ? String(row.publisher_platform)
+              : undefined,
+          date_start: start,
+          date_stop: end,
+        });
+      }
+
+      if (cursor.hasNext()) {
+        await cursor.next();
+      } else {
+        break;
+      }
+    }
+
+    return rows;
+  }
+
+  const [ageGender, geo, device, platform] = await Promise.allSettled([
+    fetchBreakdown(["age", "gender"]),
+    fetchBreakdown(["country"]),
+    fetchBreakdown(["device_platform"]),
+    fetchBreakdown(["publisher_platform"]),
+  ]);
+
+  return {
+    age_gender:
+      ageGender.status === "fulfilled" ? ageGender.value : [],
+    geo: geo.status === "fulfilled" ? geo.value : [],
+    device: device.status === "fulfilled" ? device.value : [],
+    platform:
+      platform.status === "fulfilled" ? platform.value : [],
+  };
 }

@@ -7,8 +7,10 @@ import {
   workflowStepPrompts,
 } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
-import { execFile } from "node:child_process";
+import Anthropic from "@anthropic-ai/sdk";
 import { getWorkflowBySlug } from "@/lib/workflows";
+
+const anthropic = new Anthropic();
 import { getExecutor } from "./executors";
 import { getDefaultPrompt } from "./prompts";
 import type { MonthPeriod } from "@/lib/schemas/types";
@@ -150,11 +152,11 @@ function parseActionItems(
   return items;
 }
 
-/** Execute a complete workflow run */
-export async function executeWorkflow(
+/** Create the run and step records. Returns the run ID for polling. */
+export async function initWorkflowRun(
   slug: string,
   period: MonthPeriod,
-): Promise<WorkflowRunResult> {
+): Promise<{ runId: string }> {
   const workflow = getWorkflowBySlug(slug);
   if (!workflow) throw new Error(`Workflow not found: ${slug}`);
   if (workflow.status !== "active")
@@ -163,7 +165,6 @@ export async function executeWorkflow(
   const executor = getExecutor(slug);
   if (!executor) throw new Error(`No executor for workflow: ${slug}`);
 
-  // Create the run
   const [run] = await db
     .insert(workflowRuns)
     .values({
@@ -174,7 +175,6 @@ export async function executeWorkflow(
     })
     .returning();
 
-  // Create step run records
   const stepInserts = workflow.steps.map((step, i) => ({
     runId: run.id,
     stepId: step.id,
@@ -182,15 +182,29 @@ export async function executeWorkflow(
     status: "pending" as const,
   }));
 
+  await db.insert(workflowStepRuns).values(stepInserts);
+
+  return { runId: run.id };
+}
+
+/** Execute all steps for an existing run. Updates DB progressively. */
+export async function executeWorkflowSteps(
+  runId: string,
+  slug: string,
+  period: MonthPeriod,
+): Promise<void> {
+  const workflow = getWorkflowBySlug(slug)!;
+  const executor = getExecutor(slug)!;
+
   const stepRows = await db
-    .insert(workflowStepRuns)
-    .values(stepInserts)
-    .returning();
+    .select()
+    .from(workflowStepRuns)
+    .where(eq(workflowStepRuns.runId, runId))
+    .orderBy(workflowStepRuns.stepOrder);
 
   // Load historical data for comparisons
   const historical = await loadHistoricalMetrics(slug, period);
 
-  const stepResults: StepRunResult[] = [];
   const previousStepOutputs: Record<string, unknown> = {};
 
   for (const stepDef of workflow.steps) {
@@ -242,30 +256,20 @@ export async function executeWorkflow(
 
         const userMessage = `Analyze the data for ${period.year}-${String(period.month).padStart(2, "0")}.\n\n${contextParts.join("\n\n")}`;
 
-        const result = await new Promise<string>((resolve, reject) => {
-          execFile(
-            "claude",
-            [
-              "--print",
-              "--system-prompt",
-              prompt,
-              "--allowed-tools",
-              "",
-              "--no-session-persistence",
-              "--output-format",
-              "text",
-              userMessage,
-            ],
-            { maxBuffer: 1024 * 1024, timeout: 300_000 },
-            (err, stdout, stderr) => {
-              if (err) reject(new Error(stderr || err.message));
-              else resolve(stdout.trim());
-            },
-          );
+        const response = await anthropic.messages.create({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 4096,
+          system: prompt,
+          messages: [{ role: "user", content: userMessage }],
         });
 
-        aiOutput = result;
-        outputData = { analysis: result };
+        const text = response.content
+          .filter((b): b is Anthropic.TextBlock => b.type === "text")
+          .map((b) => b.text)
+          .join("\n");
+
+        aiOutput = text;
+        outputData = { analysis: text };
       }
 
       // Mark step completed
@@ -289,7 +293,7 @@ export async function executeWorkflow(
         if (parsed.length > 0) {
           await db.insert(actionItems).values(
             parsed.map((item) => ({
-              runId: run.id,
+              runId,
               stepId: stepDef.id,
               workflowSlug: slug,
               periodYear: period.year,
@@ -302,17 +306,6 @@ export async function executeWorkflow(
         }
       }
 
-      stepResults.push({
-        id: stepRow.id,
-        stepId: stepDef.id,
-        stepOrder: stepRow.stepOrder,
-        status: "completed",
-        outputData,
-        aiOutput,
-        error: null,
-        startedAt: stepRow.startedAt,
-        completedAt,
-      });
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
 
@@ -320,18 +313,6 @@ export async function executeWorkflow(
         .update(workflowStepRuns)
         .set({ status: "failed", error: errorMsg, completedAt: new Date() })
         .where(eq(workflowStepRuns.id, stepRow.id));
-
-      stepResults.push({
-        id: stepRow.id,
-        stepId: stepDef.id,
-        stepOrder: stepRow.stepOrder,
-        status: "failed",
-        outputData: null,
-        aiOutput: null,
-        error: errorMsg,
-        startedAt: stepRow.startedAt,
-        completedAt: new Date(),
-      });
 
       // Continue to next step instead of aborting the whole run
     }
@@ -354,13 +335,17 @@ export async function executeWorkflow(
       workflowSlug: slug,
       periodYear: period.year,
       periodMonth: period.month,
-      runId: run.id,
+      runId,
       metrics: fetchOutput as Record<string, unknown>,
     });
   }
 
-  // Update run status
-  const allCompleted = stepResults.every((s) => s.status === "completed");
+  // Update run status based on actual step statuses in DB
+  const finalSteps = await db
+    .select({ status: workflowStepRuns.status })
+    .from(workflowStepRuns)
+    .where(eq(workflowStepRuns.runId, runId));
+  const allCompleted = finalSteps.every((s) => s.status === "completed");
   const completedAt = new Date();
 
   await db
@@ -369,17 +354,7 @@ export async function executeWorkflow(
       status: allCompleted ? "completed" : "failed",
       completedAt,
     })
-    .where(eq(workflowRuns.id, run.id));
-
-  return {
-    id: run.id,
-    workflowSlug: slug,
-    period,
-    status: allCompleted ? "completed" : "failed",
-    steps: stepResults,
-    startedAt: run.startedAt,
-    completedAt,
-  };
+    .where(eq(workflowRuns.id, runId));
 }
 
 /** Get all runs for a workflow */

@@ -1,18 +1,8 @@
-import { BigQuery } from "@google-cloud/bigquery";
 import type { MonthPeriod, DateRange } from "@/lib/schemas/types";
 import type { BigQueryPeriodSummary } from "@/lib/schemas/sources/bigquery";
+import { getBigQueryClient, PROJECT_ID } from "./bigquery-client";
 
-const PROJECT_ID = process.env.BIGQUERY_PROJECT_ID ?? "jovial-root-443516-a7";
 const DATASET = process.env.BIGQUERY_DATASET ?? "tds_sales";
-
-let client: BigQuery | null = null;
-
-function getBigQueryClient(): BigQuery {
-  if (!client) {
-    client = new BigQuery({ projectId: PROJECT_ID });
-  }
-  return client;
-}
 
 export type ConnectionStatus = {
   ok: boolean;

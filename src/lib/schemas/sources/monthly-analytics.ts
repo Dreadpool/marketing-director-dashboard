@@ -7,13 +7,28 @@ export type MasterMetricsPeriod = {
   date_range: { start: string; end: string };
 };
 
+export type RevenueByCategory = {
+  name: string; // "Credit Cards", "Cash", "Account Credits", "Other"
+  gross: number;
+  cancels: number;
+  net: number;
+};
+
 export type MasterMetricsRevenue = {
-  total_revenue: number;
+  gross_bookings: number; // sum of all payment slots (primary KPI)
+  net_bookings: number; // gross minus all cancel amounts
+  net_booking_rate: number; // net / gross as decimal (0.81 = 81%)
+  new_cash: number; // CC net + cash net + other net (no account credits)
   total_orders: number;
-  avg_order_value: number;
+  avg_order_value: number; // gross_bookings / total_orders
   unique_customers: number;
-  revenue_per_customer: number;
+  revenue_per_customer: number; // uses gross_bookings
   orders_per_customer: number;
+  by_category: RevenueByCategory[];
+  total_cancels: number; // sum of all cancel amounts
+  rebook_orders: number; // orders with previous_order set (excluded from gross/orders)
+  rebook_amount: number; // total payment amount from rebook orders (excluded from gross)
+  cardpointe_variance?: number; // CC net (TDS) minus CC net (CardPointe)
 };
 
 export type MasterMetricsCustomers = {
@@ -32,25 +47,18 @@ export type MasterMetricsMarketing = {
   ad_spend_categories: Record<string, number>;
   transaction_count: number;
   cac: number;
-  payback_ratio: number;
-  new_customer_revenue: number;
-  avg_new_customer_value: number;
-  cost_per_revenue_dollar: number;
-  revenue_per_dollar_spent: number;
-  cac_30day_cash_ratio: number;
+  avg_customer_value: number;
+  avg_customer_value_source: "cardpointe" | "tds_sales_orders";
+  cac_to_value_ratio: number;
 };
 
 export type MasterMetricsPaymentMethods = {
   by_type: Record<string, number>;
-  by_category: Record<string, number>;
-  new_cash: number;
-  credits: number;
   split_payments: {
     count: number;
     percentage: number;
     top_combinations: Array<{ combination: string; count: number }>;
   };
-  total_amount: number;
   unique_types: number;
 };
 
@@ -61,6 +69,7 @@ export type MasterMetricsTopCustomer = {
   revenue: number;
   orders: number;
   avg_order_value: number;
+  top_route?: { origin: string; destination: string; count: number };
 };
 
 export type MasterMetricsCustomerTier = {
@@ -120,8 +129,12 @@ export type MasterMetricsPromotions = {
 };
 
 export type MasterMetricsComparison = {
-  revenue_change_absolute?: number;
-  revenue_change_percent: number;
+  gross_bookings_change_absolute?: number;
+  gross_bookings_change_percent: number;
+  net_bookings_change_absolute?: number;
+  net_bookings_change_percent?: number;
+  new_cash_change_absolute?: number;
+  new_cash_change_percent?: number;
   customer_change_absolute?: number;
   customer_change_percent: number;
   order_change_absolute?: number;
@@ -129,21 +142,26 @@ export type MasterMetricsComparison = {
   ad_spend_change_absolute?: number;
   ad_spend_change_percent?: number;
   avg_order_value_change_percent?: number;
-  revenue_per_dollar_spent?: number;
-  cost_per_customer_change?: number;
   cac_change_percent?: number;
-  previous_revenue?: number;
+  previous_gross_bookings?: number;
+  previous_net_bookings?: number;
+  previous_new_cash?: number;
   previous_orders?: number;
   previous_customers?: number;
   previous_aov?: number;
-  previous_revenue_per_customer?: number;
   previous_ad_spend?: number;
   previous_cac?: number;
-  revenue_components?: {
-    impact_of_customer_change: number;
-    impact_of_spending_change: number;
-    cross_effect: number;
-  };
+  new_customers_change_percent?: number;
+  previous_new_customers?: number;
+  avg_customer_value_change_percent?: number;
+  previous_avg_customer_value?: number;
+  cac_to_value_ratio_change_percent?: number;
+  previous_cac_to_value_ratio?: number;
+};
+
+export type ZeroRevenueEmail = {
+  email: string;
+  count: number;
 };
 
 export type MasterMetricsDataQuality = {
@@ -153,6 +171,13 @@ export type MasterMetricsDataQuality = {
   validation_passed: boolean;
   revenue_variance: number;
   zero_revenue_orders: number;
+  top_zero_revenue_emails?: ZeroRevenueEmail[];
+};
+
+export type SourceDetail = {
+  displayName: string;
+  status: "ok" | "warning" | "error";
+  message?: string;
 };
 
 export type MasterMetricsMetadata = {
@@ -161,6 +186,7 @@ export type MasterMetricsMetadata = {
   data_source: string;
   loaded_sources: string[];
   missing_sources: string[];
+  source_details?: Record<string, SourceDetail>;
 };
 
 export type MasterMetrics = {

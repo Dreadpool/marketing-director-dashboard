@@ -1,91 +1,75 @@
 export const monthlyAnalyticsPrompts: Record<string, string> = {
-  analyze: `You are a marketing analyst for Salt Lake Express, a bus transportation company. You have been given the current month's marketing and sales data. Perform a structured initial analysis following this framework.
+  analyze: `You are a marketing analyst for Salt Lake Express, a bus transportation company. You have been given the current month's marketing and sales data in MasterMetrics format. Perform a structured initial analysis following this framework.
+
+## Data Structure Reference
+The data contains: period, current_month (revenue, customers, marketing, payment_methods, top_customers, promotions), comparisons, data_quality, metadata.
 
 ## Metrics to Calculate and Report
 
-### Revenue
-- Total revenue (all sources)
-- Total orders and average order value
-- Revenue per customer
-- Revenue by source if available (BigQuery ground truth vs platform-attributed)
+### Revenue (Gross Bookings Framework)
+- Gross Bookings (primary KPI): total booking value across all payment types
+- Net Bookings: gross minus all cancellation amounts
+- Net Booking Rate: percentage of bookings that held (note: ~45% of cancels are reschedules, so rate appears lower than true retention)
+- New Cash: CC + cash + other net (excludes account credits). This is what CAC and payback ratio use.
+- Average order value (uses Gross Bookings / total orders)
+- Revenue per customer, orders per customer
+- CardPointe variance: if CC net differs from CardPointe settlement by >$1000, flag for investigation
 
 ### Customers
-- New customers (first purchase this month)
-- Returning customers
-- New vs returning customer revenue
-- Average revenue per new customer vs returning customer
+- New customers (first purchase this month) vs returning
+- New vs returning customer revenue and average revenue
+- New vs returning order counts
+
+### Payment Methods
+- Payment mix by category from revenue.by_category (Credit Cards, Cash, Other, Account Credits)
+- Gross, cancels, and net for each category
+- Split payment percentage and top combinations
+- CardPointe cross-validation: check revenue.cardpointe_variance if present
 
 ### Marketing Efficiency
-- Total ad spend (Meta + Google combined)
-- CAC (Customer Acquisition Cost): Total Ad Spend / New Customers
-- Payback Ratio: Average New Customer Revenue / CAC
-- ROAS per platform (platform-attributed revenue / platform spend)
-- CPA per platform (platform spend / platform conversions)
+- Total marketing spend by QB category (Brand, Targeted, Promotional, Collateral, Other)
+- CAC: Marketing Spend / New Customers
+- Avg Customer Value: Real revenue (CardPointe CC net + cash + other) / unique active customers
+  - Check avg_customer_value_source to note whether CardPointe actuals or TDS payment slots were used
+- CAC : Value Ratio: Avg Customer Value / CAC. Above 1.0 = avg customer covers acquisition cost.
+- If ad spend unavailable (check metadata.missing_sources): note this and skip CAC analysis
+
+### Promotions
+- Promo usage rate (percentage of orders with promo codes)
+- AOV with promo vs without promo
+- Total discount amount and average discount per promo order
+- Top promo codes by usage
+- Flag any suspicious activity (high-usage customers, codes with >50% discount ratio)
+
+### Top Customers
+- Top 1%, 10%, and top 200 customer concentration (revenue share)
+- Top 10 individual customers
 
 ### Quality Thresholds
-Apply these benchmarks and flag any that are outside expected ranges:
+Apply these benchmarks and flag any outside expected ranges:
 - CAC <= $50: EXCELLENT
 - CAC <= $100: GOOD
 - CAC > $100: HIGH (investigate)
-- Payback Ratio >= 3.0x: POSITIVE
-- Payback Ratio < 1.0x: NEGATIVE (losing money on first purchase)
-- LTV:CAC >= 5:1: EXCELLENT
-- LTV:CAC >= 3:1: GOOD
-- LTV:CAC < 3:1: BELOW TARGET
+- CAC : Value >= 3.0x: EXCELLENT
+- CAC : Value >= 1.0x: POSITIVE
+- CAC : Value < 1.0x: NEGATIVE (losing money on average customer)
 
 ### Pattern Detection
-Flag any of these for the exploration step:
-- Revenue change > 10% MoM (up or down)
+Flag any of these for the recommendations step:
+- Gross Bookings change > 10% MoM (up or down)
+- Net Booking Rate change > 5 percentage points
 - New customer count change > 15% MoM
 - CAC change > 15% MoM
-- ROAS below 2.0x on any platform
 - Significant shift in new vs returning customer ratio
+- Promo usage rate change > 5 percentage points
+- Top customer concentration change
+- Payment mix shift (e.g., cash percentage increase)
+- CardPointe CC variance > $1000
 
 ## Output Format
-Structure your analysis with clear sections, specific numbers, and explicit flags for the exploration step. Use tables where appropriate. Mark each metric with its quality assessment (EXCELLENT/GOOD/HIGH/etc).
+Structure your analysis with clear sections, specific numbers, and explicit flags for the recommendations step. Use tables where appropriate. Mark each metric with its quality assessment (EXCELLENT/GOOD/HIGH/etc).
 
 If previous month or year-ago data is provided, include MoM and YoY comparisons for every key metric.`,
-
-  explore: `You are continuing the analysis of Salt Lake Express marketing data. The initial analysis has identified patterns and flags. Your job is to dig deeper into each flagged item.
-
-## Exploration Framework
-
-For each flag from the initial analysis, investigate using these frameworks:
-
-### If CAC Increased > 15%
-- Break down spend change by platform (Meta vs Google)
-- Identify which campaigns drove the spend increase
-- Check if new customer count dropped (denominator issue) or spend increased (numerator issue)
-- Calculate incremental CAC: additional spend / additional customers vs baseline
-
-### If Revenue Changed Significantly
-- Decompose into components:
-  - Customer Count Impact = (Current Customers - Previous Customers) x Previous Revenue Per Customer
-  - Spending Impact = (Current Rev Per Customer - Previous Rev Per Customer) x Previous Customers
-- Identify which segment drove the change (new vs returning customers)
-- Check average order value changes
-
-### If ROAS Dropped Below Target
-- Compare platform-attributed revenue to BigQuery ground truth
-- Check if attribution window is masking delayed conversions
-- Look at CPC trends (cost going up) vs conversion rate (fewer conversions)
-
-### If New Customer Ratio Changed
-- Check if it's a channel mix shift (more from one platform)
-- Look at returning customer behavior (are they coming back more or less?)
-- Consider seasonality from YoY data if available
-
-### If Promo Code Activity Changed
-- Check for suspicious activity (customers with > 6 promo uses)
-- Look at promo discount impact on AOV
-- Compare promo vs non-promo customer lifetime value indicators
-
-## Output Format
-For each explored flag:
-1. What was flagged and why
-2. Root cause analysis with supporting data
-3. Severity assessment (critical / moderate / minor)
-4. Specific data points that support your conclusion`,
 
   recommend: `You are synthesizing the analysis of Salt Lake Express marketing data into actionable recommendations. You have the initial analysis and deep exploration findings.
 
@@ -103,12 +87,12 @@ Priority matrix:
 
 ### Categories
 Assign each action item to a category:
-- **budget**: Spending adjustments, reallocation between platforms
-- **creative**: Ad creative changes, testing new formats
-- **audience**: Targeting adjustments, audience expansion/refinement
-- **channel**: Platform-level strategy changes
+- **budget**: Spending adjustments, reallocation between ad spend categories
+- **channel**: Channel-level strategy changes
 - **pricing**: Pricing, promotion, or discount strategy
 - **retention**: Customer retention and repeat purchase initiatives
+- **operations**: Payment processing, data quality, CardPointe cross-validation flags
+- **customer-care**: Top customer insights, corporate account management
 
 ### Action Item Format
 Each action item must include:
@@ -129,7 +113,7 @@ Return action items as a structured list. Use this exact format for each item so
 
 ACTION: [specific action description]
 PRIORITY: [HIGH/MEDIUM/LOW]
-CATEGORY: [budget/creative/audience/channel/pricing/retention]
+CATEGORY: [budget/channel/pricing/retention/operations/customer-care]
 IMPACT: [expected impact]
 REASONING: [data-backed reasoning]
 

@@ -15,7 +15,7 @@ export type { MetaAdsInsightRow, MetaAdsAction, MetaAdsActionValue } from "./sou
 export type { GoogleAdsCampaignRow } from "./sources/google-ads";
 export type { BigQueryRevenueRow, BigQueryCustomerRow, BigQueryPeriodSummary } from "./sources/bigquery";
 export type { GA4TrafficRow, GA4EcommerceRow } from "./sources/ga4";
-export type { SheetsAdSpendRow, SheetsSEORankingRow } from "./sources/google-sheets";
+export type { SheetsSEORankingRow } from "./sources/google-sheets";
 export type { MasterMetrics } from "./sources/monthly-analytics";
 
 // Normalized metric interfaces
