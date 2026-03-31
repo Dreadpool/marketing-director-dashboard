@@ -10,6 +10,7 @@ import { ActionItems } from "@/components/workflows/action-items";
 import { RunHistory } from "@/components/workflows/run-history";
 import { formatCadence, getCurrentDuePeriod } from "@/lib/workflows/cadence";
 import type { Workflow } from "@/lib/workflows";
+import { EvaluationWizard } from "@/components/workflows/evaluation-wizard";
 
 interface StepRun {
   id: string;
@@ -175,6 +176,11 @@ export function WorkflowDetail({ workflow }: WorkflowDetailProps) {
     } catch (err) {
       console.error("Failed to toggle action item:", err);
     }
+  }
+
+  // Guided evaluation workflows use the wizard UI
+  if (workflow.workflowType === "guided-evaluation") {
+    return <EvaluationWizard workflow={workflow} />;
   }
 
   // Build step statuses for the progress bar
