@@ -33,6 +33,7 @@ export const workflowStepRuns = pgTable("workflow_step_runs", {
   outputData: jsonb("output_data"),
   aiOutput: text("ai_output"),
   error: text("error"),
+  userResponse: jsonb("user_response"),
   startedAt: timestamp("started_at"),
   completedAt: timestamp("completed_at"),
 });
@@ -65,6 +66,7 @@ export const actionItems = pgTable("action_items", {
   text: text("text").notNull(),
   priority: varchar("priority", { length: 10 }),
   category: varchar("category", { length: 50 }),
+  owner: varchar("owner", { length: 20 }),
   completed: boolean("completed").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   completedAt: timestamp("completed_at"),
