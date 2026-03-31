@@ -68,6 +68,7 @@ Built first for Salt Lake Express (SLE) marketing operations. Designed to suppor
 - [x] Meta Ads Analysis workflow: fetch executor (SDK-based, campaign + ad + audience breakdowns), CTC framework prompts, custom visualization (KPI cards, campaign table, creative/audience sections)
 - [x] Apply 43% gross margin to CAC:Value ratio (regular routes, excludes grant-funded). Max CAC for 3:1 = $11.74.
 - [x] Meta Ads CPA thresholds aligned with unit economics: $9/$14 (was $50/$75), ROAS floor 3.0x (was 2.0x), 1.3x over-attribution. Evaluation guide embedded.
+- [x] Meta Ads Guided Evaluation Phase 1: Interactive step-by-step evaluation workflow (`meta-ads-evaluation`). New `guided-evaluation` workflow type with evaluation engine, wizard UI, per-step AI evaluation (Haiku 4.5), agree/override user decisions, editable action items with owner tags (Agency/Director/Joint). Phase 1 covers Step 1 (Decision Metrics + prospecting/retargeting CPA split) + CPA Diagnostic sub-flow (D1-D5: frequency, CPM trend, CTR trend, conversion rate, pattern match) + Step 6 (Action Items Summary). Steps 2-5 are Phase 2 placeholders. Design spec at `docs/superpowers/specs/2026-03-30-meta-ads-guided-evaluation-design.md`.
 
 ### In Progress
 
@@ -78,13 +79,19 @@ Built first for Salt Lake Express (SLE) marketing operations. Designed to suppor
 - [ ] Confirm TDS payment logic (call with TDS: how do cancellations affect payment_amount fields, is total_sale ever different from sum of payment slots)
 - [ ] Historical analysis archive (snapshot completed runs for instant historical access)
 - [ ] AI chat panel with real Claude integration (replace mock chat)
-- [ ] Remaining workflows: build executors for Google Ads, SEO Ranking, Email Marketing, Creative/Content, Flyer/Event
-- [ ] Promo Code Analysis: event-triggered cadence, FTP fetch, auto-run on expiration, route results to james.glass@saltlakeexpress.com
+- [ ] Google Ads Analysis workflow: fetch executor (Google Ads API + BigQuery), campaign spend summaries, search terms, geographic performance, CAC calculations
+- [ ] SEO Ranking Analysis workflow: fetch executor (Google Sheets keyword data), visibility scoring, tier distribution, rank changes, biggest movers
+- [ ] Email Marketing Review workflow: fetch executor (email platform API TBD), open/click rates, list health, segmentation analysis
+- [ ] Creative/Content Planning workflow: fetch executor (prior month performance + content calendar), theme identification, content calendar and creative briefs
+- [ ] Flyer/Event Planning workflow: fetch executor (upcoming events + venue schedules), event calendar review, flyer briefs and promotion plan
+- [ ] Promo Code Analysis workflow: event-triggered cadence, FTP fetch, auto-run on expiration, route results to james.glass@saltlakeexpress.com
+- [ ] Meta Ads Guided Evaluation Phase 2: Add Steps 2-5 (Backend Verification, Campaign Structure, Creative Health, Audience Check) to the guided evaluation. Step 2 needs BigQuery cross-reference (Meta purchases vs actual bookings, blended CAC, MER). Steps 3-5 use existing fetched data with new evaluation logic. Design spec at `docs/superpowers/specs/2026-03-30-meta-ads-guided-evaluation-design.md`.
+- [ ] Meta Ads Weekly Evaluation workflow: Lighter 6-check weekly workflow from CTC training guide "Weekly Agency Call Prep" section (CPA trends, prospecting vs retargeting, spend pacing, zombie campaigns, frequency + CPA correlation, prepare agency questions).
 - [ ] Cohort LTV tracking: group customers by acquisition year, track cumulative revenue + repeat purchase rate at 12/24/36 months after first booking. Replaces guesswork in CPA targeting with real data. Instead of "assume customers book 3 times," you get "2022 cohort booked 2.4 times in 36 months at $58 avg ticket with 40% margin, so LTV = $55.68 and max CAC = $18.56." Reveals whether newer cohorts are rebooking at the same rate as older cohorts at the same lifecycle point, and whether scaling ads is degrading customer quality. Feeds directly into Meta Ads CPA targets and marketing budget decisions. Data: BigQuery sales_orders + customer_first_order. Baseline (2026-03-29): median LTV $92, avg $180, 42% repeat rate, 346K customers with 1+ year history.
 
 ### Ideas
-- Codify Meta Ads training guide into interactive workflow evaluation — walk the user through CPA diagnosis, creative fatigue checks, and agency accountability questions step by step instead of presenting raw data. Current guide embedded as iframe at `/guides/meta-ads-training.html`.
 - Context-aware chat for historical runs (inject archived run data into chat context)
+
 - SaaS multi-tenancy
 - Corporate account settlement investigation (see roadmap notes in specs/)
 - Rebook detection via fuzzy matching (same email + similar route within N days)
