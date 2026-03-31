@@ -66,6 +66,8 @@ Built first for Salt Lake Express (SLE) marketing operations. Designed to suppor
 - [x] Workflow roster: 8 workflows (added Email Marketing, Creative/Content, Flyer/Event, Promo Code; removed BigQuery Sales)
 - [x] AI chat panel closed by default
 - [x] Meta Ads Analysis workflow: fetch executor (SDK-based, campaign + ad + audience breakdowns), CTC framework prompts, custom visualization (KPI cards, campaign table, creative/audience sections)
+- [x] Apply 43% gross margin to CAC:Value ratio (regular routes, excludes grant-funded). Max CAC for 3:1 = $11.74.
+- [x] Meta Ads CPA thresholds aligned with unit economics: $9/$14 (was $50/$75), ROAS floor 3.0x (was 2.0x), 1.3x over-attribution. Evaluation guide embedded.
 
 ### In Progress
 
@@ -78,7 +80,6 @@ Built first for Salt Lake Express (SLE) marketing operations. Designed to suppor
 - [ ] AI chat panel with real Claude integration (replace mock chat)
 - [ ] Remaining workflows: build executors for Google Ads, SEO Ranking, Email Marketing, Creative/Content, Flyer/Event
 - [ ] Promo Code Analysis: event-triggered cadence, FTP fetch, auto-run on expiration, route results to james.glass@saltlakeexpress.com
-- [x] Apply gross margin to CAC:Value ratio. Uses 43% margin on regular routes ($27.10/pax × 1.3 pax = $35.23 GP on ~$82 order). Grant-funded routes (65% blended) excluded from CAC calculations since ads drive regular route bookings. Max CAC for 3:1 = $11.75.
 - [ ] Cohort LTV tracking: group customers by acquisition year, track cumulative revenue + repeat purchase rate at 12/24/36 months after first booking. Replaces guesswork in CPA targeting with real data. Instead of "assume customers book 3 times," you get "2022 cohort booked 2.4 times in 36 months at $58 avg ticket with 40% margin, so LTV = $55.68 and max CAC = $18.56." Reveals whether newer cohorts are rebooking at the same rate as older cohorts at the same lifecycle point, and whether scaling ads is degrading customer quality. Feeds directly into Meta Ads CPA targets and marketing budget decisions. Data: BigQuery sales_orders + customer_first_order. Baseline (2026-03-29): median LTV $92, avg $180, 42% repeat rate, 346K customers with 1+ year history.
 
 ### Ideas
