@@ -596,6 +596,124 @@ export async function initEvaluationRun(
 }
 
 /**
+ * Initialize a guided evaluation from an existing analysis run.
+ * Reads the fetch step's outputData from the parent run instead of re-fetching from Meta API.
+ * Creates a NEW evaluation run record (separate from the parent analysis run).
+ */
+export async function initEvaluationFromRun(
+  parentRunId: string,
+  slug: string,
+  period: MonthPeriod,
+): Promise<{ runId: string; currentStep: PreparedStep }> {
+  // Read the fetch step's outputData from the parent run
+  const parentSteps = await db
+    .select()
+    .from(workflowStepRuns)
+    .where(
+      and(
+        eq(workflowStepRuns.runId, parentRunId),
+        eq(workflowStepRuns.stepId, "fetch"),
+      ),
+    )
+    .limit(1);
+
+  if (parentSteps.length === 0 || !parentSteps[0].outputData) {
+    throw new Error("Parent run has no completed fetch step");
+  }
+
+  const metrics = parentSteps[0].outputData as unknown as MetaAdsMetrics;
+
+  // Check for existing in-progress evaluation run for this period
+  const existingRuns = await db
+    .select()
+    .from(workflowRuns)
+    .where(
+      and(
+        eq(workflowRuns.workflowSlug, `${slug}__evaluation`),
+        eq(workflowRuns.periodYear, period.year),
+        eq(workflowRuns.periodMonth, period.month),
+        eq(workflowRuns.status, "running"),
+      ),
+    )
+    .limit(1);
+
+  if (existingRuns.length > 0) {
+    // Resume existing evaluation run, but seed the cache with parent's data
+    runDataCaches.set(existingRuns[0].id, { metrics });
+    const resumeResult = await resumeEvaluationRun(
+      existingRuns[0].id,
+      slug,
+      period,
+    );
+    if (resumeResult.status === "in-progress") {
+      return {
+        runId: existingRuns[0].id,
+        currentStep: resumeResult.currentStep,
+      };
+    }
+    // If completed, fall through to create new run
+  }
+
+  // Create a new evaluation run record (uses slug__evaluation to distinguish)
+  const [run] = await db
+    .insert(workflowRuns)
+    .values({
+      workflowSlug: `${slug}__evaluation`,
+      periodYear: period.year,
+      periodMonth: period.month,
+      status: "running",
+    })
+    .returning();
+
+  const runId = run.id;
+
+  // Cache the metrics from the parent run (no re-fetch needed)
+  runDataCaches.set(runId, { metrics });
+
+  // Determine CPA branching from the cached metrics
+  const cpaOffTarget = isCpaOffTarget(metrics);
+  const activeStepIds = resolveActiveSteps(cpaOffTarget);
+
+  // Create evaluation step records
+  const stepInserts = activeStepIds.map((stepId, i) => ({
+    runId,
+    stepId,
+    stepOrder: i,
+    status: "pending" as const,
+  }));
+
+  await db.insert(workflowStepRuns).values(stepInserts);
+
+  // Prepare Step 1 with AI evaluation
+  const firstStepId = activeStepIds[0];
+  const currentStep = await prepareStep(
+    firstStepId,
+    runId,
+    period,
+    [],
+    activeStepIds,
+  );
+
+  // Mark Step 1 as active
+  await db
+    .update(workflowStepRuns)
+    .set({
+      status: "running",
+      startedAt: new Date(),
+      outputData: currentStep.data as Record<string, unknown>,
+      aiOutput: currentStep.aiEvaluation,
+    })
+    .where(
+      and(
+        eq(workflowStepRuns.runId, runId),
+        eq(workflowStepRuns.stepId, firstStepId),
+      ),
+    );
+
+  return { runId, currentStep };
+}
+
+/**
  * Handle user response for a step. Records decision and action items,
  * prepares next step, returns it.
  */

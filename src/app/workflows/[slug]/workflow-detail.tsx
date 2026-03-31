@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Play, Loader2, BookOpen } from "lucide-react";
+import { Play, Loader2, BookOpen, ClipboardCheck } from "lucide-react";
 import { PeriodSelector } from "@/components/workflows/period-selector";
 import { StepProgress } from "@/components/workflows/step-progress";
 import { StepResult } from "@/components/workflows/step-result";
@@ -67,6 +67,7 @@ export function WorkflowDetail({ workflow }: WorkflowDetailProps) {
   const [currentRun, setCurrentRun] = useState<RunDetail | null>(null);
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [selectedRunId, setSelectedRunId] = useState<string | undefined>();
+  const [evaluationMode, setEvaluationMode] = useState(false);
 
   const loadRuns = useCallback(async () => {
     try {
@@ -178,9 +179,16 @@ export function WorkflowDetail({ workflow }: WorkflowDetailProps) {
     }
   }
 
-  // Guided evaluation workflows use the wizard UI
-  if (workflow.workflowType === "guided-evaluation") {
-    return <EvaluationWizard workflow={workflow} />;
+  // Evaluation wizard mode (meta-ads-analysis only)
+  if (evaluationMode && currentRun) {
+    return (
+      <EvaluationWizard
+        parentRunId={currentRun.id}
+        slug={workflow.slug}
+        period={{ year, month }}
+        onBack={() => setEvaluationMode(false)}
+      />
+    );
   }
 
   // Build step statuses for the progress bar
@@ -277,6 +285,21 @@ export function WorkflowDetail({ workflow }: WorkflowDetailProps) {
           />
         );
       })}
+
+      {/* Walk Through Evaluation button (meta-ads-analysis only, after fetch completes) */}
+      {workflow.slug === "meta-ads-analysis" &&
+        currentRun &&
+        currentRun.steps?.some(
+          (s) => s.stepId === "fetch" && s.status === "completed",
+        ) && (
+          <button
+            onClick={() => setEvaluationMode(true)}
+            className="flex items-center gap-2 rounded-md border border-gold/20 bg-gold/5 px-4 py-2.5 text-sm font-medium text-gold transition-colors hover:bg-gold/10"
+          >
+            <ClipboardCheck className="h-4 w-4" />
+            Walk Through Evaluation
+          </button>
+        )}
 
       {/* Action Items */}
       {currentRun && currentRun.actionItems?.length > 0 && (

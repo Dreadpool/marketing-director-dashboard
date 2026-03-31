@@ -2,79 +2,92 @@
 
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
-import { Loader2, Play, RotateCcw } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { PeriodSelector } from "@/components/workflows/period-selector";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { Loader2, RotateCcw, ArrowLeft } from "lucide-react";
 import { EvaluationStep } from "@/components/workflows/evaluation-step";
 import { ActionSummaryView } from "@/components/workflows/steps/action-summary";
-import type { Workflow } from "@/lib/workflows";
 import type {
   PreparedStep,
   EvaluationActionItem,
   UserDecision,
   EvaluationSummary,
 } from "@/lib/workflows/evaluations/types";
-import { formatCadence, getCurrentDuePeriod } from "@/lib/workflows/cadence";
 import {
   getMainSpineSteps,
   getDiagnosticSteps,
 } from "@/lib/workflows/evaluations/meta-ads-monthly";
 
 type WizardState =
-  | { phase: "idle" }
   | { phase: "loading" }
   | { phase: "step"; runId: string; currentStep: PreparedStep }
   | { phase: "summary"; runId: string; summary: EvaluationSummary }
   | { phase: "error"; message: string };
 
 interface EvaluationWizardProps {
-  workflow: Workflow;
+  parentRunId: string;
+  slug: string;
+  period: { year: number; month: number };
+  onBack: () => void;
 }
 
-export function EvaluationWizard({ workflow }: EvaluationWizardProps) {
-  const duePeriod = getCurrentDuePeriod(workflow);
-  const now = new Date();
-  const [year, setYear] = useState(duePeriod?.year ?? now.getFullYear());
-  const [month, setMonth] = useState(duePeriod?.month ?? now.getMonth() + 1);
-  const [state, setState] = useState<WizardState>({ phase: "idle" });
+export function EvaluationWizard({
+  parentRunId,
+  slug,
+  period,
+  onBack,
+}: EvaluationWizardProps) {
+  const [state, setState] = useState<WizardState>({ phase: "loading" });
+  const initRef = useRef(false);
 
-  const period = useMemo(() => ({ year, month }), [year, month]);
+  // Initialize evaluation on mount
+  useEffect(() => {
+    if (initRef.current) return;
+    initRef.current = true;
 
-  const startEvaluation = useCallback(async () => {
-    setState({ phase: "loading" });
+    async function init() {
+      try {
+        const res = await fetch(
+          `/api/workflows/${slug}/runs/${parentRunId}/evaluate`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ period }),
+          },
+        );
 
-    try {
-      const res = await fetch(`/api/workflows/${workflow.slug}/run`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ period }),
-      });
+        if (!res.ok) {
+          const data = await res.json();
+          setState({
+            phase: "error",
+            message: data.error ?? "Failed to start evaluation",
+          });
+          return;
+        }
 
-      if (!res.ok) {
         const data = await res.json();
-        setState({ phase: "error", message: data.error ?? "Failed to start evaluation" });
-        return;
-      }
 
-      const data = await res.json();
-
-      if (data.currentStep) {
+        if (data.currentStep) {
+          setState({
+            phase: "step",
+            runId: data.runId,
+            currentStep: data.currentStep,
+          });
+        } else {
+          setState({
+            phase: "error",
+            message: "Unexpected response from server",
+          });
+        }
+      } catch (err) {
         setState({
-          phase: "step",
-          runId: data.runId,
-          currentStep: data.currentStep,
+          phase: "error",
+          message: err instanceof Error ? err.message : "Network error",
         });
-      } else {
-        setState({ phase: "error", message: "Unexpected response from server" });
       }
-    } catch (err) {
-      setState({
-        phase: "error",
-        message: err instanceof Error ? err.message : "Network error",
-      });
     }
-  }, [workflow.slug, period]);
+
+    init();
+  }, [slug, parentRunId, period]);
 
   const handleRespond = useCallback(
     async (
@@ -85,11 +98,12 @@ export function EvaluationWizard({ workflow }: EvaluationWizardProps) {
     ) => {
       if (state.phase !== "step") return;
 
+      const currentRunId = state.runId;
       setState({ phase: "loading" });
 
       try {
         const res = await fetch(
-          `/api/workflows/${workflow.slug}/runs/${state.runId}/steps/${stepId}/respond`,
+          `/api/workflows/${slug}/runs/${currentRunId}/steps/${stepId}/respond`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -104,7 +118,10 @@ export function EvaluationWizard({ workflow }: EvaluationWizardProps) {
 
         if (!res.ok) {
           const data = await res.json();
-          setState({ phase: "error", message: data.error ?? "Failed to submit response" });
+          setState({
+            phase: "error",
+            message: data.error ?? "Failed to submit response",
+          });
           return;
         }
 
@@ -113,13 +130,13 @@ export function EvaluationWizard({ workflow }: EvaluationWizardProps) {
         if (data.done) {
           setState({
             phase: "summary",
-            runId: state.runId,
+            runId: currentRunId,
             summary: data.summary,
           });
         } else if (data.nextStep) {
           setState({
             phase: "step",
-            runId: state.runId,
+            runId: currentRunId,
             currentStep: data.nextStep,
           });
         }
@@ -130,18 +147,19 @@ export function EvaluationWizard({ workflow }: EvaluationWizardProps) {
         });
       }
     },
-    [state, workflow.slug, period],
+    [state, slug, period],
   );
 
   const handleRetry = useCallback(async () => {
     if (state.phase !== "step") return;
 
     const stepId = state.currentStep.stepId;
+    const currentRunId = state.runId;
     setState({ phase: "loading" });
 
     try {
       const res = await fetch(
-        `/api/workflows/${workflow.slug}/runs/${state.runId}/steps/${stepId}/respond`,
+        `/api/workflows/${slug}/runs/${currentRunId}/steps/${stepId}/respond`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -158,7 +176,7 @@ export function EvaluationWizard({ workflow }: EvaluationWizardProps) {
       const data = await res.json();
       setState({
         phase: "step",
-        runId: state.runId,
+        runId: currentRunId,
         currentStep: data.step,
       });
     } catch (err) {
@@ -167,61 +185,28 @@ export function EvaluationWizard({ workflow }: EvaluationWizardProps) {
         message: err instanceof Error ? err.message : "Network error",
       });
     }
-  }, [state, workflow.slug, period]);
+  }, [state, slug, period]);
 
   const mainSpineSteps = getMainSpineSteps();
   const diagnosticSteps = getDiagnosticSteps();
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="font-heading text-2xl font-semibold tracking-tight">
-              {workflow.title}
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {workflow.description}
-            </p>
-          </div>
-          <Badge
-            variant="outline"
-            className="border-gold/20 text-xs text-gold"
-          >
-            {formatCadence(workflow.cadence)}
-          </Badge>
-        </div>
-      </div>
-
-      {/* Controls */}
-      {state.phase === "idle" && (
-        <div className="flex items-center gap-4">
-          <PeriodSelector
-            year={year}
-            month={month}
-            onChange={(y, m) => {
-              setYear(y);
-              setMonth(m);
-            }}
-            disabled={false}
-          />
-          <button
-            onClick={startEvaluation}
-            className="flex items-center gap-2 rounded-md bg-gold px-4 py-2 text-sm font-medium text-gold-foreground transition-colors hover:bg-gold/90"
-          >
-            <Play className="h-4 w-4" />
-            Start Monthly Evaluation
-          </button>
-        </div>
-      )}
+      {/* Back button */}
+      <button
+        onClick={onBack}
+        className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <ArrowLeft className="h-3.5 w-3.5" />
+        Back to Dashboard
+      </button>
 
       {/* Loading */}
       {state.phase === "loading" && (
         <div className="flex flex-col items-center justify-center py-20">
           <Loader2 className="h-8 w-8 animate-spin text-gold" />
           <p className="mt-4 text-sm text-muted-foreground">
-            Fetching data and preparing evaluation...
+            Preparing evaluation...
           </p>
         </div>
       )}
@@ -231,11 +216,11 @@ export function EvaluationWizard({ workflow }: EvaluationWizardProps) {
         <div className="rounded-md border border-destructive/20 bg-destructive/5 p-6 text-center">
           <p className="text-sm text-destructive">{state.message}</p>
           <button
-            onClick={() => setState({ phase: "idle" })}
+            onClick={onBack}
             className="mt-4 flex items-center gap-2 mx-auto rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
           >
             <RotateCcw className="h-3.5 w-3.5" />
-            Try Again
+            Back to Dashboard
           </button>
         </div>
       )}
@@ -300,10 +285,10 @@ export function EvaluationWizard({ workflow }: EvaluationWizardProps) {
             </p>
           </div>
           <button
-            onClick={() => setState({ phase: "idle" })}
+            onClick={onBack}
             className="flex items-center gap-2 mx-auto rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
           >
-            Start New Evaluation
+            Back to Dashboard
           </button>
         </div>
       )}

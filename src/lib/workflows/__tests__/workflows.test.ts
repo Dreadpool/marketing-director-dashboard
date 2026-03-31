@@ -2,35 +2,20 @@ import { describe, it, expect } from "vitest";
 import { getWorkflowBySlug, workflows } from "@/lib/workflows";
 
 describe("Workflow registry", () => {
-  it("finds meta-ads-evaluation by slug", () => {
+  it("meta-ads-evaluation is not in the registry", () => {
     const wf = getWorkflowBySlug("meta-ads-evaluation");
+    expect(wf).toBeUndefined();
+  });
+
+  it("meta-ads-analysis is active with steps", () => {
+    const wf = getWorkflowBySlug("meta-ads-analysis");
     expect(wf).toBeDefined();
-    expect(wf!.workflowType).toBe("guided-evaluation");
     expect(wf!.status).toBe("active");
+    expect(wf!.steps.length).toBeGreaterThan(0);
   });
 
-  it("meta-ads-evaluation has empty steps array", () => {
-    const wf = getWorkflowBySlug("meta-ads-evaluation");
-    expect(wf!.steps).toEqual([]);
-  });
-
-  it("linear workflows have undefined or 'linear' workflowType", () => {
-    const linear = workflows.filter(
-      (w) => w.slug !== "meta-ads-evaluation",
-    );
-    for (const wf of linear) {
-      expect(
-        wf.workflowType === undefined || wf.workflowType === "linear",
-      ).toBe(true);
-    }
-  });
-
-  it("linear workflows with active status have non-empty steps", () => {
-    const active = workflows.filter(
-      (w) =>
-        w.status === "active" &&
-        (w.workflowType === undefined || w.workflowType === "linear"),
-    );
+  it("active workflows have non-empty steps", () => {
+    const active = workflows.filter((w) => w.status === "active");
     for (const wf of active) {
       expect(wf.steps.length).toBeGreaterThan(0);
     }
