@@ -179,36 +179,38 @@ Built first for Salt Lake Express (SLE) marketing operations. Designed to suppor
 | GA4 | googleapis | Sessions, traffic, conversions | No |
 | QuickBooks GL | @google-cloud/bigquery | Ad spend, operating expenses (quickbooks_gl dataset) | Yes |
 
-## Workflow Instructions
+## Superpowers Development Workflow
 
-These instructions define how Claude should behave in this project. Follow them every session.
+Any feature or non-trivial change follows this sequence. No skipping steps.
+
+### Workflow Sequence
+
+1. **Brainstorm** → invoke `superpowers:brainstorming`
+2. **Write spec** → brainstorming skill handles this (saves to `docs/superpowers/specs/`)
+3. **Write plan** → invoke `superpowers:writing-plans`
+4. **Implement** → invoke `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans`
+5. **Verify** → invoke `superpowers:verification-before-completion` (see project verification table below)
+6. **Finish** → invoke `superpowers:finishing-a-development-branch`
+
+For bugs, use `superpowers:systematic-debugging` instead of brainstorming.
+
+### Project Verification Table
+
+Build passing is NOT sufficient. Before claiming work is done:
+
+| Change Type | Required Verification |
+|-------------|----------------------|
+| Any code change | `npm run build` + `npm test` |
+| API route | `curl` the endpoint, check response |
+| UI component | Load the page in browser, check for runtime errors |
+| DB schema | `set -a && source .env.local && set +a && npx drizzle-kit push` against actual database |
+| Subagent work | Independently verify changes, don't trust agent reports |
 
 ### On Session Start
-- Read this CLAUDE.md to understand current project state.
-- If a feature is "In Progress", brief the user: what's done, what remains.
-- If nothing is in progress, tell the user what's next on the roadmap.
-
-### Before Planning Any Feature
-- Review the full Roadmap to understand how this feature fits into the product.
-- Read Architecture Decisions for relevant prior choices.
-- Scan existing code that this feature will interact with.
-- Then proceed with brainstorming and planning, informed by this context.
+- If a feature is "In Progress" on the Roadmap: brief what's done, what remains.
+- If nothing is in progress: present the next "Up Next" item from the Roadmap.
 
 ### After Completing Any Feature
-- Update the Roadmap: move the feature to "Completed" with today's date.
-- Move the next "Up Next" feature to "In Progress" if the user wants to continue.
-- Log any architecture decisions made during development.
-- Note any impacts on upcoming features based on what was learned.
+- Update the Roadmap (move to "Completed" with date).
+- Log architecture decisions.
 - Commit the updated CLAUDE.md.
-
-### UI Verification
-For features with UI changes: use the webapp-testing skill to visually verify in a browser before marking the feature complete. Do not rely only on unit tests for UI work.
-
-### Skill Transparency
-When activating any skill (Superpowers brainstorming, TDD, code review, webapp-testing, frontend-design, etc.), announce which skill you're using and why. This helps the user verify the full workflow is running.
-
-### When the User Says "What's Next"
-- Read the Roadmap.
-- Present the next feature from "Up Next" with a brief description.
-- Ask if they want to start on it or pick a different feature.
-- Begin brainstorming for the chosen feature.
