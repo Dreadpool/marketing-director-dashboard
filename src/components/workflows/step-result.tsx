@@ -71,7 +71,7 @@ export function StepResult({
             <FetchStepSummary data={outputData} />
           ) : null}
           {aiOutput && (
-            <div className="prose prose-invert prose-sm max-w-none">
+            <div className="prose prose-invert prose-sm max-w-none prose-headings:text-foreground prose-headings:font-heading prose-strong:text-foreground prose-a:text-gold prose-th:text-xs prose-td:text-sm">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                 {aiOutput}
               </ReactMarkdown>
