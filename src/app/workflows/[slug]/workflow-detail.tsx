@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Play, Loader2 } from "lucide-react";
 import { PeriodSelector } from "@/components/workflows/period-selector";
@@ -8,7 +8,7 @@ import { StepProgress } from "@/components/workflows/step-progress";
 import { StepResult } from "@/components/workflows/step-result";
 import { ActionItems } from "@/components/workflows/action-items";
 import { RunHistory } from "@/components/workflows/run-history";
-import { formatCadence } from "@/lib/workflows/cadence";
+import { formatCadence, getCurrentDuePeriod } from "@/lib/workflows/cadence";
 import type { Workflow } from "@/lib/workflows";
 
 interface StepRun {
@@ -58,9 +58,10 @@ interface WorkflowDetailProps {
 }
 
 export function WorkflowDetail({ workflow }: WorkflowDetailProps) {
+  const duePeriod = getCurrentDuePeriod(workflow);
   const now = new Date();
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [year, setYear] = useState(duePeriod?.year ?? now.getFullYear());
+  const [month, setMonth] = useState(duePeriod?.month ?? now.getMonth() + 1);
   const [running, setRunning] = useState(false);
   const [currentRun, setCurrentRun] = useState<RunDetail | null>(null);
   const [runs, setRuns] = useState<RunSummary[]>([]);
@@ -93,6 +94,15 @@ export function WorkflowDetail({ workflow }: WorkflowDetailProps) {
     }
   }
 
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Clean up polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
+
   async function handleRun() {
     setRunning(true);
     setCurrentRun(null);
@@ -108,15 +118,37 @@ export function WorkflowDetail({ workflow }: WorkflowDetailProps) {
 
       if (!res.ok) {
         console.error("Workflow execution failed:", data.error);
+        setRunning(false);
         return;
       }
 
-      // Load the full run detail
-      await loadRunDetail(data.id);
-      await loadRuns();
+      // Start polling for progressive updates
+      const runId = data.id;
+      setSelectedRunId(runId);
+
+      // Load initial state immediately
+      await loadRunDetail(runId);
+
+      pollRef.current = setInterval(async () => {
+        try {
+          const pollRes = await fetch(
+            `/api/workflows/${workflow.slug}/runs/${runId}`,
+          );
+          const detail = await pollRes.json();
+          setCurrentRun(detail);
+
+          if (detail.status === "completed" || detail.status === "failed") {
+            if (pollRef.current) clearInterval(pollRef.current);
+            pollRef.current = null;
+            setRunning(false);
+            await loadRuns();
+          }
+        } catch (err) {
+          console.error("Polling error:", err);
+        }
+      }, 2000);
     } catch (err) {
       console.error("Failed to run workflow:", err);
-    } finally {
       setRunning(false);
     }
   }

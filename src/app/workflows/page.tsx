@@ -11,9 +11,12 @@ import { Badge } from "@/components/ui/badge";
 import {
   Megaphone,
   Search,
-  Database,
   TrendingUp,
   Calendar,
+  Mail,
+  Palette,
+  ImageIcon,
+  Ticket,
 } from "lucide-react";
 import { workflows } from "@/lib/workflows";
 import { formatCadence } from "@/lib/workflows/cadence";
@@ -27,22 +30,26 @@ import { cn } from "@/lib/utils";
 const iconMap: Record<string, React.ElementType> = {
   megaphone: Megaphone,
   search: Search,
-  database: Database,
   "trending-up": TrendingUp,
   calendar: Calendar,
+  mail: Mail,
+  palette: Palette,
+  image: ImageIcon,
+  ticket: Ticket,
 };
-
-interface CalendarWorkflow {
-  slug: string;
-  isDue: boolean;
-  lastCompletedAt: string | null;
-  lastPeriod: { year: number; month: number } | null;
-}
 
 const MONTH_NAMES = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
+
+interface CalendarWorkflow {
+  slug: string;
+  status: "due" | "completed" | "coming-soon" | "on-demand";
+  duePeriod: { year: number; month: number } | null;
+  dueDate: string | null;
+  cadence: string;
+}
 
 export default function WorkflowsPage() {
   const [calendarData, setCalendarData] = useState<
@@ -79,18 +86,20 @@ export default function WorkflowsPage() {
         {workflows.map((workflow) => {
           const Icon = iconMap[workflow.icon] ?? Calendar;
           const cal = calendarData[workflow.slug];
-          const isActive = workflow.status === "active";
 
           let statusLabel = "Coming Soon";
           let statusStyle = "";
 
-          if (isActive && cal) {
-            if (cal.isDue) {
-              statusLabel = "Due";
+          if (cal) {
+            if (cal.status === "due" && cal.duePeriod) {
+              statusLabel = `Due ${MONTH_NAMES[cal.duePeriod.month - 1]} ${cal.duePeriod.year}`;
               statusStyle = "bg-gold/10 text-gold border-gold/20";
-            } else if (cal.lastPeriod) {
-              statusLabel = `Completed ${MONTH_NAMES[cal.lastPeriod.month - 1]} ${cal.lastPeriod.year}`;
-              statusStyle = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+            } else if (cal.status === "completed" && cal.duePeriod) {
+              statusLabel = `Completed ${MONTH_NAMES[cal.duePeriod.month - 1]} ${cal.duePeriod.year}`;
+              statusStyle =
+                "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+            } else if (cal.status === "on-demand") {
+              statusLabel = "On Demand";
             }
           }
 
@@ -100,7 +109,7 @@ export default function WorkflowsPage() {
                 <Card
                   className={cn(
                     "group h-full cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-gold/5",
-                    isActive && cal?.isDue && "border-gold/30",
+                    cal?.status === "due" && "border-gold/30",
                   )}
                 >
                   <CardHeader className="flex flex-row items-start justify-between gap-2">
@@ -114,7 +123,9 @@ export default function WorkflowsPage() {
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1">
                       <Badge
-                        variant={isActive ? "outline" : "secondary"}
+                        variant={
+                          workflow.status === "active" ? "outline" : "secondary"
+                        }
                         className={cn(
                           "text-[10px] uppercase tracking-wider",
                           statusStyle,
@@ -122,7 +133,7 @@ export default function WorkflowsPage() {
                       >
                         {statusLabel}
                       </Badge>
-                      {isActive && (
+                      {workflow.status === "active" && (
                         <span className="text-[10px] text-muted-foreground">
                           {formatCadence(workflow.cadence)}
                         </span>

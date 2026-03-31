@@ -1,12 +1,16 @@
 import type { DataSource } from "@/lib/schemas/types";
 
-export type StepType = "fetch" | "analyze" | "explore" | "recommend";
+export type StepType = "fetch" | "analyze" | "recommend";
 
-export type WorkflowCadence =
-  | "monthly"
-  | "quarterly"
-  | "yearly"
-  | "on-demand";
+export type DueRule =
+  | { type: "day-of-month"; day: number }
+  | { type: "nth-weekday"; n: number; weekday: number }
+  | { type: "on-demand" };
+
+export type WorkflowCadence = {
+  frequency: "monthly" | "quarterly" | "yearly" | "on-demand";
+  dueRule: DueRule;
+};
 
 export type WorkflowStepDef = {
   id: string;

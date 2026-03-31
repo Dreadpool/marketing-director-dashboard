@@ -14,13 +14,134 @@ export interface Workflow {
 
 export const workflows: Workflow[] = [
   {
+    slug: "creative-content-planning",
+    title: "Creative/Content Planning",
+    description:
+      "Monthly content brainstorm: campaign themes, creative assets, social calendar, and content pipeline.",
+    icon: "palette",
+    status: "coming-soon",
+    cadence: { frequency: "monthly", dueRule: { type: "day-of-month", day: 1 } },
+    dataSources: [],
+    steps: [
+      {
+        id: "fetch",
+        label: "Fetch Data",
+        description: "Pull prior month performance and content calendar",
+        type: "fetch",
+      },
+      {
+        id: "analyze",
+        label: "Initial Analysis",
+        description: "Content performance review, theme identification",
+        type: "analyze",
+      },
+      {
+        id: "recommend",
+        label: "Recommendations",
+        description: "Content calendar and creative briefs for the month",
+        type: "recommend",
+      },
+    ],
+  },
+  {
+    slug: "seo-ranking-analysis",
+    title: "SEO Ranking Analysis",
+    description:
+      "Keyword rank tracking, visibility scoring, tier distribution, and biggest movers across websites.",
+    icon: "trending-up",
+    status: "coming-soon",
+    cadence: { frequency: "monthly", dueRule: { type: "day-of-month", day: 3 } },
+    dataSources: ["google_sheets"],
+    steps: [
+      {
+        id: "fetch",
+        label: "Fetch Data",
+        description: "Pull keyword rankings from Google Sheets",
+        type: "fetch",
+        dataSources: ["google_sheets"],
+      },
+      {
+        id: "analyze",
+        label: "Initial Analysis",
+        description: "Visibility scoring, tier distribution, rank changes",
+        type: "analyze",
+      },
+      {
+        id: "recommend",
+        label: "Recommendations",
+        description: "SEO priorities and content opportunities",
+        type: "recommend",
+      },
+    ],
+  },
+  {
+    slug: "email-marketing-review",
+    title: "Email Marketing Review",
+    description:
+      "Email campaign performance, open/click rates, list health, and segmentation analysis.",
+    icon: "mail",
+    status: "coming-soon",
+    cadence: { frequency: "monthly", dueRule: { type: "day-of-month", day: 3 } },
+    dataSources: [],
+    steps: [
+      {
+        id: "fetch",
+        label: "Fetch Data",
+        description: "Pull email campaign metrics",
+        type: "fetch",
+      },
+      {
+        id: "analyze",
+        label: "Initial Analysis",
+        description: "Open rates, click rates, list growth, segmentation",
+        type: "analyze",
+      },
+      {
+        id: "recommend",
+        label: "Recommendations",
+        description: "Email optimization and audience targeting actions",
+        type: "recommend",
+      },
+    ],
+  },
+  {
+    slug: "flyer-event-planning",
+    title: "Flyer/Event Planning",
+    description:
+      "Monthly event calendar, flyer design briefs, venue partnerships, and promotional collateral planning.",
+    icon: "image",
+    status: "coming-soon",
+    cadence: { frequency: "monthly", dueRule: { type: "nth-weekday", n: 1, weekday: 1 } },
+    dataSources: [],
+    steps: [
+      {
+        id: "fetch",
+        label: "Fetch Data",
+        description: "Pull upcoming events and venue schedules",
+        type: "fetch",
+      },
+      {
+        id: "analyze",
+        label: "Initial Analysis",
+        description: "Event calendar review, past flyer performance",
+        type: "analyze",
+      },
+      {
+        id: "recommend",
+        label: "Recommendations",
+        description: "Flyer briefs and event promotion plan",
+        type: "recommend",
+      },
+    ],
+  },
+  {
     slug: "meta-ads-analysis",
     title: "Meta Ads Analysis",
     description:
       "Campaign performance diagnostics, creative fatigue detection, audience insights, and prioritized action items.",
     icon: "megaphone",
-    status: "coming-soon",
-    cadence: "monthly",
+    status: "active",
+    cadence: { frequency: "monthly", dueRule: { type: "day-of-month", day: 10 } },
     dataSources: ["meta_ads"],
     steps: [
       {
@@ -38,12 +159,6 @@ export const workflows: Workflow[] = [
         type: "analyze",
       },
       {
-        id: "explore",
-        label: "Deep Exploration",
-        description: "Creative fatigue detection, audience overlap, spend efficiency",
-        type: "explore",
-      },
-      {
         id: "recommend",
         label: "Recommendations",
         description: "Prioritized action items for Meta campaigns",
@@ -58,7 +173,7 @@ export const workflows: Workflow[] = [
       "Campaign spend summaries, search terms, geographic performance, and CAC calculations.",
     icon: "search",
     status: "coming-soon",
-    cadence: "monthly",
+    cadence: { frequency: "monthly", dueRule: { type: "day-of-month", day: 10 } },
     dataSources: ["google_ads", "bigquery"],
     steps: [
       {
@@ -75,89 +190,9 @@ export const workflows: Workflow[] = [
         type: "analyze",
       },
       {
-        id: "explore",
-        label: "Deep Exploration",
-        description: "Keyword efficiency, geo targeting, daily trends",
-        type: "explore",
-      },
-      {
         id: "recommend",
         label: "Recommendations",
         description: "Prioritized action items for Google campaigns",
-        type: "recommend",
-      },
-    ],
-  },
-  {
-    slug: "bigquery-sales-analysis",
-    title: "BigQuery Sales Analysis",
-    description:
-      "Revenue calculations, customer segmentation, trip analysis, and payment breakdowns.",
-    icon: "database",
-    status: "coming-soon",
-    cadence: "monthly",
-    dataSources: ["bigquery"],
-    steps: [
-      {
-        id: "fetch",
-        label: "Fetch Data",
-        description: "Pull sales and customer data from BigQuery",
-        type: "fetch",
-        dataSources: ["bigquery"],
-      },
-      {
-        id: "analyze",
-        label: "Initial Analysis",
-        description: "Revenue, orders, customer segmentation, payment methods",
-        type: "analyze",
-      },
-      {
-        id: "explore",
-        label: "Deep Exploration",
-        description: "Route analysis, LTV patterns, payment trends",
-        type: "explore",
-      },
-      {
-        id: "recommend",
-        label: "Recommendations",
-        description: "Revenue optimization and customer retention actions",
-        type: "recommend",
-      },
-    ],
-  },
-  {
-    slug: "seo-ranking-analysis",
-    title: "SEO Ranking Analysis",
-    description:
-      "Keyword rank tracking, visibility scoring, tier distribution, and biggest movers across websites.",
-    icon: "trending-up",
-    status: "coming-soon",
-    cadence: "monthly",
-    dataSources: ["google_sheets"],
-    steps: [
-      {
-        id: "fetch",
-        label: "Fetch Data",
-        description: "Pull keyword rankings from Google Sheets",
-        type: "fetch",
-        dataSources: ["google_sheets"],
-      },
-      {
-        id: "analyze",
-        label: "Initial Analysis",
-        description: "Visibility scoring, tier distribution, rank changes",
-        type: "analyze",
-      },
-      {
-        id: "explore",
-        label: "Deep Exploration",
-        description: "Biggest movers, cross-site patterns, competitive gaps",
-        type: "explore",
-      },
-      {
-        id: "recommend",
-        label: "Recommendations",
-        description: "SEO priorities and content opportunities",
         type: "recommend",
       },
     ],
@@ -169,34 +204,60 @@ export const workflows: Workflow[] = [
       "Unified monthly report combining all sources: revenue, customers, CAC, payment analysis, and promo codes.",
     icon: "calendar",
     status: "active",
-    cadence: "monthly",
-    dataSources: ["bigquery", "meta_ads", "google_ads"],
+    cadence: { frequency: "monthly", dueRule: { type: "day-of-month", day: 10 } },
+    dataSources: ["bigquery", "quickbooks_gl"],
     steps: [
       {
         id: "fetch",
         label: "Fetch Data",
-        description: "Pull from BigQuery, Meta Ads, and Google Ads",
+        description:
+          "Pull sales orders from BigQuery, ad spend from QuickBooks GL, CardPointe settlements",
         type: "fetch",
-        dataSources: ["bigquery", "meta_ads", "google_ads"],
+        dataSources: ["bigquery", "quickbooks_gl"],
       },
       {
         id: "analyze",
         label: "Initial Analysis",
         description:
-          "Revenue, customers, CAC, ROAS calculations and pattern detection",
+          "Revenue breakdown, payment analysis, customer segmentation, promo codes, CAC",
         type: "analyze",
-      },
-      {
-        id: "explore",
-        label: "Deep Exploration",
-        description:
-          "Dig into anomalies and drivers based on initial findings",
-        type: "explore",
       },
       {
         id: "recommend",
         label: "Recommendations",
-        description: "Prioritized action items with reasoning",
+        description:
+          "Budget, pricing, retention, operations, and customer-care action items",
+        type: "recommend",
+      },
+    ],
+  },
+  {
+    slug: "promo-code-analysis",
+    title: "Promo Code Analysis",
+    description:
+      "Promo code performance analysis: usage rates, revenue impact, discount costs, and abuse detection. Future: auto-triggered on promo expiration.",
+    icon: "ticket",
+    status: "coming-soon",
+    cadence: { frequency: "on-demand", dueRule: { type: "on-demand" } },
+    dataSources: ["bigquery"],
+    steps: [
+      {
+        id: "fetch",
+        label: "Fetch Data",
+        description: "Pull promo code usage from BigQuery",
+        type: "fetch",
+        dataSources: ["bigquery"],
+      },
+      {
+        id: "analyze",
+        label: "Initial Analysis",
+        description: "Usage rates, revenue impact, discount analysis",
+        type: "analyze",
+      },
+      {
+        id: "recommend",
+        label: "Recommendations",
+        description: "Promo strategy adjustments and abuse prevention",
         type: "recommend",
       },
     ],
