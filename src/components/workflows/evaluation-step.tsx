@@ -5,8 +5,7 @@
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { CheckCircle2, XCircle } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { AiMarkdown } from "@/components/ui/ai-markdown";
 import { EvaluationActions } from "./evaluation-actions";
 import { DecisionMetricsViz } from "./steps/decision-metrics";
 import {
@@ -108,11 +107,7 @@ export function EvaluationStep({
             <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
               AI Evaluation
             </p>
-            <div className="prose prose-invert prose-sm max-w-none prose-headings:text-foreground prose-headings:font-heading prose-strong:text-foreground prose-a:text-gold prose-th:text-xs prose-td:text-sm">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {step.aiEvaluation}
-              </ReactMarkdown>
-            </div>
+            <AiMarkdown content={step.aiEvaluation} />
 
             {/* Agree / Override buttons */}
             <div className="flex items-center gap-3 pt-2">

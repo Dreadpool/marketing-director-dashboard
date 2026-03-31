@@ -5,8 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { AiMarkdown } from "@/components/ui/ai-markdown";
 import { PromptEditor } from "./prompt-editor";
 import { FetchStepSummary } from "./fetch-step-summary";
 
@@ -70,13 +69,7 @@ export function StepResult({
           {stepType === "fetch" && outputData != null ? (
             <FetchStepSummary data={outputData} />
           ) : null}
-          {aiOutput && (
-            <div className="prose prose-invert prose-sm max-w-none prose-headings:text-foreground prose-headings:font-heading prose-strong:text-foreground prose-a:text-gold prose-th:text-xs prose-td:text-sm">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {aiOutput}
-              </ReactMarkdown>
-            </div>
-          )}
+          {aiOutput && <AiMarkdown content={aiOutput} />}
           {stepType !== "fetch" && (
             <PromptEditor workflowSlug={workflowSlug} stepId={stepId} />
           )}

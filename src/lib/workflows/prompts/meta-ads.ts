@@ -42,30 +42,10 @@ Do NOT include:
 - Audience segment tables (the audience section already shows this)
 - Restating CPA/ROAS status that's already color-coded on the dashboard
 
-### Output Example (follow this EXACT structure)
-
-\`\`\`
-### Executive Summary
-
-Account is [healthy/at risk]. [One sentence on the key finding]. [One sentence on what to watch or do.]
-
-### Key Insights
-
-**[Short finding title]**
-- Why it matters: [One sentence]
-- Action: [One sentence]
-
-**[Short finding title]**
-- Why it matters: [One sentence]
-- Action: [One sentence]
-
-**[Short finding title]**
-- Why it matters: [One sentence]
-- Action: [One sentence]
-\`\`\`
-
 ### Formatting Rules
-- Follow the example structure above EXACTLY — headers, bold titles, bullet points with line breaks between insights
+- Use ### for section headers (Executive Summary, Key Insights)
+- Use **bold** for each insight title
+- Use bullet points with "Why it matters:" and "Action:" for each insight
 - Keep total output under 300 words
 - No tables, no ASCII art, no dense paragraphs`,
 
