@@ -46,13 +46,38 @@ Rather than retrofitting interactivity into the existing linear engine, this is 
 
 Each step is a request-response cycle. The run lives in the DB so users can leave and resume later.
 
+### Interaction Details
+
+**AI context per step**: Each step's AI call receives (a) its own data slice, (b) the step's threshold criteria, and (c) decisions from all prior steps (agree/override + any override reasons). Prior step decisions give the AI context for its evaluation ("you already confirmed CPA is off-target, now evaluating frequency..."). Prior step raw data is NOT passed — only the decisions and any action items generated. This keeps prompts focused.
+
+**Override behavior**: When the user clicks Override, they enter a reason (free text). The system records the override and moves on. The override reason is passed as context to subsequent step AI calls, so the AI adapts. Override does NOT re-evaluate the current step — it's a human correction that informs the rest of the flow.
+
+**Action item lifecycle**: Action items are saved to DB at each step response (not just at Step 6). Step 6 displays the accumulated list for a final edit pass. If the AI at a later step suggests something conflicting with an earlier user edit, both items appear — the user resolves conflicts in the Step 6 final edit.
+
+**Error handling**: If an AI call or API fetch fails at a step, the step shows an error state with a "Retry" button. The user stays on the current step. The run does not fail — only the step is retryable. This differs from the linear engine's "continue on failure" model because the user is present and waiting.
+
+**Resume behavior**: On page load, the frontend checks for an in-progress run for this workflow + period. If found, it loads the run and reconstructs wizard state from DB step records (which steps are completed, which is current). Only one active run per workflow + period is allowed — starting a new run for a period with an in-progress run resumes the existing run.
+
+**Run-start route**: The existing `/api/workflows/[slug]/run` route detects `workflowType` on the workflow definition. For `"linear"`, it dispatches to the existing engine (background execution via `after()`). For `"guided-evaluation"`, it creates the run, executes the initial fetch, prepares Step 1, and returns synchronously with `{ runId, currentStep }`. No new route needed.
+
+### Type System Changes
+
+**`Workflow` interface** gains an optional `workflowType` field:
+```typescript
+workflowType?: "linear" | "guided-evaluation"  // defaults to "linear"
+```
+Existing workflows don't need to change — undefined means `"linear"`.
+
+**`steps` field**: For guided evaluations, the `steps` array on the `Workflow` definition is empty (`[]`). The evaluation engine defines its own step set in `src/lib/workflows/evaluations/meta-ads-monthly.ts`. The `initWorkflowRun` function in `engine.ts` is not used for guided evaluations — the evaluation engine has its own init that creates step records from its step definitions. The existing engine code is untouched.
+
 ### Step UI Pattern (Stacked Layout)
 
 Every evaluation step renders the same structure:
 
 ```
 ┌─────────────────────────────────────────┐
-│ Progress bar (Step X of 6)              │
+│ Progress bar (main spine: Step X of 6)  │
+│ (CPA diagnostic: nested D1-D5 sub-bar) │
 ├─────────────────────────────────────────┤
 │ DATA                                    │
 │ Metric cards, tables, charts specific   │
@@ -281,7 +306,7 @@ Steps 2-5 use data already fetched and have more straightforward evaluation logi
 
 ### Phase 2 (Future)
 
-Steps 2-5: Backend Verification, Campaign Structure, Creative Health, Audience Check. These use existing data and add evaluation logic on top.
+Steps 2-5: Backend Verification, Campaign Structure, Creative Health, Audience Check. These use existing data and add evaluation logic on top. Step 2 (Backend Verification) will need new BigQuery service methods for fetching bookings count, new customer count, and gross revenue for a period. These queries are straightforward against existing tables (`sales_orders`, `customer_first_order`) and the existing `bigquery-adspend.ts` service for total ad spend.
 
 ### Phase 3 (Future)
 
@@ -293,7 +318,7 @@ Weekly evaluation workflow (lighter, 6 checks from the training guide's "Weekly 
 2. Navigate to `/workflows/meta-ads-evaluation`
 3. Click "Start Monthly Evaluation" for a recent month
 4. Step 1 shows: CPA, ROAS, purchases, prospecting/retargeting split with AI evaluation
-5. Click "Agree" on healthy metrics → skips CPA diagnostic → advances to Step 2 placeholder (Phase 1 shows "Coming in Phase 2" for Steps 2-5, jumps to Step 6)
+5. Click "Agree" on healthy metrics → skips CPA diagnostic → jumps directly to Step 6 (Steps 2-5 show "Coming in Phase 2" placeholder cards in the progress bar but are not interactive)
 6. On a month with high CPA: diagnostic sub-flow D1-D5 renders with 7-day frequency data, MoM trends, pattern matching
 7. Action items editable at each step with owner tags (Agency/Director/Joint)
 8. Step 6 shows all accumulated action items, allows final editing
