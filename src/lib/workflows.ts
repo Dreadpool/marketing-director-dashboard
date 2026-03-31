@@ -9,6 +9,7 @@ export interface Workflow {
   status: "coming-soon" | "active";
   cadence: WorkflowCadence;
   dataSources: DataSource[];
+  workflowType?: "linear" | "guided-evaluation";
   steps: WorkflowStepDef[];
 }
 
@@ -165,6 +166,18 @@ export const workflows: Workflow[] = [
         type: "recommend",
       },
     ],
+  },
+  {
+    slug: "meta-ads-evaluation",
+    title: "Meta Ads Monthly Evaluation",
+    description:
+      "Interactive step-by-step evaluation of Meta Ads performance using the CTC framework. AI evaluates each metric against thresholds, you confirm or override, and build action items as you go.",
+    icon: "clipboard-check",
+    status: "active",
+    cadence: { frequency: "monthly", dueRule: { type: "day-of-month", day: 10 } },
+    dataSources: ["meta_ads"],
+    workflowType: "guided-evaluation",
+    steps: [],
   },
   {
     slug: "google-ads-analysis",
