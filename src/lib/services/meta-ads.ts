@@ -1,6 +1,7 @@
 import { FacebookAdsApi, AdAccount } from "facebook-nodejs-business-sdk";
 import type { MonthPeriod, DateRange } from "@/lib/schemas/types";
 import type { MetaAdsInsightRow } from "@/lib/schemas/sources/meta-ads";
+import type { CampaignFrequencyRow } from "@/lib/workflows/evaluations/types";
 
 const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN ?? "";
 const AD_ACCOUNT_ID =
@@ -258,4 +259,54 @@ export async function getAudienceBreakdowns(
     platform:
       platform.status === "fulfilled" ? platform.value : [],
   };
+}
+
+/**
+ * Fetch 7-day rolling frequency by campaign for the last 7 days of the given month.
+ * Used by CPA Diagnostic step D1 to check short-term frequency fatigue.
+ */
+export async function getWeeklyFrequency(
+  period: MonthPeriod,
+): Promise<CampaignFrequencyRow[]> {
+  const lastDay = new Date(period.year, period.month, 0).getDate();
+  const endDate = `${period.year}-${String(period.month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+
+  // Start 6 days before end to get a 7-day window
+  const startObj = new Date(period.year, period.month - 1, lastDay - 6);
+  const startDate = `${startObj.getFullYear()}-${String(startObj.getMonth() + 1).padStart(2, "0")}-${String(startObj.getDate()).padStart(2, "0")}`;
+
+  const account = getAdAccount();
+
+  const cursor = await account.getInsights(
+    ["campaign_id", "campaign_name", "frequency", "impressions", "reach"],
+    {
+      time_range: { since: startDate, until: endDate },
+      level: "campaign",
+    },
+  );
+
+  const rows: CampaignFrequencyRow[] = [];
+
+  for (;;) {
+    for (const raw of cursor) {
+      const row = raw as Record<string, unknown>;
+      rows.push({
+        campaign_id: String(row.campaign_id ?? ""),
+        campaign_name: String(row.campaign_name ?? ""),
+        frequency: Number(row.frequency ?? 0),
+        impressions: Number(row.impressions ?? 0),
+        reach: Number(row.reach ?? 0),
+        date_start: startDate,
+        date_stop: endDate,
+      });
+    }
+
+    if (cursor.hasNext()) {
+      await cursor.next();
+    } else {
+      break;
+    }
+  }
+
+  return rows;
 }
