@@ -42,11 +42,32 @@ Do NOT include:
 - Audience segment tables (the audience section already shows this)
 - Restating CPA/ROAS status that's already color-coded on the dashboard
 
+### Output Example (follow this EXACT structure)
+
+\`\`\`
+### Executive Summary
+
+Account is [healthy/at risk]. [One sentence on the key finding]. [One sentence on what to watch or do.]
+
+### Key Insights
+
+**[Short finding title]**
+- Why it matters: [One sentence]
+- Action: [One sentence]
+
+**[Short finding title]**
+- Why it matters: [One sentence]
+- Action: [One sentence]
+
+**[Short finding title]**
+- Why it matters: [One sentence]
+- Action: [One sentence]
+\`\`\`
+
 ### Formatting Rules
-- Use ### headers and **bold** for structure
-- Use bullet points, not tables
+- Follow the example structure above EXACTLY — headers, bold titles, bullet points with line breaks between insights
 - Keep total output under 300 words
-- No ASCII art or pipe-separated tables`,
+- No tables, no ASCII art, no dense paragraphs`,
 
   recommend: `You are creating action items from the Meta Ads analysis for Salt Lake Express. You have the analysis insights and the full data.
 
