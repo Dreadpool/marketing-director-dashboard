@@ -1,5 +1,7 @@
 import { NextResponse, after } from "next/server";
 import { initWorkflowRun, executeWorkflowSteps } from "@/lib/workflows/engine";
+import { initEvaluationRun } from "@/lib/workflows/evaluation-engine";
+import { getWorkflowBySlug } from "@/lib/workflows";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -25,10 +27,24 @@ export async function POST(request: Request, { params }: RunParams) {
       );
     }
 
-    // Create run + step records immediately
+    const workflow = getWorkflowBySlug(slug);
+    if (!workflow) {
+      return NextResponse.json(
+        { error: `Workflow not found: ${slug}` },
+        { status: 404 },
+      );
+    }
+
+    // Dispatch based on workflow type
+    if (workflow.workflowType === "guided-evaluation") {
+      // Synchronous: fetch data, prepare Step 1, return immediately
+      const result = await initEvaluationRun(slug, period);
+      return NextResponse.json(result);
+    }
+
+    // Linear workflow: existing behavior (background execution)
     const { runId } = await initWorkflowRun(slug, period);
 
-    // Execute steps in the background after the response is sent
     after(async () => {
       try {
         await executeWorkflowSteps(runId, slug, period);
@@ -37,7 +53,6 @@ export async function POST(request: Request, { params }: RunParams) {
       }
     });
 
-    // Return immediately so the frontend can start polling
     return NextResponse.json({ id: runId, status: "running" });
   } catch (err) {
     console.error("Workflow init error:", err);
