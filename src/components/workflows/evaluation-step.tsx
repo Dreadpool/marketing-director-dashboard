@@ -108,7 +108,7 @@ export function EvaluationStep({
             <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
               AI Evaluation
             </p>
-            <div className="prose prose-invert prose-sm max-w-none">
+            <div className="prose prose-invert prose-sm max-w-none prose-headings:text-foreground prose-headings:font-heading prose-strong:text-foreground prose-a:text-gold prose-th:text-xs prose-td:text-sm">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                 {step.aiEvaluation}
               </ReactMarkdown>
