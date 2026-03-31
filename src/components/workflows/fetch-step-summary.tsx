@@ -259,23 +259,23 @@ function HeadlineMetrics({ data }: { data: MasterMetrics }) {
           </TooltipProvider>
           <div className="flex items-baseline justify-between gap-2">
             <p className="text-lg font-heading font-semibold tabular-nums">
-              {usd2.format(mkt.avg_customer_value)}
+              {usd2.format(mkt.avg_customer_gross_profit)}
             </p>
-            {yoy?.avg_customer_value_change_percent != null && yoy.avg_customer_value_change_percent !== 0 && (
-              <span className={`text-[11px] font-medium tabular-nums shrink-0 ${yoyColor(yoy.avg_customer_value_change_percent, "up")}`}>
-                {yoy.avg_customer_value_change_percent > 0 ? "▲" : "▼"} {Math.abs(yoy.avg_customer_value_change_percent).toFixed(1)}%
+            {yoy?.avg_customer_gross_profit_change_percent != null && yoy.avg_customer_gross_profit_change_percent !== 0 && (
+              <span className={`text-[11px] font-medium tabular-nums shrink-0 ${yoyColor(yoy.avg_customer_gross_profit_change_percent, "up")}`}>
+                {yoy.avg_customer_gross_profit_change_percent > 0 ? "▲" : "▼"} {Math.abs(yoy.avg_customer_gross_profit_change_percent).toFixed(1)}%
               </span>
             )}
           </div>
           <p className="text-[11px] text-muted-foreground tabular-nums">
-            per customer
+            {usd2.format(mkt.avg_customer_value)} rev × 43% margin
           </p>
         </div>
         <MetricCell
-          label="CAC : Value"
+          label="CAC : Gross Profit"
           value={`$${mkt.cac_to_value_ratio.toFixed(1)} : $1`}
-          secondary={`${usd2.format(mkt.avg_customer_value)} value per ${usd2.format(mkt.cac)} CAC`}
-          tooltip="For every $1 spent acquiring a customer, how much are they worth? Above $1 means you recoup acquisition cost immediately."
+          secondary={`${usd2.format(mkt.avg_customer_gross_profit)} GP per ${usd2.format(mkt.cac)} CAC`}
+          tooltip="For every $1 spent acquiring a customer, how much gross profit do they generate? Uses 43% margin on regular routes ($27.10/pax × 1.3 pax/order = $35.23 GP on ~$82 order). Excludes grant-funded routes which skew the blended margin higher. Above $3 = healthy unit economics."
           yoyChange={yoy?.cac_to_value_ratio_change_percent}
           goodDirection="up"
         />

@@ -511,6 +511,13 @@ export function calculateTopCustomers(
   };
 }
 
+/** Order-level gross margin for REGULAR routes (what ads drive).
+ *  $27.10 GP per passenger × 1.3 avg passengers = $35.23 GP on ~$82 avg order = 43%.
+ *  The blended margin including grant-funded routes is higher, but those routes have
+ *  artificially high margins from subsidies and don't reflect acquisition economics.
+ *  Hardcoded until dynamic COGS from QB GL by route type. */
+const GROSS_MARGIN = 0.43;
+
 /** CAC and marketing efficiency metrics */
 export function calculateCAC(params: {
   newCustomers: number;
@@ -524,7 +531,8 @@ export function calculateCAC(params: {
           avgCustomerValue, avgCustomerValueSource } = params;
 
   const cac = newCustomers > 0 ? adSpend / newCustomers : 0;
-  const cacToValueRatio = cac > 0 ? avgCustomerValue / cac : 0;
+  const avgCustomerGrossProfit = avgCustomerValue * GROSS_MARGIN;
+  const cacToValueRatio = cac > 0 ? avgCustomerGrossProfit / cac : 0;
 
   return {
     ad_spend: round2(adSpend),
@@ -532,6 +540,7 @@ export function calculateCAC(params: {
     transaction_count: transactionCount,
     cac: round2(cac),
     avg_customer_value: round2(avgCustomerValue),
+    avg_customer_gross_profit: round2(avgCustomerGrossProfit),
     avg_customer_value_source: avgCustomerValueSource,
     cac_to_value_ratio: round2(cacToValueRatio),
   };

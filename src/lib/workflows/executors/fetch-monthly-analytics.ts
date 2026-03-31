@@ -450,5 +450,10 @@ async function computeYoYComparison(
       priorMarketing.cac_to_value_ratio,
     ),
     previous_cac_to_value_ratio: priorMarketing.cac_to_value_ratio,
+    avg_customer_gross_profit_change_percent: pctChange(
+      currentMarketing.avg_customer_gross_profit,
+      priorMarketing.avg_customer_gross_profit,
+    ),
+    previous_avg_customer_gross_profit: priorMarketing.avg_customer_gross_profit,
   };
 }

@@ -5,16 +5,26 @@ You receive data in MetaAdsMetrics format containing: period, account_health, ca
 
 IMPORTANT: Hiring/driver recruitment campaigns are excluded from account_health metrics (CPA, ROAS, purchases). They are in a separate hiring_campaigns array. Do not include hiring spend in CAC or ROAS analysis. Report on hiring campaigns briefly in their own section if present.
 
+## SLE Unit Economics (use for ALL CPA/ROAS evaluation)
+- GP per order: $35.23 (regular routes, 43% margin on $82 avg order)
+- Meta over-attribution: 1.3x (true CPA ≈ Meta CPA × 1.3)
+- Max Meta CPA for 3:1 GP ratio: $9
+- Max Meta CPA for 2:1 GP ratio: $14
+- Max Meta CPA for breakeven: $27
+- ROAS breakeven (Meta-reported): 3.0x
+
 ## CTC Framework: 3 Metrics That Matter
 
 Decision metrics drive action. Diagnostic metrics explain WHY, but only investigate them when decision metrics flag a problem.
 
 ### Tier 1: Decision Metrics (always report)
 - **CPA** (Cost Per Acquisition) = spend / purchases. THE primary metric.
-  - TOF/Prospecting target: <$50
-  - Retargeting target: <$75
+  - On-target: <$9 (3:1+ GP ratio after 1.3x over-attribution)
+  - Elevated: $9-$14 (2:1 to 3:1 GP ratio, watch closely)
+  - High: >$14 (below 2:1, losing money)
   - Alert if >15% change vs prior period
-- **Platform ROAS** = attributed revenue / spend. Target: >2.0x
+  - Retargeting CPA should be LOWER than prospecting, not higher — retargeting hits warm audiences
+- **Platform ROAS** = attributed revenue / spend. Floor: 3.0x (below = losing money after COGS + over-attribution). ROAS is secondary to CPA.
 - **Purchase volume** = total conversions. Evaluate relative to prior periods rather than a fixed baseline.
 
 ### Tier 2: Diagnostic Metrics (check ONLY when Tier 1 flags)
@@ -41,7 +51,7 @@ Decision metrics drive action. Diagnostic metrics explain WHY, but only investig
 - Spend concentration: what % does the top campaign consume? Flag if >60% in one campaign.
 - Prospecting vs retargeting spend split (SLE target at growth stage: ~80/20)
 - Flag zombie campaigns: active but <$50 spend, or spending with zero purchases
-- Consolidation check: at current spend levels and ~$30 CPA target, how many properly funded ad sets does the budget support? (monthly spend / (5 x target CPA x 30))
+- Consolidation check: at current spend levels and ~$9 CPA target, how many properly funded ad sets does the budget support? (monthly spend / (5 x $9 target CPA x 30))
 
 ### Phase 3: Creative Performance
 - Top and bottom 5 ads by CPA (from ads array)
@@ -71,9 +81,14 @@ If historical data (Previous Month Metrics or Same Month Last Year) is provided 
 
   recommend: `You are synthesizing Meta Ads analysis for Salt Lake Express into prioritized, specific action items. You have the full MetaAdsMetrics data and the analysis from the previous step.
 
+## SLE Unit Economics
+- GP per order: $35.23 (regular routes, 43% margin on $82 avg order)
+- Meta over-attribution: 1.3x. CPA thresholds: <$9 on-target, $9-14 elevated, >$14 high
+- ROAS floor: 3.0x (below = losing money after COGS)
+
 ## CTC Decision Framework
 
-When CPA is above target, diagnose via Tier 2:
+When CPA is above $9 (elevated or high), diagnose via Tier 2:
 - High frequency (>3.0) → Creative refresh or audience expansion
 - Rising CPM + stable CTR → Audience saturation, expand or refresh
 - Declining CTR + stable CPM → Creative fatigue, new creative needed

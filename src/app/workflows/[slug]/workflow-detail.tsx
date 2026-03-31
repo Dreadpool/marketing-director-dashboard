@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Play, Loader2 } from "lucide-react";
+import { Play, Loader2, BookOpen } from "lucide-react";
 import { PeriodSelector } from "@/components/workflows/period-selector";
 import { StepProgress } from "@/components/workflows/step-progress";
 import { StepResult } from "@/components/workflows/step-result";
@@ -129,6 +129,9 @@ export function WorkflowDetail({ workflow }: WorkflowDetailProps) {
       // Load initial state immediately
       await loadRunDetail(runId);
 
+      // Clear any existing polling interval before starting a new one
+      if (pollRef.current) clearInterval(pollRef.current);
+
       pollRef.current = setInterval(async () => {
         try {
           const pollRes = await fetch(
@@ -199,12 +202,25 @@ export function WorkflowDetail({ workflow }: WorkflowDetailProps) {
               {workflow.description}
             </p>
           </div>
-          <Badge
-            variant="outline"
-            className="border-gold/20 text-xs text-gold"
-          >
-            {formatCadence(workflow.cadence)}
-          </Badge>
+          <div className="flex items-center gap-2">
+            {workflow.slug === "meta-ads-analysis" && (
+              <a
+                href="/guides/meta-ads-training.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-1.5 rounded-md border border-input bg-background px-3 py-1.5 text-sm font-medium shadow-xs hover:bg-accent hover:text-accent-foreground"
+              >
+                <BookOpen className="h-3.5 w-3.5" />
+                Evaluation Guide
+              </a>
+            )}
+            <Badge
+              variant="outline"
+              className="border-gold/20 text-xs text-gold"
+            >
+              {formatCadence(workflow.cadence)}
+            </Badge>
+          </div>
         </div>
       </div>
 

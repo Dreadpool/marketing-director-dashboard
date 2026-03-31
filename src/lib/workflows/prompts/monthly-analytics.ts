@@ -30,8 +30,9 @@ The data contains: period, current_month (revenue, customers, marketing, payment
 - Total marketing spend by QB category (Brand, Targeted, Promotional, Collateral, Other)
 - CAC: Marketing Spend / New Customers
 - Avg Customer Value: Real revenue (CardPointe CC net + cash + other) / unique active customers
+  - Avg Customer Gross Profit: Avg Customer Value × 43% margin (regular routes only, excludes grant-funded route subsidies)
   - Check avg_customer_value_source to note whether CardPointe actuals or TDS payment slots were used
-- CAC : Value Ratio: Avg Customer Value / CAC. Above 1.0 = avg customer covers acquisition cost.
+- CAC : Gross Profit Ratio: Avg Customer Gross Profit / CAC. Above 3.0 = healthy unit economics.
 - If ad spend unavailable (check metadata.missing_sources): note this and skip CAC analysis
 
 ### Promotions
@@ -46,13 +47,10 @@ The data contains: period, current_month (revenue, customers, marketing, payment
 - Top 10 individual customers
 
 ### Quality Thresholds
-Apply these benchmarks and flag any outside expected ranges:
-- CAC <= $50: EXCELLENT
-- CAC <= $100: GOOD
-- CAC > $100: HIGH (investigate)
-- CAC : Value >= 3.0x: EXCELLENT
-- CAC : Value >= 1.0x: POSITIVE
-- CAC : Value < 1.0x: NEGATIVE (losing money on average customer)
+Apply these benchmarks and flag any outside expected ranges. Use the CAC:Gross Profit ratio as the primary quality indicator, not fixed dollar thresholds:
+- CAC : Gross Profit >= 3.0x: HEALTHY (strong unit economics, CAC under ~$12)
+- CAC : Gross Profit >= 1.0x: MARGINAL (covering costs but thin, CAC under ~$35)
+- CAC : Gross Profit < 1.0x: NEGATIVE (losing money on each acquired customer after COGS)
 
 ### Pattern Detection
 Flag any of these for the recommendations step:

@@ -78,8 +78,11 @@ Built first for Salt Lake Express (SLE) marketing operations. Designed to suppor
 - [ ] AI chat panel with real Claude integration (replace mock chat)
 - [ ] Remaining workflows: build executors for Google Ads, SEO Ranking, Email Marketing, Creative/Content, Flyer/Event
 - [ ] Promo Code Analysis: event-triggered cadence, FTP fetch, auto-run on expiration, route results to james.glass@saltlakeexpress.com
+- [x] Apply gross margin to CAC:Value ratio. Uses 43% margin on regular routes ($27.10/pax × 1.3 pax = $35.23 GP on ~$82 order). Grant-funded routes (65% blended) excluded from CAC calculations since ads drive regular route bookings. Max CAC for 3:1 = $11.75.
+- [ ] Cohort LTV tracking: group customers by acquisition year, track cumulative revenue + repeat purchase rate at 12/24/36 months after first booking. Replaces guesswork in CPA targeting with real data. Instead of "assume customers book 3 times," you get "2022 cohort booked 2.4 times in 36 months at $58 avg ticket with 40% margin, so LTV = $55.68 and max CAC = $18.56." Reveals whether newer cohorts are rebooking at the same rate as older cohorts at the same lifecycle point, and whether scaling ads is degrading customer quality. Feeds directly into Meta Ads CPA targets and marketing budget decisions. Data: BigQuery sales_orders + customer_first_order. Baseline (2026-03-29): median LTV $92, avg $180, 42% repeat rate, 346K customers with 1+ year history.
 
 ### Ideas
+- Codify Meta Ads training guide into interactive workflow evaluation — walk the user through CPA diagnosis, creative fatigue checks, and agency accountability questions step by step instead of presenting raw data. Current guide embedded as iframe at `/guides/meta-ads-training.html`.
 - Context-aware chat for historical runs (inject archived run data into chat context)
 - SaaS multi-tenancy
 - Corporate account settlement investigation (see roadmap notes in specs/)

@@ -126,15 +126,17 @@ function MetricCard({
 
 // ─── CPA color helper ────────────────────────────────────────────────────────
 
+// CPA thresholds: $35.23 GP/order, 43% margin, 1.3x over-attribution
 function cpaColor(cpa: number): string {
   if (cpa <= 0) return "";
-  if (cpa < 50) return "text-emerald-400";
-  if (cpa < 75) return "text-amber-400";
+  if (cpa < 9) return "text-emerald-400";
+  if (cpa < 14) return "text-amber-400";
   return "text-red-400";
 }
 
+// ROAS: 3.0x = GP breakeven. No green state — CPA is the decision metric.
 function roasColor(roas: number): string {
-  return roas >= 2.0 ? "text-emerald-400" : "text-red-400";
+  return roas >= 3.0 ? "text-muted-foreground" : "text-red-400";
 }
 
 function efficiencyColor(index: number): string {
@@ -212,7 +214,11 @@ function SourceBadges({
 
 function HeadlineKPIs({ health }: { health: MetaAdsMetrics["account_health"] }) {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <div className="space-y-3">
+      <p className="text-[11px] text-muted-foreground/60">
+        We make $35 profit per booking after operating costs. Meta takes ~30% too much credit for conversions, so a reported $9 CPA is really ~$12. To stay profitable (3:1 return), keep CPA under $9 as reported by Meta.
+      </p>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
       <MetricCard
         label="Total Spend"
         value={usd.format(health.total_spend)}
@@ -221,15 +227,15 @@ function HeadlineKPIs({ health }: { health: MetaAdsMetrics["account_health"] }) 
       <MetricCard
         label="CPA"
         value={usd2.format(health.cpa)}
-        secondary={health.cpa_status === "on-target" ? "On target (<$50)" : health.cpa_status === "elevated" ? "Elevated ($50-75)" : "High (>$75)"}
-        tooltip="Cost Per Acquisition. CTC primary decision metric. TOF target: <$50, Retargeting: <$75"
+        secondary={health.cpa_status === "on-target" ? "On target (<$9)" : health.cpa_status === "elevated" ? "Elevated ($9-14)" : "High (>$14)"}
+        tooltip="Meta-reported CPA. Thresholds account for 1.3x over-attribution and 43% gross margin on regular routes ($35.23 GP/order). True CPA ≈ Meta CPA × 1.3."
         statusColor={cpaColor(health.cpa)}
       />
       <MetricCard
         label="ROAS"
         value={`${health.roas.toFixed(2)}x`}
-        secondary={health.roas_status === "above-target" ? "Above target (>2.0x)" : "Below target (<2.0x)"}
-        tooltip="Return on Ad Spend. Target: >2.0x"
+        secondary={health.roas_status === "above-target" ? "Above breakeven (>3.0x)" : "Below breakeven (<3.0x)"}
+        tooltip="Return on Ad Spend (revenue, not profit). Below 3.0x = losing money after COGS and over-attribution. CPA is the primary decision metric, not ROAS."
         statusColor={roasColor(health.roas)}
       />
       <MetricCard
@@ -238,6 +244,7 @@ function HeadlineKPIs({ health }: { health: MetaAdsMetrics["account_health"] }) 
         secondary={`${usd.format(health.total_attributed_revenue)} revenue`}
         tooltip="Meta-attributed purchases (28d click window)"
       />
+      </div>
     </div>
   );
 }
