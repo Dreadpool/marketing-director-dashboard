@@ -168,7 +168,7 @@ export function WorkflowDetail({ workflow }: WorkflowDetailProps) {
       if (currentRun) {
         setCurrentRun({
           ...currentRun,
-          actionItems: currentRun.actionItems.map((item) =>
+          actionItems: (currentRun.actionItems ?? []).map((item) =>
             item.id === id ? { ...item, completed } : item,
           ),
         });
@@ -259,7 +259,7 @@ export function WorkflowDetail({ workflow }: WorkflowDetailProps) {
       {(running || currentRun) && <StepProgress steps={stepStatuses} />}
 
       {/* Step Results */}
-      {currentRun?.steps.map((stepRun) => {
+      {currentRun?.steps?.map((stepRun) => {
         const stepDef = workflow.steps.find((s) => s.id === stepRun.stepId);
         if (!stepDef) return null;
 
@@ -279,7 +279,7 @@ export function WorkflowDetail({ workflow }: WorkflowDetailProps) {
       })}
 
       {/* Action Items */}
-      {currentRun && currentRun.actionItems.length > 0 && (
+      {currentRun && currentRun.actionItems?.length > 0 && (
         <div>
           <h2 className="mb-3 text-sm font-medium">Action Items</h2>
           <ActionItems
