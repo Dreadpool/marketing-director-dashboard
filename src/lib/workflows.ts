@@ -49,7 +49,7 @@ export const workflows: Workflow[] = [
     description:
       "Keyword rank tracking, visibility scoring, tier distribution, and biggest movers across websites.",
     icon: "trending-up",
-    status: "coming-soon",
+    status: "active",
     cadence: { frequency: "monthly", dueRule: { type: "day-of-month", day: 3 } },
     dataSources: ["google_sheets"],
     steps: [
