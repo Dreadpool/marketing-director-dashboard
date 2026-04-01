@@ -13,7 +13,7 @@ const executors: Record<string, FetchExecutor> = {
   "monthly-analytics-review": fetchMonthlyAnalytics as unknown as FetchExecutor,
   "meta-ads-analysis": fetchMetaAds as unknown as FetchExecutor,
   "google-ads-analysis": fetchGoogleAds as unknown as FetchExecutor,
-  "promo-code-analysis": fetchPromoCode,
+  "promo-code-analysis": fetchPromoCode as unknown as FetchExecutor,
 };
 
 export function getExecutor(workflowSlug: string): FetchExecutor | undefined {
