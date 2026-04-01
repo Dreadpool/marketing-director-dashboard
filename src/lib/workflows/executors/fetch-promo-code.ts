@@ -54,8 +54,8 @@ export async function fetchPromoCode(
         DATE(purchase_date) AS purchase_date,
         COALESCE(total_sale, 0) AS total_sale,
         COALESCE(amount_discounted, 0) AS amount_discounted,
-        COALESCE(outbound_dep_city, '') AS dep_city,
-        COALESCE(outbound_arr_city, '') AS arr_city,
+        COALESCE(trip_origin_stop, '') AS dep_city,
+        COALESCE(trip_destination_stop, '') AS arr_city,
         selling_agent
       FROM \`${DATASET}.sales_orders\`
       WHERE selling_company = 'Salt Lake Express'
