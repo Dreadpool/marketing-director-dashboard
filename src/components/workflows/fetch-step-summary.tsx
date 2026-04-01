@@ -32,6 +32,10 @@ import {
   MetaAdsFetchSummary,
   isMetaAdsMetrics,
 } from "./meta-ads-fetch-summary";
+import {
+  PromoCodeFetchSummary,
+  isPromoCodeMetrics,
+} from "./promo-code-fetch-summary";
 
 // ─── Formatters ──────────────────────────────────────────────────────────────
 
@@ -876,6 +880,7 @@ function DataQuality({ data }: { data: MasterMetrics }) {
 // ─── Main Export ─────────────────────────────────────────────────────────────
 
 export function FetchStepSummary({ data }: { data: unknown }) {
+  if (isPromoCodeMetrics(data)) return <PromoCodeFetchSummary data={data} />;
   if (isMetaAdsMetrics(data)) return <MetaAdsFetchSummary data={data} />;
   if (!isMasterMetrics(data)) return null;
 
