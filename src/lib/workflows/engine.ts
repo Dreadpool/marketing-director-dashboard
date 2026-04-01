@@ -156,6 +156,7 @@ function parseActionItems(
 export async function initWorkflowRun(
   slug: string,
   period: MonthPeriod,
+  params?: Record<string, unknown>,
 ): Promise<{ runId: string }> {
   const workflow = getWorkflowBySlug(slug);
   if (!workflow) throw new Error(`Workflow not found: ${slug}`);
@@ -172,6 +173,7 @@ export async function initWorkflowRun(
       periodYear: period.year,
       periodMonth: period.month,
       status: "running",
+      ...(params ? { inputParams: params } : {}),
     })
     .returning();
 
@@ -195,6 +197,13 @@ export async function executeWorkflowSteps(
 ): Promise<void> {
   const workflow = getWorkflowBySlug(slug)!;
   const executor = getExecutor(slug)!;
+
+  // Load inputParams from the run record
+  const [runRecord] = await db
+    .select({ inputParams: workflowRuns.inputParams })
+    .from(workflowRuns)
+    .where(eq(workflowRuns.id, runId));
+  const params = (runRecord?.inputParams as Record<string, unknown>) ?? undefined;
 
   const stepRows = await db
     .select()
@@ -221,8 +230,27 @@ export async function executeWorkflowSteps(
       let aiOutput: string | null = null;
 
       if (stepDef.type === "fetch") {
-        // Execute the data fetcher
-        outputData = await executor(period);
+        // Check period cache before calling the API
+        const cached = await db
+          .select({ metrics: periodMetrics.metrics })
+          .from(periodMetrics)
+          .where(
+            and(
+              eq(periodMetrics.workflowSlug, slug),
+              eq(periodMetrics.periodYear, period.year),
+              eq(periodMetrics.periodMonth, period.month),
+            ),
+          )
+          .limit(1);
+
+        if (cached.length > 0 && cached[0].metrics) {
+          console.log(
+            `[engine] Using cached fetch data for ${slug} ${period.year}-${period.month}`,
+          );
+          outputData = cached[0].metrics;
+        } else {
+          outputData = await executor(period, params);
+        }
       } else {
         // AI-powered step
         const prompt = await loadPrompt(slug, stepDef.id);
@@ -318,9 +346,15 @@ export async function executeWorkflowSteps(
     }
   }
 
-  // Store period metrics snapshot from the fetch step
-  const fetchOutput = previousStepOutputs["fetch"];
-  if (fetchOutput) {
+  // Store period metrics snapshot from the fetch step (only if all sources loaded)
+  const fetchOutput = previousStepOutputs["fetch"] as
+    | { metadata?: { missing_sources?: string[] } }
+    | undefined;
+  const hasCompleteFetch =
+    fetchOutput &&
+    (!fetchOutput.metadata?.missing_sources ||
+      fetchOutput.metadata.missing_sources.length === 0);
+  if (hasCompleteFetch) {
     // Upsert: delete existing then insert
     await db
       .delete(periodMetrics)

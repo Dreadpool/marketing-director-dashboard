@@ -16,6 +16,7 @@ export const workflowRuns = pgTable("workflow_runs", {
   periodYear: integer("period_year").notNull(),
   periodMonth: integer("period_month").notNull(),
   status: varchar("status", { length: 20 }).notNull().default("pending"),
+  inputParams: jsonb("input_params"),
   startedAt: timestamp("started_at").notNull().defaultNow(),
   completedAt: timestamp("completed_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),

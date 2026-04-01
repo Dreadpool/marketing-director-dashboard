@@ -12,7 +12,7 @@ export async function POST(request: Request, { params }: RunParams) {
   try {
     const { slug } = await params;
     const body = await request.json();
-    const { period } = body;
+    const { period, params: workflowParams } = body;
 
     if (
       !period ||
@@ -25,7 +25,7 @@ export async function POST(request: Request, { params }: RunParams) {
       );
     }
 
-    const { runId } = await initWorkflowRun(slug, period);
+    const { runId } = await initWorkflowRun(slug, period, workflowParams);
 
     after(async () => {
       try {
