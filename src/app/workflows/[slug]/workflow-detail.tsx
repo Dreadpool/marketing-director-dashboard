@@ -318,14 +318,23 @@ export function WorkflowDetail({ workflow }: WorkflowDetailProps) {
         workflowSlug={workflow.slug}
         onSelectRun={loadRunDetail}
         onDeleteRun={async (runId) => {
-          await fetch(`/api/workflows/${workflow.slug}/runs/${runId}`, {
-            method: "DELETE",
-          });
-          if (selectedRunId === runId) {
-            setCurrentRun(null);
-            setSelectedRunId(undefined);
+          if (!window.confirm("Delete this run and its data?")) return;
+          try {
+            const res = await fetch(`/api/workflows/${workflow.slug}/runs/${runId}`, {
+              method: "DELETE",
+            });
+            if (!res.ok) {
+              console.error("Failed to delete run:", await res.text());
+              return;
+            }
+            if (selectedRunId === runId) {
+              setCurrentRun(null);
+              setSelectedRunId(undefined);
+            }
+            await loadRuns();
+          } catch (err) {
+            console.error("Failed to delete run:", err);
           }
-          await loadRuns();
         }}
         selectedRunId={selectedRunId}
       />
