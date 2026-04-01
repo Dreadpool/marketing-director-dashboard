@@ -105,3 +105,74 @@ describe("getRoasStatus", () => {
     expect(getRoasStatus(0)).toBe("below-target");
   });
 });
+
+import { googleAdsPrompts } from "@/lib/workflows/prompts/google-ads";
+import { getExecutor } from "@/lib/workflows/executors/index";
+import { getDefaultPrompt } from "@/lib/workflows/prompts/index";
+import { getWorkflowBySlug } from "@/lib/workflows";
+
+describe("Google Ads prompts", () => {
+  it("has analyze and recommend prompts", () => {
+    expect(googleAdsPrompts.analyze).toBeDefined();
+    expect(googleAdsPrompts.recommend).toBeDefined();
+  });
+
+  it("analyze prompt contains SLE unit economics", () => {
+    const p = googleAdsPrompts.analyze;
+    expect(p).toContain("$9");
+    expect(p).toContain("$14");
+    expect(p).toContain("$35.23");
+    expect(p).toContain("1.3x");
+    expect(p).toContain("3.0x");
+  });
+
+  it("analyze prompt references brand vs non-brand segmentation", () => {
+    const p = googleAdsPrompts.analyze;
+    expect(p).toContain("brand");
+    expect(p).toContain("non-brand");
+  });
+
+  it("analyze prompt references ground truth comparison", () => {
+    const p = googleAdsPrompts.analyze;
+    expect(p).toContain("BigQuery");
+    expect(p).toContain("ground truth");
+  });
+
+  it("recommend prompt uses ACTION/PRIORITY/CATEGORY format", () => {
+    const p = googleAdsPrompts.recommend;
+    expect(p).toContain("ACTION:");
+    expect(p).toContain("PRIORITY:");
+    expect(p).toContain("CATEGORY:");
+  });
+
+  it("prompts are substantial (>100 chars each)", () => {
+    expect(googleAdsPrompts.analyze.length).toBeGreaterThan(100);
+    expect(googleAdsPrompts.recommend.length).toBeGreaterThan(100);
+  });
+});
+
+describe("Google Ads workflow registration", () => {
+  it("executor is registered", () => {
+    const executor = getExecutor("google-ads-analysis");
+    expect(executor).toBeDefined();
+    expect(typeof executor).toBe("function");
+  });
+
+  it("analyze prompt is registered", () => {
+    const prompt = getDefaultPrompt("google-ads-analysis", "analyze");
+    expect(prompt).not.toBeNull();
+    expect(prompt!.length).toBeGreaterThan(100);
+  });
+
+  it("recommend prompt is registered", () => {
+    const prompt = getDefaultPrompt("google-ads-analysis", "recommend");
+    expect(prompt).not.toBeNull();
+    expect(prompt!.length).toBeGreaterThan(100);
+  });
+
+  it("workflow is active", () => {
+    const wf = getWorkflowBySlug("google-ads-analysis");
+    expect(wf).toBeDefined();
+    expect(wf!.status).toBe("active");
+  });
+});
