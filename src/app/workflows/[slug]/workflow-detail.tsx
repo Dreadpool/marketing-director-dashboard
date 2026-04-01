@@ -68,6 +68,8 @@ export function WorkflowDetail({ workflow }: WorkflowDetailProps) {
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [selectedRunId, setSelectedRunId] = useState<string | undefined>();
   const [evaluationMode, setEvaluationMode] = useState(false);
+  const [promoCode, setPromoCode] = useState("");
+  const [campaignCost, setCampaignCost] = useState("");
 
   const loadRuns = useCallback(async () => {
     try {
@@ -110,10 +112,17 @@ export function WorkflowDetail({ workflow }: WorkflowDetailProps) {
     setCurrentRun(null);
 
     try {
+      const bodyPayload: Record<string, unknown> = { period: { year, month } };
+      if (workflow.slug === "promo-code-analysis" && promoCode.trim()) {
+        bodyPayload.params = {
+          promoCode: promoCode.trim().toUpperCase(),
+          ...(campaignCost ? { campaignCost: parseFloat(campaignCost) } : {}),
+        };
+      }
       const res = await fetch(`/api/workflows/${workflow.slug}/run`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ period: { year, month } }),
+        body: JSON.stringify(bodyPayload),
       });
 
       const data = await res.json();
@@ -239,28 +248,84 @@ export function WorkflowDetail({ workflow }: WorkflowDetailProps) {
       </div>
 
       {/* Controls */}
-      <div className="flex items-center gap-4">
-        <PeriodSelector
-          year={year}
-          month={month}
-          onChange={(y, m) => {
-            setYear(y);
-            setMonth(m);
-          }}
-          disabled={running}
-        />
-        <button
-          onClick={handleRun}
-          disabled={running || workflow.status !== "active"}
-          className="flex items-center gap-2 rounded-md bg-gold px-4 py-2 text-sm font-medium text-gold-foreground transition-colors hover:bg-gold/90 disabled:opacity-50"
-        >
-          {running ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Play className="h-4 w-4" />
-          )}
-          {running ? "Running..." : "Run Analysis"}
-        </button>
+      <div>
+        {workflow.slug === "promo-code-analysis" ? (
+          <>
+            <div className="flex items-end gap-3">
+              <div className="flex-1">
+                <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  Promo Code
+                </label>
+                <input
+                  type="text"
+                  value={promoCode}
+                  onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                  placeholder="e.g. FAIR2026"
+                  className="h-9 w-full rounded-md border border-border bg-muted/50 px-3 font-mono text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-gold/50 focus:outline-none focus:ring-1 focus:ring-gold/30"
+                />
+              </div>
+              <div className="w-48">
+                <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  Campaign Cost{" "}
+                  <span className="normal-case tracking-normal text-muted-foreground/60">
+                    (flyers, printing, distribution)
+                  </span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground/50">
+                    $
+                  </span>
+                  <input
+                    type="number"
+                    value={campaignCost}
+                    onChange={(e) => setCampaignCost(e.target.value)}
+                    placeholder="0.00"
+                    className="h-9 w-full rounded-md border border-border bg-muted/50 pl-7 pr-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-gold/50 focus:outline-none focus:ring-1 focus:ring-gold/30"
+                  />
+                </div>
+              </div>
+              <button
+                onClick={handleRun}
+                disabled={running || !promoCode.trim()}
+                className="inline-flex h-9 items-center gap-2 rounded-md bg-gold px-4 text-sm font-semibold text-background transition-colors hover:bg-gold/90 disabled:opacity-50"
+              >
+                {running ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Play className="h-4 w-4" />
+                )}
+                Run Analysis
+              </button>
+            </div>
+            <p className="mt-1.5 text-xs text-muted-foreground/60">
+              Date range auto-detected from usage data
+            </p>
+          </>
+        ) : (
+          <div className="flex items-center gap-4">
+            <PeriodSelector
+              year={year}
+              month={month}
+              onChange={(y, m) => {
+                setYear(y);
+                setMonth(m);
+              }}
+              disabled={running}
+            />
+            <button
+              onClick={handleRun}
+              disabled={running || workflow.status !== "active"}
+              className="flex items-center gap-2 rounded-md bg-gold px-4 py-2 text-sm font-medium text-gold-foreground transition-colors hover:bg-gold/90 disabled:opacity-50"
+            >
+              {running ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Play className="h-4 w-4" />
+              )}
+              {running ? "Running..." : "Run Analysis"}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Step Progress */}

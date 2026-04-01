@@ -12,6 +12,7 @@ interface Run {
   status: string;
   startedAt: string;
   completedAt: string | null;
+  inputParams?: Record<string, unknown>;
 }
 
 const MONTH_NAMES = [
@@ -89,6 +90,11 @@ export function RunHistory({
                 <span>
                   {MONTH_NAMES[run.periodMonth - 1]} {run.periodYear}
                 </span>
+                {typeof run.inputParams?.promoCode === "string" && (
+                  <span className="rounded bg-gold/10 px-1.5 py-0.5 font-mono text-[10px] font-medium text-gold">
+                    {run.inputParams.promoCode}
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 {duration !== null && (
