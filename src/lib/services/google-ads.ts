@@ -1,4 +1,3 @@
-import { GoogleAdsApi } from "google-ads-api";
 import { GoogleAuth } from "google-auth-library";
 import type { MonthPeriod } from "@/lib/schemas/types";
 import type { GoogleAdsCampaignRow } from "@/lib/schemas/sources/google-ads";
@@ -6,6 +5,7 @@ import type { GoogleAdsCampaignRow } from "@/lib/schemas/sources/google-ads";
 const DEVELOPER_TOKEN = process.env.GOOGLE_ADS_DEVELOPER_TOKEN ?? "";
 const LOGIN_CUSTOMER_ID = process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID ?? "4381990003";
 const CUSTOMER_ID = process.env.GOOGLE_ADS_CUSTOMER_ID ?? "7716669181";
+const API_VERSION = "v20";
 
 export type ConnectionStatus = {
   ok: boolean;
@@ -24,30 +24,45 @@ async function getAccessToken(): Promise<string> {
   return token;
 }
 
-async function getClient() {
-  const accessToken = await getAccessToken();
+/** Execute a GAQL query via the Google Ads REST API (v20) */
+async function gaqlQuery(query: string): Promise<Record<string, unknown>[]> {
+  const token = await getAccessToken();
 
-  const api = new GoogleAdsApi({
-    client_id: "",
-    client_secret: "",
-    developer_token: DEVELOPER_TOKEN,
-  });
+  const resp = await fetch(
+    `https://googleads.googleapis.com/${API_VERSION}/customers/${CUSTOMER_ID}/googleAds:search`,
+    {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "developer-token": DEVELOPER_TOKEN,
+        "login-customer-id": LOGIN_CUSTOMER_ID,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ query }),
+    },
+  );
 
-  return api.Customer({
-    customer_id: CUSTOMER_ID,
-    login_customer_id: LOGIN_CUSTOMER_ID,
-    refresh_token: "",
-  }, {
-    access_token: accessToken,
-  });
+  if (!resp.ok) {
+    const body = await resp.text();
+    let message = `Google Ads API ${resp.status}`;
+    try {
+      const err = JSON.parse(body);
+      message = err.error?.message ?? message;
+    } catch {
+      message = body.substring(0, 200);
+    }
+    throw new Error(message);
+  }
+
+  const data = await resp.json();
+  return (data.results as Record<string, unknown>[]) ?? [];
 }
 
 /** Health check: simple query with LIMIT 1 */
 export async function testConnection(): Promise<ConnectionStatus> {
   const start = Date.now();
   try {
-    const customer = await getClient();
-    await customer.query(`SELECT campaign.id FROM campaign LIMIT 1`);
+    await gaqlQuery("SELECT campaign.id FROM campaign LIMIT 1");
     return { ok: true, latencyMs: Date.now() - start };
   } catch (err) {
     return {
@@ -66,9 +81,7 @@ export async function getMonthlySpend(
   const lastDay = new Date(period.year, period.month, 0).getDate();
   const endDate = `${period.year}-${String(period.month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
 
-  const customer = await getClient();
-
-  const rows = await customer.query(`
+  const rows = await gaqlQuery(`
     SELECT
       campaign.id,
       campaign.name,
@@ -94,11 +107,12 @@ export async function getMonthlySpend(
         status: String(campaign?.status ?? ""),
       },
       metrics: {
-        cost_micros: String(metrics?.cost_micros ?? "0"),
+        // REST API returns camelCase (costMicros) not snake_case
+        cost_micros: String((metrics as Record<string, unknown>)?.costMicros ?? metrics?.cost_micros ?? "0"),
         clicks: String(metrics?.clicks ?? "0"),
         impressions: String(metrics?.impressions ?? "0"),
         conversions: String(metrics?.conversions ?? "0"),
-        conversions_value: String(metrics?.conversions_value ?? "0"),
+        conversions_value: String((metrics as Record<string, unknown>)?.conversionsValue ?? metrics?.conversions_value ?? "0"),
       },
     };
   });
