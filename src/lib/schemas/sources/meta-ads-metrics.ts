@@ -47,9 +47,26 @@ export type MetaAdsCampaignRow = {
   roas: number;
 };
 
+export type MetaAdsAdSetRow = {
+  adset_id: string;
+  adset_name: string;
+  campaign_id: string;
+  spend: number;
+  impressions: number;
+  reach: number;
+  clicks: number;
+  frequency: number;
+  purchases: number;
+  attributed_revenue: number;
+  cpa: number;
+  roas: number;
+};
+
 export type MetaAdsAdRow = {
   ad_id: string;
   ad_name: string;
+  adset_id: string;
+  campaign_id: string;
   campaign_name: string;
   adset_name: string;
   spend: number;
@@ -103,6 +120,7 @@ export type MetaAdsMetrics = {
   /** Hiring/driver recruitment campaigns, reported separately */
   hiring_campaigns: MetaAdsCampaignRow[];
   ads: MetaAdsAdRow[];
+  adsets: MetaAdsAdSetRow[];
 
   audience: {
     age_gender: MetaAdsBreakdownRow[];

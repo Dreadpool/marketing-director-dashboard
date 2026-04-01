@@ -315,7 +315,18 @@ export function WorkflowDetail({ workflow }: WorkflowDetailProps) {
       {/* Run History */}
       <RunHistory
         runs={runs}
+        workflowSlug={workflow.slug}
         onSelectRun={loadRunDetail}
+        onDeleteRun={async (runId) => {
+          await fetch(`/api/workflows/${workflow.slug}/runs/${runId}`, {
+            method: "DELETE",
+          });
+          if (selectedRunId === runId) {
+            setCurrentRun(null);
+            setSelectedRunId(undefined);
+          }
+          await loadRuns();
+        }}
         selectedRunId={selectedRunId}
       />
     </div>

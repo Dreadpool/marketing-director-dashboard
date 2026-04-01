@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Check, AlertCircle } from "lucide-react";
+import { Clock, Check, AlertCircle, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Run {
@@ -21,13 +21,17 @@ const MONTH_NAMES = [
 
 interface RunHistoryProps {
   runs: Run[];
+  workflowSlug: string;
   onSelectRun: (runId: string) => void;
+  onDeleteRun: (runId: string) => void;
   selectedRunId?: string;
 }
 
 export function RunHistory({
   runs,
+  workflowSlug,
   onSelectRun,
+  onDeleteRun,
   selectedRunId,
 }: RunHistoryProps) {
   if (runs.length === 0) {
@@ -63,11 +67,14 @@ export function RunHistory({
               : null;
 
           return (
-            <button
+            <div
               key={run.id}
+              role="button"
+              tabIndex={0}
               onClick={() => onSelectRun(run.id)}
+              onKeyDown={(e) => { if (e.key === "Enter") onSelectRun(run.id); }}
               className={cn(
-                "flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-accent",
+                "flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-accent cursor-pointer",
                 selectedRunId === run.id && "bg-accent",
               )}
             >
@@ -104,8 +111,19 @@ export function RunHistory({
                 >
                   {run.status}
                 </Badge>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteRun(run.id);
+                  }}
+                  className="rounded p-1 text-muted-foreground/50 hover:bg-destructive/10 hover:text-destructive transition-colors"
+                  title="Delete run"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
               </div>
-            </button>
+            </div>
           );
         })}
       </CardContent>

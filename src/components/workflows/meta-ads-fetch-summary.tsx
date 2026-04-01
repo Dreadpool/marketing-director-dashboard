@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import {
   Tooltip,
   TooltipTrigger,
@@ -19,8 +19,10 @@ import {
 import type {
   MetaAdsMetrics,
   MetaAdsCampaignRow,
+  MetaAdsAdSetRow,
   MetaAdsAdRow,
   MetaAdsBreakdownRow,
+  MetaAdsFatigueSignal,
   MetaAdsSourceDetail,
 } from "@/lib/schemas/sources/meta-ads-metrics";
 
@@ -249,13 +251,253 @@ function HeadlineKPIs({ health }: { health: MetaAdsMetrics["account_health"] }) 
   );
 }
 
+// ─── Ad Diagnostic Tags ─────────────────────────────────────────────────────
+
+type AdDiagnostic = {
+  label: string;
+  color: string;
+  tooltip: string;
+};
+
+function diagnoseAd({
+  ad,
+  campaignCpa,
+  signalsByAdId,
+  highFreqCampaigns,
+  accountCvr,
+}: {
+  ad: MetaAdsAdRow;
+  campaignCpa: number;
+  signalsByAdId: Map<string, MetaAdsFatigueSignal[]>;
+  highFreqCampaigns: Map<string, number>;
+  accountCvr: number;
+}): AdDiagnostic | null {
+  const adSignals = signalsByAdId.get(ad.ad_id) ?? [];
+  const ctrSignal = adSignals.find((s) => s.signal_type === "declining_ctr");
+  const cpmSignal = adSignals.find((s) => s.signal_type === "rising_cpm");
+  const campaignFreq = highFreqCampaigns.get(ad.campaign_id);
+  const campaignHighFreq = campaignFreq !== undefined;
+
+  const adCvr = ad.clicks > 0 ? ad.purchases / ad.clicks : 0;
+
+  // Priority 1: Creative Fatigue (CTC D5 Pattern 1)
+  if (ctrSignal && campaignHighFreq) {
+    const ctrDrop = ctrSignal.threshold > 0
+      ? Math.round((1 - ctrSignal.current_value / ctrSignal.threshold) * 100)
+      : 0;
+    return {
+      label: "Creative Fatigue",
+      color: "bg-red-500/10 text-red-400 border-red-500/20",
+      tooltip: [
+        "CTC Pattern: Creative Fatigue (freq↑ + CTR↓)",
+        "",
+        `Ad CTR: ${ctrSignal.current_value.toFixed(2)}%`,
+        `Account avg: ${ctrSignal.threshold.toFixed(2)}%`,
+        `Drop: ${ctrDrop}% below average`,
+        `Campaign freq: ${campaignFreq!.toFixed(1)}x (threshold 3.0)`,
+        "",
+        "Audience has seen this ad too many times and is",
+        "ignoring it. Rotate creative or expand audience.",
+      ].join("\n"),
+    };
+  }
+
+  // Priority 2: Low Conversion (CTC D4 — Landing Page Problem)
+  if (ad.clicks >= 20 && accountCvr > 0 && adCvr < accountCvr * 0.5 && !ctrSignal) {
+    const cvrDrop = Math.round((1 - adCvr / accountCvr) * 100);
+    return {
+      label: "Low Conversion",
+      color: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+      tooltip: [
+        "CTC Pattern: Conversion Drop (CTR ok + CVR↓)",
+        "",
+        `Ad CVR: ${pct(adCvr * 100)}`,
+        `Account avg: ${pct(accountCvr * 100)}`,
+        `Drop: ${cvrDrop}% below average`,
+        "",
+        "Creative is getting clicks but they're not",
+        "converting. Check landing page, booking flow,",
+        "or offer alignment.",
+      ].join("\n"),
+    };
+  }
+
+  // Priority 3: Underperforming (relative to own campaign)
+  if (ad.purchases >= 5 && campaignCpa > 0 && ad.cpa > campaignCpa * 1.5) {
+    const cpaPct = Math.round((ad.cpa / campaignCpa - 1) * 100);
+    return {
+      label: "Underperforming",
+      color: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+      tooltip: [
+        "Ad CPA is significantly above its campaign average.",
+        "",
+        `Ad CPA: ${usd2.format(ad.cpa)}`,
+        `Campaign CPA: ${usd2.format(campaignCpa)}`,
+        `Difference: ${cpaPct}% higher`,
+        "",
+        "This ad is dragging down campaign efficiency.",
+        "Consider pausing or revising creative/targeting.",
+      ].join("\n"),
+    };
+  }
+
+  // Priority 4: Low Engagement (CTR below avg, but no high freq)
+  if (ctrSignal && !campaignHighFreq) {
+    const ctrDrop = ctrSignal.threshold > 0
+      ? Math.round((1 - ctrSignal.current_value / ctrSignal.threshold) * 100)
+      : 0;
+    return {
+      label: "Low Engagement",
+      color: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+      tooltip: [
+        "CTR is below account average.",
+        "",
+        `Ad CTR: ${ctrSignal.current_value.toFixed(2)}%`,
+        `Account avg: ${ctrSignal.threshold.toFixed(2)}%`,
+        `Drop: ${ctrDrop}% below average`,
+        "",
+        "Creative isn't resonating with this audience.",
+        "Test different angles, copy, or imagery.",
+      ].join("\n"),
+    };
+  }
+
+  // Priority 5: Low Hook (video only)
+  if (ad.hook_rate != null && ad.hook_rate < 0.25) {
+    return {
+      label: "Low Hook",
+      color: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+      tooltip: [
+        "Video hook rate below 25%.",
+        "",
+        `Hook rate: ${pct(ad.hook_rate * 100)}`,
+        `Benchmark: 25%+`,
+        "",
+        "First 3 seconds aren't capturing attention.",
+        "Test a stronger opening frame or visual hook.",
+      ].join("\n"),
+    };
+  }
+
+  // Priority 6: Low Hold (video only)
+  if (ad.hold_rate != null && ad.hold_rate < 0.30) {
+    return {
+      label: "Low Hold",
+      color: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+      tooltip: [
+        "Video hold rate below 30%.",
+        "",
+        `Hold rate: ${pct(ad.hold_rate * 100)}`,
+        `Benchmark: 30%+`,
+        "",
+        "People are clicking away before the message lands.",
+        "Shorten the video or front-load the value prop.",
+      ].join("\n"),
+    };
+  }
+
+  return null;
+}
+
+function AdDiagnosticBadge({ diagnostic }: { diagnostic: AdDiagnostic | null }) {
+  if (!diagnostic) return null;
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger className="cursor-help">
+          <Badge variant="outline" className={`text-[9px] ${diagnostic.color}`}>
+            {diagnostic.label}
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-xs text-xs whitespace-pre-line">
+          {diagnostic.tooltip}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 // ─── Campaign Table ──────────────────────────────────────────────────────────
 
-function CampaignTable({ campaigns }: { campaigns: MetaAdsCampaignRow[] }) {
+function CampaignTable({
+  campaigns,
+  adsets,
+  ads,
+  fatigueSignals,
+  accountHealth,
+}: {
+  campaigns: MetaAdsCampaignRow[];
+  adsets: MetaAdsAdSetRow[];
+  ads: MetaAdsAdRow[];
+  fatigueSignals: MetaAdsFatigueSignal[];
+  accountHealth: MetaAdsMetrics["account_health"];
+}) {
+  const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
+  const [expandedAdSets, setExpandedAdSets] = useState<Set<string>>(new Set());
+
+  const signalsByAdId = useMemo(() => {
+    const map = new Map<string, MetaAdsFatigueSignal[]>();
+    for (const signal of fatigueSignals) {
+      const existing = map.get(signal.ad_id) ?? [];
+      existing.push(signal);
+      map.set(signal.ad_id, existing);
+    }
+    return map;
+  }, [fatigueSignals]);
+
+  const highFreqCampaigns = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const signal of fatigueSignals) {
+      if (signal.signal_type === "high_frequency") {
+        map.set(signal.ad_id, signal.current_value);
+      }
+    }
+    return map;
+  }, [fatigueSignals]);
+
+  const accountCvr = accountHealth.total_clicks > 0
+    ? accountHealth.total_purchases / accountHealth.total_clicks
+    : 0;
+
+  const campaignCpaMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const c of campaigns) {
+      map.set(c.campaign_id, c.cpa);
+    }
+    return map;
+  }, [campaigns]);
+
   if (campaigns.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">No campaign data available.</p>
     );
+  }
+
+  function toggleCampaign(id: string) {
+    setExpandedCampaigns((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAdSet(id: string) {
+    setExpandedAdSets((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function adSetsFor(campaignId: string) {
+    return adsets.filter((as) => as.campaign_id === campaignId);
+  }
+
+  function adsFor(adsetId: string) {
+    return ads.filter((ad) => ad.adset_id === adsetId);
   }
 
   return (
@@ -273,38 +515,161 @@ function CampaignTable({ campaigns }: { campaigns: MetaAdsCampaignRow[] }) {
           </tr>
         </thead>
         <tbody>
-          {campaigns.map((c) => (
-            <tr
-              key={c.campaign_id}
-              className="border-b border-border/50 last:border-0"
-            >
-              <td className="py-2 pr-4 max-w-[200px] truncate" title={c.campaign_name}>
-                {c.campaign_name}
-              </td>
-              <td className="py-2 pr-3">{funnelBadge(c.funnel_stage)}</td>
-              <td className="py-2 pr-3 text-right tabular-nums">
-                {usd.format(c.spend)}
-              </td>
-              <td
-                className={`py-2 pr-3 text-right tabular-nums ${cpaColor(c.cpa)}`}
-              >
-                {c.purchases > 0 ? usd2.format(c.cpa) : "—"}
-              </td>
-              <td
-                className={`py-2 pr-3 text-right tabular-nums ${c.roas > 0 ? roasColor(c.roas) : ""}`}
-              >
-                {c.purchases > 0 ? `${c.roas.toFixed(2)}x` : "—"}
-              </td>
-              <td className="py-2 pr-3 text-right tabular-nums">
-                {num.format(c.purchases)}
-              </td>
-              <td
-                className={`py-2 text-right tabular-nums ${c.frequency > 3 ? "text-red-400" : ""}`}
-              >
-                {c.frequency.toFixed(1)}
-              </td>
-            </tr>
-          ))}
+          {campaigns.map((c) => {
+            const childAdSets = adSetsFor(c.campaign_id);
+            const hasChildren = childAdSets.length > 0;
+            const isCampaignExpanded = expandedCampaigns.has(c.campaign_id);
+
+            return (
+              <Fragment key={c.campaign_id}>
+                {/* Campaign row */}
+                <tr
+                  className={`border-b border-border/50 last:border-0 ${hasChildren ? "cursor-pointer hover:bg-muted/30 transition-colors" : ""}`}
+                  onClick={hasChildren ? () => toggleCampaign(c.campaign_id) : undefined}
+                >
+                  <td className="py-2 pr-4 max-w-[200px]" title={c.campaign_name}>
+                    <span className="flex items-center gap-1.5 truncate">
+                      {hasChildren ? (
+                        isCampaignExpanded ? (
+                          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        )
+                      ) : (
+                        <span className="w-3.5 shrink-0" />
+                      )}
+                      {c.campaign_name}
+                    </span>
+                  </td>
+                  <td className="py-2 pr-3">{funnelBadge(c.funnel_stage)}</td>
+                  <td className="py-2 pr-3 text-right tabular-nums">
+                    {usd.format(c.spend)}
+                  </td>
+                  <td
+                    className={`py-2 pr-3 text-right tabular-nums ${cpaColor(c.cpa)}`}
+                  >
+                    {c.purchases > 0 ? usd2.format(c.cpa) : "—"}
+                  </td>
+                  <td
+                    className={`py-2 pr-3 text-right tabular-nums ${c.roas > 0 ? roasColor(c.roas) : ""}`}
+                  >
+                    {c.purchases > 0 ? `${c.roas.toFixed(2)}x` : "—"}
+                  </td>
+                  <td className="py-2 pr-3 text-right tabular-nums">
+                    {num.format(c.purchases)}
+                  </td>
+                  <td
+                    className={`py-2 text-right tabular-nums ${c.frequency > 3 ? "text-red-400" : ""}`}
+                  >
+                    {c.frequency.toFixed(1)}
+                  </td>
+                </tr>
+
+                {/* Ad set rows */}
+                {isCampaignExpanded &&
+                  childAdSets.map((as) => {
+                    const childAds = adsFor(as.adset_id);
+                    const hasAds = childAds.length > 0;
+                    const isAdSetExpanded = expandedAdSets.has(as.adset_id);
+
+                    return (
+                      <Fragment key={as.adset_id}>
+                        <tr
+                          className={`border-b border-border/30 bg-muted/20 ${hasAds ? "cursor-pointer hover:bg-muted/30 transition-colors" : ""}`}
+                          onClick={hasAds ? (e) => { e.stopPropagation(); toggleAdSet(as.adset_id); } : undefined}
+                        >
+                          <td
+                            className="py-1.5 pr-4 pl-8 max-w-[200px] text-muted-foreground"
+                            title={as.adset_name}
+                          >
+                            <span className="flex items-center gap-1.5 truncate">
+                              {hasAds ? (
+                                isAdSetExpanded ? (
+                                  <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground/60" />
+                                ) : (
+                                  <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground/60" />
+                                )
+                              ) : (
+                                <span className="w-3 shrink-0" />
+                              )}
+                              {as.adset_name}
+                            </span>
+                          </td>
+                          <td className="py-1.5 pr-3" />
+                          <td className="py-1.5 pr-3 text-right tabular-nums text-muted-foreground">
+                            {usd.format(as.spend)}
+                          </td>
+                          <td
+                            className={`py-1.5 pr-3 text-right tabular-nums ${cpaColor(as.cpa)}`}
+                          >
+                            {as.purchases > 0 ? usd2.format(as.cpa) : "—"}
+                          </td>
+                          <td
+                            className={`py-1.5 pr-3 text-right tabular-nums ${as.purchases > 0 ? roasColor(as.roas) : ""}`}
+                          >
+                            {as.purchases > 0 ? `${as.roas.toFixed(2)}x` : "—"}
+                          </td>
+                          <td className="py-1.5 pr-3 text-right tabular-nums text-muted-foreground">
+                            {num.format(as.purchases)}
+                          </td>
+                          <td
+                            className={`py-1.5 text-right tabular-nums ${as.frequency > 3 ? "text-red-400" : ""}`}
+                          >
+                            {as.frequency.toFixed(1)}
+                          </td>
+                        </tr>
+
+                        {/* Ad rows */}
+                        {isAdSetExpanded &&
+                          childAds.map((ad) => (
+                            <tr
+                              key={ad.ad_id}
+                              className="border-b border-border/20 border-l-2 border-l-border/40 bg-muted/5 text-xs"
+                            >
+                              <td
+                                className="py-1.5 pr-4 pl-14 max-w-[200px] truncate text-muted-foreground/80"
+                                title={ad.ad_name}
+                              >
+                                {ad.ad_name}
+                              </td>
+                              <td className="py-1.5 pr-3">
+                                <AdDiagnosticBadge
+                                  diagnostic={diagnoseAd({
+                                    ad,
+                                    campaignCpa: campaignCpaMap.get(ad.campaign_id) ?? 0,
+                                    signalsByAdId,
+                                    highFreqCampaigns,
+                                    accountCvr,
+                                  })}
+                                />
+                              </td>
+                              <td className="py-1.5 pr-3 text-right tabular-nums text-muted-foreground/60">
+                                {usd.format(ad.spend)}
+                              </td>
+                              <td className={`py-1.5 pr-3 text-right tabular-nums ${cpaColor(ad.cpa)}`}>
+                                {ad.purchases > 0 ? usd2.format(ad.cpa) : "—"}
+                              </td>
+                              <td className="py-1.5 pr-3 text-right tabular-nums text-muted-foreground/60">
+                                {ad.clicks > 0 ? (
+                                  <span><span className="text-[10px] text-muted-foreground/40">CVR </span>{pct((ad.purchases / ad.clicks) * 100)}</span>
+                                ) : "—"}
+                              </td>
+                              <td className="py-1.5 pr-3 text-right tabular-nums text-muted-foreground/60">
+                                {num.format(ad.purchases)}
+                              </td>
+                              <td className="py-1.5 text-right tabular-nums text-muted-foreground/60">
+                                {ad.impressions > 0 ? (
+                                  <span><span className="text-[10px] text-muted-foreground/40">CTR </span>{pct((ad.clicks / ad.impressions) * 100)}</span>
+                                ) : "—"}
+                              </td>
+                            </tr>
+                          ))}
+                      </Fragment>
+                    );
+                  })}
+              </Fragment>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -607,7 +972,13 @@ export function MetaAdsFetchSummary({ data }: { data: MetaAdsMetrics }) {
 
       {/* Acquisition Campaign Table */}
       <CollapsibleSection title="Acquisition Campaigns" defaultOpen>
-        <CampaignTable campaigns={data.campaigns} />
+        <CampaignTable
+          campaigns={data.campaigns}
+          adsets={data.adsets ?? []}
+          ads={data.ads}
+          fatigueSignals={data.signals.fatigued_ads}
+          accountHealth={data.account_health}
+        />
       </CollapsibleSection>
 
       {/* Hiring Campaigns (separate from CAC) */}

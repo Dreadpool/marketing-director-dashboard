@@ -2,6 +2,7 @@ import type { MonthPeriod } from "@/lib/schemas/types";
 import type {
   MetaAdsMetrics,
   MetaAdsCampaignRow,
+  MetaAdsAdSetRow,
   MetaAdsAdRow,
   MetaAdsBreakdownRow,
   MetaAdsFatigueSignal,
@@ -11,6 +12,7 @@ import type { MetaAdsInsightRow } from "@/lib/schemas/sources/meta-ads";
 import {
   getMonthlyInsights,
   getAdInsights,
+  getAdSetInsights,
   getAudienceBreakdowns,
 } from "@/lib/services/meta-ads";
 
@@ -81,12 +83,15 @@ export async function fetchMetaAds(
     .toISOString()
     .slice(0, 10);
 
-  // 1. Parallel fetch: campaigns required, ads + audience optional
-  const [campaignResult, adResult, audienceResult] = await Promise.allSettled([
-    getMonthlyInsights(period),
-    getAdInsights(period),
-    getAudienceBreakdowns(period),
-  ]);
+  // 1. Parallel fetch: campaigns required, ads + ad sets + audience optional.
+  //    Each call has built-in retry with backoff on rate limit errors.
+  const [campaignResult, adResult, audienceResult, adSetResult] =
+    await Promise.allSettled([
+      getMonthlyInsights(period),
+      getAdInsights(period),
+      getAudienceBreakdowns(period),
+      getAdSetInsights(period),
+    ]);
 
   if (campaignResult.status === "rejected") {
     throw new Error(
@@ -99,6 +104,8 @@ export async function fetchMetaAds(
     adResult.status === "fulfilled" ? adResult.value : null;
   const audienceData =
     audienceResult.status === "fulfilled" ? audienceResult.value : null;
+  const adSetRows =
+    adSetResult.status === "fulfilled" ? adSetResult.value : null;
 
   // 2. Source tracking
   const sourceDetails: Record<string, MetaAdsSourceDetail> = {
@@ -120,6 +127,21 @@ export async function fetchMetaAds(
           : "No data",
     };
     missingSources.push("ads");
+  }
+
+  if (adSetRows) {
+    sourceDetails.adsets = { displayName: "Meta Ad Sets", status: "ok" };
+    loadedSources.push("adsets");
+  } else {
+    sourceDetails.adsets = {
+      displayName: "Meta Ad Sets",
+      status: "warning",
+      message:
+        adSetResult.status === "rejected"
+          ? String(adSetResult.reason)
+          : "No data",
+    };
+    missingSources.push("adsets");
   }
 
   if (audienceData) {
@@ -238,6 +260,8 @@ export async function fetchMetaAds(
           return {
             ad_id: row.ad_id ?? "",
             ad_name: row.ad_name ?? "",
+            adset_id: row.adset_id ?? "",
+            campaign_id: row.campaign_id,
             campaign_name: row.campaign_name,
             adset_name: row.adset_name ?? "",
             spend,
@@ -260,7 +284,32 @@ export async function fetchMetaAds(
         .slice(0, 50) // cap at top 50 by spend to keep payload manageable
     : [];
 
-  // 6. Detect fatigue signals
+  // 6. Map ad set rows
+  const adsets: MetaAdsAdSetRow[] = adSetRows
+    ? adSetRows
+        .map((row) => {
+          const spend = Number(row.spend);
+          const purchases = extractPurchases(row);
+          const revenue = extractRevenue(row);
+          return {
+            adset_id: row.adset_id ?? "",
+            adset_name: row.adset_name ?? "",
+            campaign_id: row.campaign_id,
+            spend,
+            impressions: Number(row.impressions),
+            reach: Number(row.reach ?? 0),
+            clicks: Number(row.clicks),
+            frequency: Number(row.frequency ?? 0),
+            purchases,
+            attributed_revenue: revenue,
+            cpa: safeDivide(spend, purchases),
+            roas: safeDivide(revenue, spend),
+          };
+        })
+        .sort((a, b) => b.spend - a.spend)
+    : [];
+
+  // 7. Detect fatigue signals
   const fatigued_ads: MetaAdsFatigueSignal[] = [];
 
   for (const ad of ads) {
@@ -391,6 +440,7 @@ export async function fetchMetaAds(
     campaigns,
     hiring_campaigns: hiringCampaigns,
     ads,
+    adsets,
     audience: {
       age_gender: ageGenderRows,
       geo: audienceData
