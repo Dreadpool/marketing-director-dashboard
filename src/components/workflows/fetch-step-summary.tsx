@@ -63,6 +63,7 @@ function isMasterMetrics(data: unknown): data is MasterMetrics {
     typeof data === "object" &&
     data !== null &&
     "metadata" in data &&
+    "current_month" in data &&
     typeof (data as MasterMetrics).metadata?.loaded_sources !== "undefined"
   );
 }

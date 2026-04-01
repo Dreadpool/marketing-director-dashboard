@@ -34,7 +34,9 @@ export function isMetaAdsMetrics(data: unknown): data is MetaAdsMetrics {
     data !== null &&
     "account_health" in data &&
     "campaigns" in data &&
-    "metadata" in data
+    "metadata" in data &&
+    "signals" in data &&
+    "audience" in data
   );
 }
 
