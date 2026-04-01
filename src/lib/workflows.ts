@@ -170,9 +170,9 @@ export const workflows: Workflow[] = [
     slug: "google-ads-analysis",
     title: "Google Ads Analysis",
     description:
-      "Campaign spend summaries, search terms, geographic performance, and CAC calculations.",
+      "Campaign performance by segment (Brand/Non-Brand/Competitor/PMax), CPA/ROAS decision metrics, ground truth comparison, and MoM/YoY trends.",
     icon: "search",
-    status: "coming-soon",
+    status: "active",
     cadence: { frequency: "monthly", dueRule: { type: "day-of-month", day: 10 } },
     dataSources: ["google_ads", "bigquery"],
     steps: [
