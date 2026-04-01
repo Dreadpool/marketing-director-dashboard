@@ -140,7 +140,8 @@ function computeSegmentHealth(
     roas,
     ctr: safeDivide(totalClicks, totalImpressions),
     avg_cpc: safeDivide(totalSpend, totalClicks),
-    cpa_status: totalConversions === 0 ? "on-target" : getCpaStatus(cpa),
+    // Spending with zero conversions = zombie (high CPA), not "on-target"
+    cpa_status: totalConversions === 0 && totalSpend > 0 ? "high" : totalConversions === 0 ? "on-target" : getCpaStatus(cpa),
     roas_status: totalSpend === 0 ? "above-target" : getRoasStatus(roas),
     campaign_count: filtered.length,
   };
@@ -175,7 +176,8 @@ function computeAccountHealth(
     roas,
     ctr: safeDivide(totalClicks, totalImpressions),
     avg_cpc: safeDivide(totalSpend, totalClicks),
-    cpa_status: totalConversions === 0 ? "on-target" : getCpaStatus(cpa),
+    // Spending with zero conversions = zombie (high CPA), not "on-target"
+    cpa_status: totalConversions === 0 && totalSpend > 0 ? "high" : totalConversions === 0 ? "on-target" : getCpaStatus(cpa),
     roas_status: totalSpend === 0 ? "above-target" : getRoasStatus(roas),
     segments,
   };
@@ -185,6 +187,16 @@ function computeGroundTruth(
   googleConversions: number,
   bigqueryBookings: number,
 ): GoogleAdsGroundTruth {
+  // Both zero = no data, not a divergence
+  if (googleConversions === 0 && bigqueryBookings === 0) {
+    return {
+      bigquery_bookings: 0,
+      google_ads_conversions: 0,
+      attribution_ratio: 1,
+      divergence_flag: false,
+    };
+  }
+
   const ratio = safeDivide(googleConversions, bigqueryBookings);
   const divergence = Math.abs(ratio - 1);
 
