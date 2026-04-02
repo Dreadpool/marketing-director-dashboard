@@ -261,10 +261,10 @@ export function PromoCodeFetchSummary({ data }: { data: PromoCodeMetrics }) {
             <div className="space-y-2">
               {topRoutes.slice(0, 5).map((r) => (
                 <div key={r.route} className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground truncate max-w-[160px]">
+                  <span className="text-xs text-muted-foreground">
                     {r.route}
                   </span>
-                  <span className="text-sm font-semibold tabular-nums shrink-0">
+                  <span className="text-sm font-semibold tabular-nums shrink-0 ml-3">
                     {num.format(r.orders)} orders
                   </span>
                 </div>

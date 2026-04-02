@@ -140,13 +140,15 @@ export async function fetchPromoCode(
   // Unique emails for customer queries
   const emails = [...new Set(orders.map((o) => o.email).filter(Boolean))];
 
-  // Query 2: Customer first purchases (parallel)
+  // Query 2: Each customer's first-ever purchase date (from sales_orders directly)
   const firstPurchasePromise = emails.length > 0
     ? bq.query({
         query: `
-          SELECT LOWER(TRIM(email)) AS email, MIN(DATE(first_order_date)) AS first_date
-          FROM \`${DATASET}.customer_first_order\`
-          WHERE LOWER(TRIM(email)) IN UNNEST(@emails)
+          SELECT LOWER(TRIM(purchaser_email)) AS email, MIN(DATE(purchase_date)) AS first_date
+          FROM \`${DATASET}.sales_orders\`
+          WHERE selling_company = 'Salt Lake Express'
+            AND (activity_type IS NULL OR activity_type = 'Sale')
+            AND LOWER(TRIM(purchaser_email)) IN UNNEST(@emails)
           GROUP BY 1
         `,
         params: { emails },
@@ -184,7 +186,9 @@ export async function fetchPromoCode(
     }
   }
 
-  // Classify new vs returning: new if their first purchase date falls within the promo date range
+  // Classify new vs returning
+  // "New" = their first-ever SLE purchase falls within the promo date range
+  // "Returning" = they had purchased before the promo period started
   let newCustomers = 0;
   const uniqueEmails = new Set<string>();
 
@@ -192,9 +196,12 @@ export async function fetchPromoCode(
     if (!order.email || uniqueEmails.has(order.email)) continue;
     uniqueEmails.add(order.email);
     const firstDate = firstPurchaseMap.get(order.email);
-    if (!firstDate || firstDate >= startDate) {
+    // Only count as new if we have data AND their first purchase is within the promo range
+    if (firstDate && firstDate >= startDate) {
       newCustomers++;
     }
+    // If no firstDate found (shouldn't happen since we query sales_orders directly),
+    // default to returning (conservative — don't inflate new customer count)
   }
 
   // Baseline AOV
