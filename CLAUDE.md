@@ -78,11 +78,15 @@ Built first for Salt Lake Express (SLE) marketing operations. Designed to suppor
 - [ ] Fix action_items insert (recommendation step fails on long text params, needs schema or parsing fix)
 - [ ] Tune analysis + recommendations prompts (currently too opinionated, missing business context. Feed a user prompt before generating. Reform action item parsing.)
 - [ ] Dashboard KPI board (replicate Jacob's spreadsheet metrics on `/` homepage, sourced from BigQuery/QuickBooks GL)
-- [ ] Confirm TDS payment logic (call with TDS: how do cancellations affect payment_amount fields, is total_sale ever different from sum of payment slots)
+- [ ] TDS support ticket: cancel vs reschedule identification, void pattern change, cancel amount completeness, payment slot questions. Full audit at `~/.claude/plans/stateless-frolicking-dusk.md`. Known code issues documented in TDS Data Model section below.
 - [ ] Historical analysis archive (snapshot completed runs for instant historical access)
 - [ ] AI chat panel with real Claude integration (replace mock chat)
 - [ ] Google Ads Analysis workflow: Decision framework spec at `docs/superpowers/specs/2026-03-31-google-ads-decision-framework.md`. Phase 1 (Decision Metrics): brand/non-brand segmentation, CPA/ROAS thresholds, ground truth comparison. Phase 2 (Growth & Allocation): Impression Share, campaign categorization (Stars/Zombies/Bleeders). Phases 3-4 deferred. Framework: Vallaeys (Optmyzr) + Geddes (QS formula) + 3Q Digital (L/R Ratio).
-- [ ] SEO Ranking Analysis workflow: fetch executor (Google Sheets keyword data), visibility scoring, tier distribution, rank changes, biggest movers
+- [x] SEO Ranking Analysis workflow: fetch executor (Google Sheets keyword data), visibility scoring, tier distribution, rank changes, biggest movers (2026-04-01)
+- [ ] SEO Quick Wins workflow: GSC striking distance analysis (ranks 5-20, sorted by impressions) + CTR optimization (actual vs benchmark CTR by position). Data source: Google Search Console API. Framework: First Page Sage CTR benchmarks + universal practitioner consensus on striking distance methodology.
+- [ ] Route Page Coverage Audit: Compare SLE route inventory against sitemap/page inventory. Identify city pairs with no dedicated landing page. Framework: Transit App case study (300→21,578 pages, +1,134% organic traffic), Eli Schwartz Product-Led SEO.
+- [ ] SEO Content Gap Analysis: Keywords competitors (Wanderu, BusBud, Rome2Rio) rank for that SLE does not. Categorize by intent type. Data source: Ahrefs/Semrush API or CSV export. Framework: Ahrefs Content Gap tool, Kevin Indig competitive strategy.
+- [ ] Local SEO Scorecard: GBP audit per SLE stop location (completeness, reviews, photos, NAP consistency). Framework: BrightLocal Local Search Ranking Factors 2025.
 - [ ] Email Marketing Review workflow: fetch executor (email platform API TBD), open/click rates, list health, segmentation analysis
 - [ ] Creative/Content Planning workflow: fetch executor (prior month performance + content calendar), theme identification, content calendar and creative briefs
 - [ ] Flyer/Event Planning workflow: fetch executor (upcoming events + venue schedules), event calendar review, flyer briefs and promotion plan
@@ -188,6 +192,86 @@ Built first for Salt Lake Express (SLE) marketing operations. Designed to suppor
 | Google Ads | google-ads-api (GAQL) | Campaign spend, search terms, geo | No |
 | GA4 | googleapis | Sessions, traffic, conversions | No |
 | QuickBooks GL | @google-cloud/bigquery | Ad spend, operating expenses (quickbooks_gl dataset) | Yes |
+
+## TDS Data Model (sales_orders)
+
+Understanding of the `tds_sales.sales_orders` table, confirmed by querying BigQuery (2026-04-02). Pending TDS support ticket for open questions.
+
+### Activity Types
+
+Each `order_id` can have multiple rows with different `activity_type` values:
+- **Sale** -- booking record with payment info (`payment_type_1..4`, `payment_amount_1..4`, `total_sale`)
+- **Cancel** -- cancellation record with cancel fields (`canceled_outbound_fare`, `canceled_return_fare`, `canceled_baggage_fee`)
+- **Void** -- marks order as void (payment never went through)
+- **NULL** -- unknown meaning, treated as Sale in current code. Needs TDS confirmation.
+
+### System Cutover (~Nov 2025)
+
+TDS changed how records are stored. Three distinct eras in the data:
+
+**Era 1: Pre-March 2025** -- `activity_type` field is NULL for all records (911K rows). No way to distinguish Sale/Cancel/Void. Treat as legacy.
+
+**Era 2: Apr 2025 - Nov 4, 2025** -- Old system. `activity_type` populated (Sale, Cancel, Void). Voids create 3 records (Sale + Cancel + Void) all with positive `total_sale`.
+
+**Era 3: Jan 29, 2026 - Present** -- New system. Voids create 1 record with negative `total_sale`. Cancels also have negative `total_sale` (sign convention changed).
+
+**Gap: Nov 5, 2025 - Jan 28, 2026** -- ~3 months with zero Void records in either format. Voids during this period are unrecorded or handled differently.
+
+| Month | Old Voids (3-record) | New Voids (1-record) | Cancel-only | Sales |
+|-------|---------------------|---------------------|-------------|-------|
+| Sep 2025 | 1,241 | 0 | 1,418 | 11,364 |
+| Oct 2025 | 1,317 | 0 | 2,121 | 13,281 |
+| Nov 2025 | 130 (Nov 1-4 only) | 0 | -- | -- |
+| Dec 2025 | 0 | 0 | 2,993 | 13,854 |
+| Jan 2026 | 0 | 530 | -- | -- |
+| Feb 2026 | 0 | 4,309 | 1,830 | 8,929 |
+| Mar 2026 | 0 | 5,313 | 1,710 | 10,830 |
+
+### Key Findings from Data (2026-04-02)
+
+1. **Sign convention changed.** Old system: Cancel and Void records have positive `total_sale`. New system: both have negative `total_sale`. Current code assumes positive values and subtracts. Needs review for new-system data.
+2. **Void volume increased ~4x.** Old system: ~1,000-1,300 voids/month. New system: 4,300-5,300/month. Either genuinely more voids, or the new system records events as Void that the old system handled differently.
+3. **Cancel amount fields are incomplete.** E.g., order 6750929: `total_sale = $99.95` but `canceled_outbound_fare = $97`. The ~$2.95 gap is likely fees/taxes not captured.
+4. **Voided orders in old system** have `payment_type_1 = "Other"` (not a real payment method).
+5. **`activity_type = NULL`** is historical only. 911K rows, all pre-March 2025. Zero NULLs from April 2025 onward.
+
+### Open Questions (Pending TDS Ticket)
+
+**Blockers:**
+1. When a customer reschedules, does TDS create a Cancel on the old order + a new Sale? How do we distinguish true cancels from reschedule cancels?
+2. Do `canceled_outbound_fare + canceled_return_fare + canceled_baggage_fee` capture the FULL cancel amount? What components are missing?
+3. What is the difference between Void and Cancel? When is each used?
+4. What triggers `previous_order`? Only reschedules? Date changes? Route changes?
+5. Does `total_sale` always equal `SUM(payment_amount_1..4)`?
+6. What does `activity_type = NULL` mean?
+
+**Accuracy improvements:**
+7. Can one leg of a round-trip be canceled independently (partial cancel)?
+8. Are cancel amount fields stored as positive or negative numbers?
+9. When a split-payment order is canceled, how is the refund allocated across payment methods?
+10. What are "Customer Account Credit" and "Corporate Account" payment types? Does corporate cash eventually arrive via invoice?
+
+### Known Code Issues (from 2026-04-02 audit)
+
+1. `metrics-calculator.ts:233` -- Customer segmentation uses `row.total_sale` instead of `row.revenue_after_cancellations`. New/returning revenue ignores cancels.
+2. `getCancelsByPaymentCategory` uses `ABS()` on cancel fields but `getCancelAmounts` does not. If cancel amounts are negative, `revenue_after_cancellations` is inflated.
+3. Unique customers count includes rebook rows but gross bookings excludes them. Denominator mismatch for `revenue_per_customer` and `orders_per_customer`.
+4. `revenue_variance` data quality check compares payment slot sums to `revenue_after_cancellations` (net) instead of `total_sale` (gross). Will always show variance equal to total cancels.
+
+### Ad Hoc BigQuery Queries
+
+To run ad hoc queries against BigQuery from this project:
+```bash
+GOOGLE_APPLICATION_CREDENTIALS="/Users/brady/credentials/bigquery-service-account.json" npx tsx -e "
+const { BigQuery } = require('@google-cloud/bigquery');
+const bq = new BigQuery({ projectId: 'jovial-root-443516-a7' });
+async function main() {
+  const [rows] = await bq.query({ query: \`SELECT ... FROM \\\`jovial-root-443516-a7.tds_sales.sales_orders\\\` LIMIT 10\` });
+  for (const r of rows) console.log(JSON.stringify(r));
+}
+main().catch(console.error);
+"
+```
 
 ## Superpowers Development Workflow
 

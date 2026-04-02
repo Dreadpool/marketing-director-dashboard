@@ -75,11 +75,10 @@ function getSheetsClient(): SheetsClient {
 // ─── Parsing helpers ────────────────────────────────────────────────────────
 
 /**
- * Parse "April 1st", "Sep 20th" etc into { month, day, year }.
- * Year assignment: months Apr-Dec = 2025, Jan-Mar = 2026.
- * // TODO: update year logic when sheet adds Apr 2026+ data
+ * Parse "April 1st", "Sep 20th" etc into month index (0-11) and day.
+ * Year is NOT assigned here — it's determined by column order in fetchTabData.
  */
-function parseMonthHeader(header: string): Date | null {
+function parseMonthHeader(header: string): { monthIndex: number; day: number } | null {
   const cleaned = header.trim().replace(/(\d+)(st|nd|rd|th)/i, "$1");
   const parts = cleaned.split(/\s+/);
   if (parts.length < 2) return null;
@@ -92,8 +91,7 @@ function parseMonthHeader(header: string): Date | null {
   if (monthIndex === -1) monthIndex = MONTH_ABBREVS.indexOf(monthStr);
   if (monthIndex === -1) return null;
 
-  const year = monthIndex >= 3 ? 2025 : 2026; // Apr-Dec = 2025, Jan-Mar = 2026
-  return new Date(year, monthIndex, day);
+  return { monthIndex, day };
 }
 
 function cleanRank(value: string): number | null {
@@ -127,13 +125,24 @@ async function fetchTabData(
 
   const headers = rows[0] as string[];
 
-  // Find and sort date columns
-  const monthCols: { colIdx: number; date: Date }[] = [];
+  // Find date columns (parse month/day only)
+  const parsed: { colIdx: number; monthIndex: number; day: number }[] = [];
   for (let i = 1; i < headers.length; i++) {
-    const d = parseMonthHeader(headers[i] ?? "");
-    if (d) monthCols.push({ colIdx: i, date: d });
+    const p = parseMonthHeader(headers[i] ?? "");
+    if (p) parsed.push({ colIdx: i, ...p });
   }
-  if (monthCols.length === 0) return null;
+  if (parsed.length === 0) return null;
+
+  // Assign years: first column starts at 2025 (when tracking began in this sheet).
+  // Bump year when month index goes backward (e.g., Dec → Jan).
+  let year = 2025;
+  let prevMonth = parsed[0].monthIndex;
+  const monthCols: { colIdx: number; date: Date }[] = [];
+  for (const p of parsed) {
+    if (p.monthIndex < prevMonth) year++;
+    prevMonth = p.monthIndex;
+    monthCols.push({ colIdx: p.colIdx, date: new Date(year, p.monthIndex, p.day) });
+  }
 
   monthCols.sort((a, b) => a.date.getTime() - b.date.getTime());
 
@@ -209,12 +218,13 @@ function computeVisibility(data: TabData): SeoVisibilityScore[] {
 function computeTiers(data: TabData): SeoTierDistribution[] {
   const results: SeoTierDistribution[] = [];
   for (let m = 0; m < data.months.length; m++) {
-    let top3 = 0, top5 = 0, top10 = 0, below10 = 0;
+    let first = 0, top3 = 0, top5 = 0, top10 = 0, below10 = 0;
     let hasData = false;
     for (let k = 0; k < data.keywords.length; k++) {
       const rank = data.ranks[k][m];
       if (rank == null) continue;
       hasData = true;
+      if (rank === 1) first++;
       if (rank <= 3) top3++;
       if (rank <= 5) top5++;
       if (rank <= 10) top10++;
@@ -223,6 +233,7 @@ function computeTiers(data: TabData): SeoTierDistribution[] {
     if (!hasData) continue;
     results.push({
       month: data.months[m],
+      first_place: first,
       top_3: top3,
       top_5: top5,
       top_10: top10,

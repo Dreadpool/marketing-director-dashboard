@@ -24,6 +24,7 @@ export type SeoVisibilityScore = {
 
 export type SeoTierDistribution = {
   month: string;
+  first_place: number;
   top_3: number;
   top_5: number;
   top_10: number;

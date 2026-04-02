@@ -48,8 +48,9 @@ export function isSeoRankingMetrics(data: unknown): data is SeoRankingMetrics {
 
 // ─── Chart colors ───────────────────────────────────────────────────────────
 
+const GOLD = "oklch(0.78 0.12 85)";
 const EMERALD = "oklch(0.65 0.15 160)";
-const AMBER = "oklch(0.75 0.15 85)";
+const ORANGE = "oklch(0.7 0.15 50)";
 const SKY = "oklch(0.65 0.12 230)";
 const MUTED = "oklch(0.4 0 0)";
 const FOREGROUND = "oklch(0.95 0 0)";
@@ -207,17 +208,21 @@ function SiteSection({
   const latestTier = site.tiers.length > 0 ? site.tiers[site.tiers.length - 1] : null;
   const latestVisibility = site.visibility.length > 0 ? site.visibility[site.visibility.length - 1] : null;
 
+  // Short month label: "Apr 25" — keeps year context, avoids duplicate "Apr"
+  const shortMonth = (m: string) => m.replace(/\s\d{2}(\d{2})$/, " '$1");
+
   // Visibility chart data
   const visData = site.visibility.map((v) => ({
-    month: v.month.replace(/\s\d{4}$/, ""), // "Apr 2025" -> "Apr"
+    month: shortMonth(v.month),
     score: v.score,
     keywords: v.keywords_tracked,
   }));
 
   // Tier chart data: compute non-overlapping segments for stacking
   const tierData = site.tiers.map((t) => ({
-    month: t.month.replace(/\s\d{4}$/, ""),
-    "Top 3": t.top_3,
+    month: shortMonth(t.month),
+    "#1": t.first_place ?? 0,
+    "2-3": t.top_3 - (t.first_place ?? 0),
     "4-5": t.top_5 - t.top_3,
     "6-10": t.top_10 - t.top_5,
     "Below 10": t.below_10,
@@ -270,7 +275,7 @@ function SiteSection({
             <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
               Visibility Trend
             </p>
-            <ResponsiveContainer width="100%" height={160}>
+            <ResponsiveContainer width="100%" height={320}>
               <LineChart data={visData}>
                 <XAxis
                   dataKey="month"
@@ -289,7 +294,7 @@ function SiteSection({
                   formatter={(val) => [Number(val).toFixed(3), "Visibility"]}
                 />
                 <Line
-                  type="monotone"
+                  type="linear"
                   dataKey="score"
                   stroke={EMERALD}
                   strokeWidth={2}
@@ -322,12 +327,30 @@ function SiteSection({
                   width={30}
                 />
                 <RechartsTooltip {...chartTooltipStyle} />
-                <Bar dataKey="Top 3" stackId="tiers" fill={EMERALD} radius={[0, 0, 0, 0]} />
+                <Bar dataKey="Below 10" stackId="tiers" fill={MUTED} radius={[0, 0, 0, 0]} />
+                <Bar dataKey="6-10" stackId="tiers" fill={ORANGE} />
                 <Bar dataKey="4-5" stackId="tiers" fill={SKY} />
-                <Bar dataKey="6-10" stackId="tiers" fill={AMBER} />
-                <Bar dataKey="Below 10" stackId="tiers" fill={MUTED} radius={[2, 2, 0, 0]} />
+                <Bar dataKey="2-3" stackId="tiers" fill={EMERALD} />
+                <Bar dataKey="#1" stackId="tiers" fill={GOLD} radius={[2, 2, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
+            <div className="flex items-center justify-center gap-4 mt-1.5">
+              {[
+                { label: "#1", color: GOLD },
+                { label: "2-3", color: EMERALD },
+                { label: "4-5", color: SKY },
+                { label: "6-10", color: ORANGE },
+                { label: "Below 10", color: MUTED },
+              ].map((item) => (
+                <div key={item.label} className="flex items-center gap-1.5">
+                  <span
+                    className="inline-block h-2.5 w-2.5 rounded-sm"
+                    style={{ backgroundColor: item.color }}
+                  />
+                  <span className="text-[10px] text-muted-foreground">{item.label}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -448,6 +471,28 @@ export function SeoRankingFetchSummary({ data }: { data: SeoRankingMetrics }) {
         </div>
         <SourceBadges sourceDetails={metadata.source_details} />
       </div>
+
+      {/* Methodology */}
+      <CollapsibleSection title="Methodology" defaultOpen>
+        <div className="rounded-md bg-muted/30 border border-border/40 px-4 py-3 space-y-2.5 text-xs text-muted-foreground">
+          <div>
+            <p className="font-medium text-foreground/80 mb-0.5">Visibility Score</p>
+            <p>Sum of 1/rank for all tracked keywords. A #1 ranking contributes 1.0, #10 contributes 0.1, #100 contributes 0.01. Higher is better. This exponentially weights top positions, reflecting how click-through rates concentrate at the top of search results.</p>
+          </div>
+          <div>
+            <p className="font-medium text-foreground/80 mb-0.5">Net Change Score</p>
+            <p>For each consecutive month, compares the rank of every keyword that has data in both months. A keyword moving from rank 8 to rank 3 contributes +5. Summed across all keywords and all month transitions. Positive = overall improvement.</p>
+          </div>
+          <div>
+            <p className="font-medium text-foreground/80 mb-0.5">Tier Distribution</p>
+            <p>Counts how many keywords fall into each ranking tier per month: #1, ranks 2-3, 4-5, 6-10, and below 10. Shows whether improvements are concentrated at the top or spread throughout.</p>
+          </div>
+          <div>
+            <p className="font-medium text-foreground/80 mb-0.5">Biggest Movers</p>
+            <p>Compares each keyword&apos;s first tracked rank to its most recent rank. Keywords with the largest positive change (rank number decreased) are &quot;improved&quot;; largest negative change are &quot;declined.&quot;</p>
+          </div>
+        </div>
+      </CollapsibleSection>
 
       {/* Per-site sections */}
       {data.sites.map((site, idx) => (
