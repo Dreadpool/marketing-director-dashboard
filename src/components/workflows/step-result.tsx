@@ -30,7 +30,9 @@ export function StepResult({
   workflowSlug,
   stepType,
 }: StepResultProps) {
-  const [expanded, setExpanded] = useState(status === "completed");
+  const [expanded, setExpanded] = useState(
+    status === "completed" || stepType === "fetch",
+  );
 
   const statusColor =
     status === "completed"
