@@ -294,6 +294,7 @@ export function PromoCodeFetchSummary({ data }: { data: PromoCodeMetrics }) {
                 tick={{ fontSize: 11, fill: "#e0e0e0" }}
                 axisLine={false}
                 tickLine={false}
+                interval={0}
               />
               <YAxis hide />
               <Tooltip
