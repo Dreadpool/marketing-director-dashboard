@@ -187,21 +187,23 @@ export async function fetchPromoCode(
   }
 
   // Classify new vs returning
-  // "New" = their first-ever SLE purchase falls within the promo date range
-  // "Returning" = they had purchased before the promo period started
+  // For each unique customer, find their earliest promo order date.
+  // Compare to their first-ever SLE purchase date (from the query above).
+  // If first-ever purchase == earliest promo order → new (the promo was their first ride)
+  // If first-ever purchase < earliest promo order → returning (they rode before)
   let newCustomers = 0;
   const uniqueEmails = new Set<string>();
-
+  // orders is sorted by purchase_date, so first occurrence per email is their earliest promo order
   for (const order of orders) {
     if (!order.email || uniqueEmails.has(order.email)) continue;
     uniqueEmails.add(order.email);
-    const firstDate = firstPurchaseMap.get(order.email);
-    // Only count as new if we have data AND their first purchase is within the promo range
-    if (firstDate && firstDate >= startDate) {
+    const firstEverDate = firstPurchaseMap.get(order.email);
+    const firstPromoOrderDate = order.purchase_date.value;
+    // New if their first-ever SLE purchase IS the promo order (same date)
+    if (firstEverDate && firstEverDate >= firstPromoOrderDate) {
       newCustomers++;
     }
-    // If no firstDate found (shouldn't happen since we query sales_orders directly),
-    // default to returning (conservative — don't inflate new customer count)
+    // If no firstEverDate or it's earlier → returning (conservative default)
   }
 
   // Baseline AOV
