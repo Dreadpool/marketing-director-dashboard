@@ -291,21 +291,21 @@ export function PromoCodeFetchSummary({ data }: { data: PromoCodeMetrics }) {
             >
               <XAxis
                 dataKey="weekLabel"
-                tick={{ fontSize: 11, fill: "hsl(var(--foreground))" }}
+                tick={{ fontSize: 11, fill: "#e0e0e0" }}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis hide />
               <Tooltip
                 contentStyle={{
-                  background: "hsl(var(--popover))",
-                  border: "1px solid hsl(var(--border))",
+                  background: "#1a1a24",
+                  border: "1px solid #333",
                   borderRadius: "8px",
                   fontSize: "13px",
-                  color: "hsl(var(--foreground))",
+                  color: "#e0e0e0",
                   padding: "8px 12px",
                 }}
-                cursor={{ fill: "hsl(var(--muted)/0.3)" }}
+                cursor={{ fill: "rgba(255,255,255,0.05)" }}
                 labelFormatter={(label) => `Week of ${label}`}
                 formatter={(value) => [
                   `${num.format(Number(value))} orders`,
