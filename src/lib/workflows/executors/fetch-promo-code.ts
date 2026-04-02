@@ -32,6 +32,7 @@ export interface PromoCodeMetrics {
     costPerAcquisition: number;
     netProfit: number;
   };
+  similarCodes?: Array<{ code: string; orders: number }>;
   metadata: { generatedAt: string; provenanceNote: string };
 }
 
@@ -78,6 +79,28 @@ export async function fetchPromoCode(
   }>;
 
   if (orders.length === 0) {
+    // Fetch similar codes so the AI analysis can suggest alternatives
+    let similarCodes: Array<{ code: string; orders: number }> = [];
+    try {
+      const [similarResult] = await bq.query({
+        query: `
+          SELECT UPPER(TRIM(promotion_code)) AS code, COUNT(*) AS orders
+          FROM \`${DATASET}.sales_orders\`
+          WHERE selling_company = 'Salt Lake Express'
+            AND promotion_code IS NOT NULL AND TRIM(promotion_code) != ''
+            AND (activity_type IS NULL OR activity_type = 'Sale')
+          GROUP BY 1
+          ORDER BY orders DESC
+          LIMIT 50
+        `,
+      });
+      similarCodes = (similarResult as Array<{ code: string; orders: number }>).map(
+        (r) => ({ code: r.code, orders: Number(r.orders) }),
+      );
+    } catch {
+      // Non-critical — proceed without suggestions
+    }
+
     return {
       promoCode: promoCode.toUpperCase().trim(),
       dateRange: { start: "", end: "", days: 0 },
@@ -96,6 +119,7 @@ export async function fetchPromoCode(
       weeklyUsage: [],
       channelBreakdown: { web: 0, agent: 0 },
       campaignCost,
+      similarCodes,
       metadata: {
         generatedAt: new Date().toISOString(),
         provenanceNote: `No orders found for promo code "${promoCode}"`,

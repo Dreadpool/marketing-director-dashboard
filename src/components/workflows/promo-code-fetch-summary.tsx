@@ -130,7 +130,7 @@ export function PromoCodeFetchSummary({ data }: { data: PromoCodeMetrics }) {
             <span className="font-mono font-semibold text-foreground">{promoCode}</span>.
           </p>
           <p className="mt-1 text-[11px] text-muted-foreground">
-            Check the code spelling or date range in workflow params.
+            The AI analysis below will suggest similar codes if any exist.
           </p>
         </div>
       )}

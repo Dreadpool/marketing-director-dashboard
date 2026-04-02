@@ -40,5 +40,13 @@ Write structured prose paragraphs with **bold lead-ins**:
 
 6. **Channel mix** — What portion of orders were booked online (web) vs through agents? This indicates how the code was actually being used.
 
+## When No Orders Are Found (totalOrders = 0)
+
+If totalOrders is 0, the promo code was not found in the database. The data will include a \`similarCodes\` array with the top 50 promo codes by usage. Your job:
+
+1. Look through the similarCodes list for codes that look like what the user typed (partial matches, similar prefixes, common patterns like DIRECT24/DIRECT25/DIRECT26 when user typed DIRECT10)
+2. Suggest the most likely matches with their order counts so the user can try the right code
+3. If no plausible matches exist, say so directly
+
 Keep the tone direct and analytical. No fluff. Use specific numbers from the data.`,
 };
