@@ -118,8 +118,10 @@ function parseActionItems(
   let currentPriority: string | null = null;
   let currentCategory: string | null = null;
 
+  const stripMd = (s: string) => s.replace(/\*+/g, "").replace(/_+/g, "").trim();
+
   for (const line of lines) {
-    const trimmed = line.trim();
+    const trimmed = stripMd(line);
 
     if (trimmed.startsWith("ACTION:")) {
       // Save previous action if exists
@@ -231,19 +233,26 @@ export async function executeWorkflowSteps(
 
       if (stepDef.type === "fetch") {
         // Check period cache before calling the API
-        const cached = await db
-          .select({ metrics: periodMetrics.metrics })
-          .from(periodMetrics)
-          .where(
-            and(
-              eq(periodMetrics.workflowSlug, slug),
-              eq(periodMetrics.periodYear, period.year),
-              eq(periodMetrics.periodMonth, period.month),
-            ),
-          )
-          .limit(1);
+        // Skip cache for workflows with inputParams (e.g., promo-code-analysis)
+        // since the same period can produce different results for different inputs
+        const useCache = !params;
+        let cached: Array<{ metrics: unknown }> = [];
 
-        if (cached.length > 0 && cached[0].metrics) {
+        if (useCache) {
+          cached = await db
+            .select({ metrics: periodMetrics.metrics })
+            .from(periodMetrics)
+            .where(
+              and(
+                eq(periodMetrics.workflowSlug, slug),
+                eq(periodMetrics.periodYear, period.year),
+                eq(periodMetrics.periodMonth, period.month),
+              ),
+            )
+            .limit(1);
+        }
+
+        if (useCache && cached.length > 0 && cached[0].metrics) {
           console.log(
             `[engine] Using cached fetch data for ${slug} ${period.year}-${period.month}`,
           );
