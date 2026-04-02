@@ -250,7 +250,12 @@ export function WorkflowDetail({ workflow }: WorkflowDetailProps) {
       {/* Controls */}
       <div>
         {workflow.slug === "promo-code-analysis" ? (
-          <>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (promoCode.trim() && !running) handleRun();
+            }}
+          >
             <div className="flex items-end gap-3">
               <div className="flex-1">
                 <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -285,7 +290,7 @@ export function WorkflowDetail({ workflow }: WorkflowDetailProps) {
                 </div>
               </div>
               <button
-                onClick={handleRun}
+                type="submit"
                 disabled={running || !promoCode.trim()}
                 className="inline-flex h-9 items-center gap-2 rounded-md bg-gold px-4 text-sm font-semibold text-background transition-colors hover:bg-gold/90 disabled:opacity-50"
               >
@@ -300,7 +305,7 @@ export function WorkflowDetail({ workflow }: WorkflowDetailProps) {
             <p className="mt-1.5 text-xs text-muted-foreground/60">
               Date range auto-detected from usage data
             </p>
-          </>
+          </form>
         ) : (
           <div className="flex items-center gap-4">
             <PeriodSelector
