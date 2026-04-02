@@ -7,6 +7,7 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
+  LabelList,
 } from "recharts";
 import { Badge } from "@/components/ui/badge";
 import type { PromoCodeMetrics } from "@/lib/workflows/executors/fetch-promo-code";
@@ -282,11 +283,11 @@ export function PromoCodeFetchSummary({ data }: { data: PromoCodeMetrics }) {
           <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
             Weekly Usage
           </p>
-          <ResponsiveContainer width="100%" height={120}>
+          <ResponsiveContainer width="100%" height={140}>
             <BarChart
               data={weeklyUsage}
-              margin={{ top: 4, right: 4, left: -24, bottom: 0 }}
-              barCategoryGap="30%"
+              margin={{ top: 16, right: 4, left: -24, bottom: 0 }}
+              barCategoryGap="20%"
             >
               <XAxis
                 dataKey="weekLabel"
@@ -294,28 +295,36 @@ export function PromoCodeFetchSummary({ data }: { data: PromoCodeMetrics }) {
                 axisLine={false}
                 tickLine={false}
               />
-              <YAxis
-                tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                axisLine={false}
-                tickLine={false}
-                allowDecimals={false}
-              />
+              <YAxis hide />
               <Tooltip
                 contentStyle={{
                   background: "hsl(var(--card))",
                   border: "1px solid hsl(var(--border))",
                   borderRadius: "6px",
-                  fontSize: "11px",
+                  fontSize: "12px",
                   color: "hsl(var(--foreground))",
                 }}
                 cursor={{ fill: "hsl(var(--muted)/0.3)" }}
-                formatter={(value) => [num.format(Number(value)), "Orders"]}
+                labelFormatter={(label) => `Week of ${label}`}
+                formatter={(value) => [
+                  `${num.format(Number(value))} orders`,
+                  "",
+                ]}
               />
               <Bar
                 dataKey="orders"
                 fill="oklch(0.78 0.12 85)"
                 radius={[3, 3, 0, 0]}
-              />
+              >
+                <LabelList
+                  dataKey="orders"
+                  position="top"
+                  style={{
+                    fontSize: 10,
+                    fill: "hsl(var(--muted-foreground))",
+                  }}
+                />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>

@@ -229,24 +229,30 @@ export async function fetchPromoCode(
     .slice(0, 10);
 
   // Weekly usage
-  const weekMap = new Map<string, number>();
+  const weekData = new Map<number, { count: number; weekStart: string }>();
   const startMs = new Date(startDate).getTime();
+  const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
   for (const o of orders) {
     const orderMs = new Date(o.purchase_date.value).getTime();
-    const weekNum = Math.floor((orderMs - startMs) / (7 * 24 * 60 * 60 * 1000));
-    const weekStart = new Date(startMs + weekNum * 7 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .slice(0, 10);
-    const key = `W${weekNum + 1}`;
-    weekMap.set(key, (weekMap.get(key) ?? 0) + 1);
+    const weekNum = Math.floor((orderMs - startMs) / WEEK_MS);
+    const existing = weekData.get(weekNum);
+    if (existing) {
+      existing.count++;
+    } else {
+      const ws = new Date(startMs + weekNum * WEEK_MS);
+      weekData.set(weekNum, {
+        count: 1,
+        weekStart: `${ws.getMonth() + 1}/${ws.getDate()}`,
+      });
+    }
   }
-  const weeklyUsage = [...weekMap.entries()]
-    .map(([weekLabel, orders]) => ({
-      weekLabel,
-      weekStart: "",
-      orders,
-    }))
-    .sort((a, b) => parseInt(a.weekLabel.slice(1)) - parseInt(b.weekLabel.slice(1)));
+  const weeklyUsage = [...weekData.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([, data]) => ({
+      weekLabel: data.weekStart,
+      weekStart: data.weekStart,
+      orders: data.count,
+    }));
 
   // Channel breakdown
   const agentOrders = orders.filter(
