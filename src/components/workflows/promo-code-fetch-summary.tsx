@@ -283,26 +283,27 @@ export function PromoCodeFetchSummary({ data }: { data: PromoCodeMetrics }) {
           <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
             Weekly Usage
           </p>
-          <ResponsiveContainer width="100%" height={140}>
+          <ResponsiveContainer width="100%" height={180}>
             <BarChart
               data={weeklyUsage}
-              margin={{ top: 16, right: 4, left: -24, bottom: 0 }}
-              barCategoryGap="20%"
+              margin={{ top: 8, right: 4, left: 4, bottom: 0 }}
+              barCategoryGap="25%"
             >
               <XAxis
                 dataKey="weekLabel"
-                tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                tick={{ fontSize: 11, fill: "hsl(var(--foreground))" }}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis hide />
               <Tooltip
                 contentStyle={{
-                  background: "hsl(var(--card))",
+                  background: "hsl(var(--popover))",
                   border: "1px solid hsl(var(--border))",
-                  borderRadius: "6px",
-                  fontSize: "12px",
+                  borderRadius: "8px",
+                  fontSize: "13px",
                   color: "hsl(var(--foreground))",
+                  padding: "8px 12px",
                 }}
                 cursor={{ fill: "hsl(var(--muted)/0.3)" }}
                 labelFormatter={(label) => `Week of ${label}`}
@@ -318,11 +319,13 @@ export function PromoCodeFetchSummary({ data }: { data: PromoCodeMetrics }) {
               >
                 <LabelList
                   dataKey="orders"
-                  position="top"
+                  position="insideTop"
                   style={{
-                    fontSize: 10,
-                    fill: "hsl(var(--muted-foreground))",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    fill: "#111",
                   }}
+                  offset={6}
                 />
               </Bar>
             </BarChart>
