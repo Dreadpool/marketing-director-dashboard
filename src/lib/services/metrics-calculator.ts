@@ -6,8 +6,6 @@ import type {
 import type {
   MasterMetricsRevenue,
   MasterMetricsCustomers,
-  MasterMetricsPaymentMethods,
-  MasterMetricsPromotions,
   MasterMetricsTopCustomers,
   MasterMetricsMarketing,
 } from "@/lib/schemas/sources/monthly-analytics";
@@ -58,11 +56,16 @@ export function calculateRevenueBreakdown(
   cardpointe: CardPointeSettlement | null,
   cancelsByCategory: CancelsByPaymentCategory,
 ): MasterMetricsRevenue {
-  // Split rebooks from original orders — rebooks inflate gross bookings
-  const originalRows = rows.filter((r) => !r.previous_order);
+  // Rebook originals: orders whose order_id is referenced as previous_order by another row
+  const rebookedOriginalIds = new Set(
+    rows.filter((r) => r.previous_order).map((r) => r.previous_order!),
+  );
+  // Active rows: all sales EXCEPT rebook originals that were replaced this month
+  const activeRows = rows.filter((r) => !rebookedOriginalIds.has(r.order_id));
+  // Rebook rows: the replacement sales (for transparency metrics)
   const rebookRows = rows.filter((r) => !!r.previous_order);
 
-  const totalOrders = new Set(originalRows.map((r) => r.order_id)).size;
+  const totalOrders = new Set(activeRows.map((r) => r.order_id)).size;
 
   // Rebook transparency metrics
   const rebookCount = new Set(rebookRows.map((r) => r.order_id)).size;
@@ -71,13 +74,13 @@ export function calculateRevenueBreakdown(
     rebookAmount += row.payment_amount_1 + row.payment_amount_2 + row.payment_amount_3 + row.payment_amount_4;
   }
 
-  // Sum gross payment slots by category from TDS (original orders only)
+  // Sum gross payment slots by category from TDS (active orders only)
   let ccGross = 0;
   let cashGross = 0;
   let otherGross = 0;
   let accountCreditGross = 0;
 
-  for (const row of originalRows) {
+  for (const row of activeRows) {
     const slots = [
       { type: row.payment_type_1, amount: row.payment_amount_1 },
       { type: row.payment_type_2, amount: row.payment_amount_2 },
@@ -150,60 +153,6 @@ export function calculateRevenueBreakdown(
   };
 }
 
-/** Payment method breakdown by individual type, with split payment analysis */
-export function calculatePaymentAnalysis(
-  rows: AdjustedRow[],
-): MasterMetricsPaymentMethods {
-  const byType: Record<string, number> = {};
-
-  let splitCount = 0;
-  const comboCounts: Record<string, number> = {};
-
-  for (const row of rows) {
-    const slots = [
-      { type: row.payment_type_1, amount: row.payment_amount_1 },
-      { type: row.payment_type_2, amount: row.payment_amount_2 },
-      { type: row.payment_type_3, amount: row.payment_amount_3 },
-      { type: row.payment_type_4, amount: row.payment_amount_4 },
-    ];
-
-    // Track split payments (has payment_type_2)
-    if (row.payment_type_2) {
-      splitCount++;
-      const types = slots
-        .filter((s) => s.type)
-        .map((s) => s.type!)
-        .sort()
-        .join(" + ");
-      comboCounts[types] = (comboCounts[types] ?? 0) + 1;
-    }
-
-    for (const slot of slots) {
-      if (!slot.type || slot.amount === 0) continue;
-      byType[slot.type] = (byType[slot.type] ?? 0) + slot.amount;
-    }
-  }
-
-  // Top split payment combinations
-  const topCombinations = Object.entries(comboCounts)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 10)
-    .map(([combination, count]) => ({ combination, count }));
-
-  // Round all values
-  for (const key of Object.keys(byType)) byType[key] = round2(byType[key]);
-
-  return {
-    by_type: byType,
-    split_payments: {
-      count: splitCount,
-      percentage: rows.length > 0 ? round2((splitCount / rows.length) * 100) : 0,
-      top_combinations: topCombinations,
-    },
-    unique_types: Object.keys(byType).length,
-  };
-}
-
 /** New vs returning customer segmentation. */
 export function calculateCustomerSegmentation(
   rows: AdjustedRow[],
@@ -272,156 +221,6 @@ export function calculateCustomerSegmentation(
         : 0,
     new_customer_orders: newCustomerOrders,
     returning_customer_orders: returningCustomerOrders,
-  };
-}
-
-/** Promo code usage, top codes, and suspicious activity */
-export function calculatePromoAnalysis(
-  rows: AdjustedRow[],
-): MasterMetricsPromotions {
-  const promoRows = rows.filter(
-    (r) => r.promotion_code && r.promotion_code !== "null" && r.promotion_code !== "",
-  );
-  const nonPromoRows = rows.filter(
-    (r) => !r.promotion_code || r.promotion_code === "null" || r.promotion_code === "",
-  );
-
-  const uniqueCustomersTotal = new Set(
-    rows
-      .filter((r) => r.purchaser_email)
-      .map((r) => r.purchaser_email!.toLowerCase().trim()),
-  ).size;
-
-  const uniqueCustomersWithPromo = new Set(
-    promoRows
-      .filter((r) => r.purchaser_email)
-      .map((r) => r.purchaser_email!.toLowerCase().trim()),
-  ).size;
-
-  const promoRevenue = promoRows.reduce(
-    (s, r) => s + r.revenue_after_cancellations,
-    0,
-  );
-  const nonPromoRevenue = nonPromoRows.reduce(
-    (s, r) => s + r.revenue_after_cancellations,
-    0,
-  );
-  const totalDiscount = promoRows.reduce((s, r) => s + r.amount_discounted, 0);
-
-  // Top promo codes
-  const codeMap = new Map<
-    string,
-    {
-      uses: number;
-      revenue: number;
-      discount: number;
-      customers: Set<string>;
-    }
-  >();
-
-  for (const row of promoRows) {
-    const code = row.promotion_code!;
-    const existing = codeMap.get(code) ?? {
-      uses: 0,
-      revenue: 0,
-      discount: 0,
-      customers: new Set<string>(),
-    };
-    existing.uses++;
-    existing.revenue += row.revenue_after_cancellations;
-    existing.discount += row.amount_discounted;
-    if (row.purchaser_email)
-      existing.customers.add(row.purchaser_email.toLowerCase().trim());
-    codeMap.set(code, existing);
-  }
-
-  const topCodes = [...codeMap.entries()]
-    .sort(([, a], [, b]) => b.uses - a.uses)
-    .slice(0, 20)
-    .map(([code, data]) => ({
-      code,
-      uses: data.uses,
-      revenue: round2(data.revenue),
-      discount: round2(data.discount),
-      avg_discount: data.uses > 0 ? round2(data.discount / data.uses) : 0,
-      unique_customers: data.customers.size,
-    }));
-
-  // Suspicious activity: high usage customers (5+ promo uses)
-  const customerPromoUse = new Map<
-    string,
-    { count: number; discount: number; revenue: number; codes: Set<string> }
-  >();
-
-  for (const row of promoRows) {
-    if (!row.purchaser_email) continue;
-    const email = row.purchaser_email.toLowerCase().trim();
-    const existing = customerPromoUse.get(email) ?? {
-      count: 0,
-      discount: 0,
-      revenue: 0,
-      codes: new Set<string>(),
-    };
-    existing.count++;
-    existing.discount += row.amount_discounted;
-    existing.revenue += row.revenue_after_cancellations;
-    existing.codes.add(row.promotion_code!);
-    customerPromoUse.set(email, existing);
-  }
-
-  const highUsageCustomers = [...customerPromoUse.entries()]
-    .filter(([, d]) => d.count >= 5)
-    .sort(([, a], [, b]) => b.count - a.count)
-    .slice(0, 20)
-    .map(([email, d]) => ({
-      email,
-      promo_count: d.count,
-      total_discount: round2(d.discount),
-      total_revenue: round2(d.revenue),
-      codes_used: [...d.codes],
-    }));
-
-  // Suspicious codes: revenue <= 0 or discount > 50% of revenue
-  const suspiciousCodes = [...codeMap.entries()]
-    .filter(([, d]) => d.revenue <= 0 || d.discount > d.revenue * 0.5)
-    .map(([code, d]) => ({
-      code,
-      uses: d.uses,
-      revenue: round2(d.revenue),
-      discount: round2(d.discount),
-      issue:
-        d.revenue <= 0
-          ? "Zero or negative revenue"
-          : "Discount exceeds 50% of revenue",
-    }));
-
-  return {
-    usage_metrics: {
-      total_orders: new Set(rows.map((r) => r.order_id)).size,
-      promo_orders: promoRows.length,
-      promo_percentage:
-        rows.length > 0
-          ? round2((promoRows.length / rows.length) * 100)
-          : 0,
-      unique_customers_total: uniqueCustomersTotal,
-      unique_customers_with_promo: uniqueCustomersWithPromo,
-      total_discount_amount: round2(totalDiscount),
-      avg_discount_per_promo:
-        promoRows.length > 0 ? round2(totalDiscount / promoRows.length) : 0,
-      revenue_with_promo: round2(promoRevenue),
-      revenue_without_promo: round2(nonPromoRevenue),
-      aov_with_promo:
-        promoRows.length > 0 ? round2(promoRevenue / promoRows.length) : 0,
-      aov_without_promo:
-        nonPromoRows.length > 0
-          ? round2(nonPromoRevenue / nonPromoRows.length)
-          : 0,
-    },
-    top_promo_codes: topCodes,
-    suspicious_activity: {
-      high_usage_customers: highUsageCustomers,
-      suspicious_codes: suspiciousCodes,
-    },
   };
 }
 

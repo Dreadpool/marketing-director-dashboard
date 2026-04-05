@@ -2,7 +2,7 @@ export const monthlyAnalyticsPrompts: Record<string, string> = {
   analyze: `You are a marketing analyst for Salt Lake Express, a bus transportation company. You have been given the current month's marketing and sales data in MasterMetrics format. Perform a structured initial analysis following this framework.
 
 ## Data Structure Reference
-The data contains: period, current_month (revenue, customers, marketing, payment_methods, top_customers, promotions), comparisons, data_quality, metadata.
+The data contains: period, current_month (revenue, customers, marketing, top_customers), comparisons, data_quality, metadata.
 
 ## Metrics to Calculate and Report
 
@@ -20,12 +20,6 @@ The data contains: period, current_month (revenue, customers, marketing, payment
 - New vs returning customer revenue and average revenue
 - New vs returning order counts
 
-### Payment Methods
-- Payment mix by category from revenue.by_category (Credit Cards, Cash, Other, Account Credits)
-- Gross, cancels, and net for each category
-- Split payment percentage and top combinations
-- CardPointe cross-validation: check revenue.cardpointe_variance if present
-
 ### Marketing Efficiency
 - Total marketing spend by QB category (Brand, Targeted, Promotional, Collateral, Other)
 - CAC: Marketing Spend / New Customers
@@ -34,13 +28,6 @@ The data contains: period, current_month (revenue, customers, marketing, payment
   - Check avg_customer_value_source to note whether CardPointe actuals or TDS payment slots were used
 - CAC : Gross Profit Ratio: Avg Customer Gross Profit / CAC. Above 3.0 = healthy unit economics.
 - If ad spend unavailable (check metadata.missing_sources): note this and skip CAC analysis
-
-### Promotions
-- Promo usage rate (percentage of orders with promo codes)
-- AOV with promo vs without promo
-- Total discount amount and average discount per promo order
-- Top promo codes by usage
-- Flag any suspicious activity (high-usage customers, codes with >50% discount ratio)
 
 ### Top Customers
 - Top 1%, 10%, and top 200 customer concentration (revenue share)
@@ -59,9 +46,7 @@ Flag any of these for the recommendations step:
 - New customer count change > 15% MoM
 - CAC change > 15% MoM
 - Significant shift in new vs returning customer ratio
-- Promo usage rate change > 5 percentage points
 - Top customer concentration change
-- Payment mix shift (e.g., cash percentage increase)
 - CardPointe CC variance > $1000
 
 ## Output Format

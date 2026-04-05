@@ -15,9 +15,7 @@ import { getMonthlyAdSpend } from "@/lib/services/bigquery-adspend";
 import {
   applyCancelAdjustments,
   calculateRevenueBreakdown,
-  calculatePaymentAnalysis,
   calculateCustomerSegmentation,
-  calculatePromoAnalysis,
   calculateTopCustomers,
   calculateCAC,
 } from "@/lib/services/metrics-calculator";
@@ -115,8 +113,6 @@ export async function fetchMonthlyAnalytics(
     firstPurchaseMap,
     period,
   );
-  const payments = calculatePaymentAnalysis(adjustedRows);
-  const promos = calculatePromoAnalysis(adjustedRows);
   const topCustomers = calculateTopCustomers(adjustedRows);
   // Avg Customer Value: prefer CardPointe actuals for CC, add cash + other from TDS
   const cashNet = revenue.by_category.find(c => c.name === "Cash")?.net ?? 0;
@@ -265,9 +261,7 @@ export async function fetchMonthlyAnalytics(
       revenue,
       customers,
       marketing,
-      payment_methods: payments,
       top_customers: topCustomers,
-      promotions: promos,
     },
     comparisons: {
       month_over_month: {

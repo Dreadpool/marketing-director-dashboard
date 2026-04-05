@@ -23,7 +23,6 @@ import type {
   SourceDetail,
 } from "@/lib/schemas/sources/monthly-analytics";
 import {
-  NewVsReturningBar,
   HorizontalBarChart,
   EMERALD,
   MUTED,
@@ -188,7 +187,7 @@ function HeadlineMetrics({ data }: { data: MasterMetrics }) {
           label="Gross Bookings"
           value={usd.format(rev.gross_bookings)}
           secondary={`${num.format(rev.total_orders)} orders, ${usd2.format(rev.avg_order_value)} avg`}
-          tooltip="Sum of all payment amounts across Sale records (excluding voids and rebooks). Rebooks are excluded to avoid double-counting reschedule demand. Source: BigQuery sales_orders."
+          tooltip="Total payment amounts on all Sale records for the month, before cancellations. Excludes voided orders (failed payments) and orders that were rescheduled to a new booking in the same month. The replacement booking is counted instead. If a customer rebooks across months (e.g. books in Jan, reschedules in Feb), both months show their respective booking. This means adding months together slightly overcounts rebook activity in Gross, but Net Bookings corrects for this since the cancel offsets the original."
           yoyChange={yoy?.gross_bookings_change_percent}
           goodDirection="up"
         />
@@ -196,14 +195,14 @@ function HeadlineMetrics({ data }: { data: MasterMetrics }) {
           label="Net Bookings"
           value={usd.format(rev.net_bookings)}
           secondary={<NetBookingRateBadge rate={rev.net_booking_rate} />}
-          tooltip="Gross Bookings minus all cancellation amounts. Net Booking Rate appears lower than true retention because ~45% of cancellations are reschedules (cancel + rebook), not lost revenue."
+          tooltip="Gross Bookings minus true cancellation amounts. True cancels are Cancel records where the order was not voided and not rebooked (no other Sale has previous_order pointing to this order_id). Cancel amounts use ABS(canceled_outbound_fare + canceled_return_fare + canceled_baggage_fee), the refund amount excluding the ~$4 processing fee we retain. Source: BigQuery tds_sales.sales_orders."
           yoyChange={yoy?.net_bookings_change_percent}
           goodDirection="up"
         />
         <MetricCell
           label="New Cash"
           value={usd.format(rev.new_cash)}
-          tooltip="Fresh money entering the business. CC revenue from CardPointe settlements (ground truth) + estimated non-canceled cash payments from sales_orders. Excludes account credits, which recirculate existing balances. FIXME: Confirm cash payment logic with TDS — current estimate uses payment_type categorization from sales_orders which needs validation."
+          tooltip="Net revenue from payment types that represent incoming cash: credit cards (Visa, Mastercard, AmEx, Discover), POS Cash, and Driver Collect Payment. Excludes Customer Account Credit (recycled balances) and Corporate Account (billed separately). Calculated as gross per category minus true cancel amounts per category. Source: BigQuery tds_sales.sales_orders."
           yoyChange={yoy?.new_cash_change_percent}
           goodDirection="up"
         />
@@ -218,12 +217,12 @@ function HeadlineMetrics({ data }: { data: MasterMetrics }) {
               {num.format(rev.unique_customers)} customers
               {rev.rebook_orders > 0 && (
                 <span className="text-muted-foreground/70">
-                  {" "}({num.format(rev.rebook_orders)} rebooks excl.)
+                  {" "}({num.format(rev.rebook_orders)} rebooks)
                 </span>
               )}
             </>
           }
-          tooltip="Unique order count from Sale records, excluding voids and rebooks. Rebooks (where previous_order is set) are excluded to avoid double-counting reschedule demand. Source: BigQuery sales_orders."
+          tooltip="Count of unique order_ids from Sale records, excluding voided orders and rebook originals replaced in the same month. Rebook replacements are counted (they represent the standing booking). Source: BigQuery tds_sales.sales_orders."
           yoyChange={yoy?.order_change_percent}
           goodDirection="up"
         />
@@ -261,8 +260,7 @@ function HeadlineMetrics({ data }: { data: MasterMetrics }) {
                 <Info className="h-3 w-3 text-muted-foreground/50" />
               </TooltipTrigger>
               <TooltipContent side="top" className="max-w-xs text-xs">
-                <p>Total real revenue (CardPointe CC net + cash + other from TDS) divided by unique active customers that month. Source: {mkt.avg_customer_value_source === "cardpointe" ? "CardPointe settlements" : "TDS sales_orders"}.</p>
-                <p className="mt-1.5 text-amber-400 font-medium">FIXME: Cash portion uses payment_amount fields from sales_orders. Need to confirm with TDS: (1) how do cancellations and reschedules affect payment_amount fields on the original sale record, and (2) is total_sale ever different from the sum of payment slots.</p>
+                <p>Total real revenue (CardPointe CC net + cash + other from TDS) divided by unique active customers that month. Confirmed: total_sale always equals SUM(payment_amount_1..4) on Sale records. Source: {mkt.avg_customer_value_source === "cardpointe" ? "CardPointe settlements" : "TDS sales_orders"}.</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -282,8 +280,8 @@ function HeadlineMetrics({ data }: { data: MasterMetrics }) {
         </div>
         <MetricCell
           label="CAC : Gross Profit"
-          value={`$${mkt.cac_to_value_ratio.toFixed(1)} : $1`}
-          secondary={`${usd2.format(mkt.avg_customer_gross_profit)} GP per ${usd2.format(mkt.cac)} CAC`}
+          value={`$${(mkt.cac_to_value_ratio ?? 0).toFixed(1)} : $1`}
+          secondary={`${usd2.format(mkt.avg_customer_gross_profit ?? 0)} GP per ${usd2.format(mkt.cac)} CAC`}
           tooltip="For every $1 spent acquiring a customer, how much gross profit do they generate? Uses 43% margin on regular routes ($27.10/pax × 1.3 pax/order = $35.23 GP on ~$82 order). Excludes grant-funded routes which skew the blended margin higher. Above $3 = healthy unit economics."
           yoyChange={yoy?.cac_to_value_ratio_change_percent}
           goodDirection="up"
@@ -450,88 +448,6 @@ function RevenueBreakdown({ data }: { data: MasterMetrics }) {
   );
 }
 
-// ─── CustomerAnalysis ────────────────────────────────────────────────────────
-
-function CustomerAnalysis({ data }: { data: MasterMetrics }) {
-  const { customers: cust } = data.current_month;
-  const totalRevenue =
-    cust.new_customer_revenue + cust.returning_customer_revenue;
-
-  return (
-    <div className="space-y-3">
-      <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-        New vs Returning
-      </p>
-      <NewVsReturningBar
-        newRevenue={cust.new_customer_revenue}
-        returningRevenue={cust.returning_customer_revenue}
-      />
-      <div className="flex gap-3 text-[11px] text-muted-foreground">
-        <span className="flex items-center gap-1">
-          <span
-            className="inline-block h-2 w-2 rounded-sm"
-            style={{ background: EMERALD }}
-          />
-          New ({totalRevenue > 0 ? pct((cust.new_customer_revenue / totalRevenue) * 100) : "0%"})
-        </span>
-        <span className="flex items-center gap-1">
-          <span
-            className="inline-block h-2 w-2 rounded-sm"
-            style={{ background: MUTED }}
-          />
-          Returning ({totalRevenue > 0 ? pct((cust.returning_customer_revenue / totalRevenue) * 100) : "0%"})
-        </span>
-      </div>
-      <table className="w-full text-xs">
-        <thead>
-          <tr className="text-[11px] text-muted-foreground">
-            <th className="text-left font-medium pb-1" />
-            <th className="text-right font-medium pb-1">New</th>
-            <th className="text-right font-medium pb-1">Returning</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border/50">
-          <tr>
-            <td className="py-1 text-muted-foreground">Count</td>
-            <td className="py-1 text-right tabular-nums">
-              {num.format(cust.new_customers)}
-            </td>
-            <td className="py-1 text-right tabular-nums">
-              {num.format(cust.returning_customers)}
-            </td>
-          </tr>
-          <tr>
-            <td className="py-1 text-muted-foreground">Revenue</td>
-            <td className="py-1 text-right tabular-nums">
-              {usd.format(cust.new_customer_revenue)}
-            </td>
-            <td className="py-1 text-right tabular-nums">
-              {usd.format(cust.returning_customer_revenue)}
-            </td>
-          </tr>
-          <tr>
-            <td className="py-1 text-muted-foreground">Avg Revenue</td>
-            <td className="py-1 text-right tabular-nums">
-              {usd2.format(cust.new_customer_avg_revenue)}
-            </td>
-            <td className="py-1 text-right tabular-nums">
-              {usd2.format(cust.returning_customer_avg_revenue)}
-            </td>
-          </tr>
-          <tr>
-            <td className="py-1 text-muted-foreground">Orders</td>
-            <td className="py-1 text-right tabular-nums">
-              {num.format(cust.new_customer_orders)}
-            </td>
-            <td className="py-1 text-right tabular-nums">
-              {num.format(cust.returning_customer_orders)}
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  );
-}
 
 // ─── CustomerConcentration ──────────────────────────────────────────────────
 
@@ -628,142 +544,6 @@ function MarketingEfficiency({ data }: { data: MasterMetrics }) {
   );
 }
 
-// ─── PromotionsSummary ───────────────────────────────────────────────────────
-
-function PromotionsSummary({ data }: { data: MasterMetrics }) {
-  const { usage_metrics: usage, top_promo_codes, suspicious_activity } =
-    data.current_month.promotions;
-
-  const hasSuspicious =
-    suspicious_activity.high_usage_customers.length > 0 ||
-    suspicious_activity.suspicious_codes.length > 0;
-
-  return (
-    <div className="space-y-4">
-      {/* Header stats */}
-      <div className="flex flex-wrap gap-4 text-xs">
-        <span className="text-muted-foreground">
-          Promo % of orders:{" "}
-          <span className="text-foreground font-medium tabular-nums">
-            {pct(usage.promo_percentage)}
-          </span>
-        </span>
-        <span className="text-muted-foreground">
-          Total discount:{" "}
-          <span className="text-foreground font-medium tabular-nums">
-            {usd.format(usage.total_discount_amount)}
-          </span>
-        </span>
-        <span className="text-muted-foreground">
-          AOV w/ promo:{" "}
-          <span className="text-foreground font-medium tabular-nums">
-            {usd2.format(usage.aov_with_promo)}
-          </span>
-        </span>
-        <span className="text-muted-foreground">
-          AOV w/o promo:{" "}
-          <span className="text-foreground font-medium tabular-nums">
-            {usd2.format(usage.aov_without_promo)}
-          </span>
-        </span>
-      </div>
-
-      {/* Top promo codes table */}
-      {top_promo_codes.length > 0 && (
-        <ScrollArea className={top_promo_codes.length > 10 ? "h-[280px]" : ""}>
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-[11px] text-muted-foreground">
-                <th className="text-left font-medium pb-1">Code</th>
-                <th className="text-right font-medium pb-1">Uses</th>
-                <th className="text-right font-medium pb-1">Revenue</th>
-                <th className="text-right font-medium pb-1">Discount</th>
-                <th className="text-right font-medium pb-1">Avg Disc.</th>
-                <th className="text-right font-medium pb-1">Customers</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/50">
-              {top_promo_codes.slice(0, 10).map((p) => (
-                <tr key={p.code}>
-                  <td className="py-1 font-mono text-[11px] text-foreground/90">
-                    {p.code}
-                  </td>
-                  <td className="py-1 text-right tabular-nums">
-                    {num.format(p.uses)}
-                  </td>
-                  <td className="py-1 text-right tabular-nums">
-                    {usd.format(p.revenue)}
-                  </td>
-                  <td className="py-1 text-right tabular-nums">
-                    {usd.format(p.discount)}
-                  </td>
-                  <td className="py-1 text-right tabular-nums">
-                    {usd2.format(p.avg_discount)}
-                  </td>
-                  <td className="py-1 text-right tabular-nums">
-                    {num.format(p.unique_customers)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </ScrollArea>
-      )}
-
-      {/* Suspicious activity */}
-      {hasSuspicious && (
-        <div className="rounded-md bg-amber-500/10 border border-amber-500/20 p-3 space-y-2">
-          <div className="flex items-center gap-1.5 text-xs font-medium text-amber-400">
-            <AlertTriangle className="h-3.5 w-3.5" />
-            Suspicious Activity
-          </div>
-          {suspicious_activity.high_usage_customers.map((c) => (
-            <p key={c.email} className="text-xs text-amber-300/80">
-              {c.email}: {c.promo_count} promos, {usd.format(c.total_discount)}{" "}
-              discount ({c.codes_used.join(", ")})
-            </p>
-          ))}
-          {suspicious_activity.suspicious_codes.map((c) => (
-            <p key={c.code} className="text-xs text-amber-300/80">
-              {c.code}: {c.issue} ({num.format(c.uses)} uses,{" "}
-              {usd.format(c.discount)} discount)
-            </p>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── PaymentMethodsDetail ────────────────────────────────────────────────────
-
-function PaymentMethodsDetail({ data }: { data: MasterMetrics }) {
-  const pm = data.current_month.payment_methods;
-  const topTypes = Object.entries(pm.by_type)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 8)
-    .map(([name, value]) => ({ name, value }));
-
-  return (
-    <div className="space-y-4">
-      <HorizontalBarChart data={topTypes} height={180} labelWidth={95} marginLeft={100} />
-      <div className="flex flex-wrap gap-4 text-xs">
-        <span className="text-muted-foreground">
-          Split payments:{" "}
-          <span className="text-foreground tabular-nums">
-            {num.format(pm.split_payments.count)} ({pct(pm.split_payments.percentage)})
-          </span>
-        </span>
-        <span className="text-muted-foreground">
-          Unique types:{" "}
-          <span className="text-foreground tabular-nums">
-            {pm.unique_types}
-          </span>
-        </span>
-      </div>
-    </div>
-  );
-}
 
 // ─── TopCustomersTable ───────────────────────────────────────────────────────
 
@@ -961,11 +741,6 @@ export function FetchStepSummary({ data }: { data: unknown }) {
          category logic (CC vs cash vs account credit split). May not need
          this section at all — the headline cards tell the story. */}
 
-      {/* Tier 4: Customer Analysis */}
-      <CollapsibleSection title="New vs Returning">
-        <CustomerAnalysis data={data} />
-      </CollapsibleSection>
-
       {/* Tier 5: Customer Concentration + Top Customers */}
       <CollapsibleSection title="Customer Concentration">
         <CustomerConcentration data={data} />
@@ -976,15 +751,7 @@ export function FetchStepSummary({ data }: { data: unknown }) {
         </div>
       </CollapsibleSection>
 
-      {/* Tier 6: Payment Methods */}
-      <CollapsibleSection title="Payment Methods">
-        <PaymentMethodsDetail data={data} />
-      </CollapsibleSection>
-
-      {/* Tier 7: Promotions */}
-      <CollapsibleSection title="Promotions">
-        <PromotionsSummary data={data} />
-      </CollapsibleSection>
+      {/* Promotions section removed — moving to standalone Promo Code Analysis workflow */}
 
       {/* Data Quality */}
       {data_quality && (

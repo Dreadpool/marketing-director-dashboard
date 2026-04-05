@@ -113,9 +113,9 @@ export async function getCancelAmounts(
     SELECT
       order_id,
       SUM(
-        COALESCE(canceled_outbound_fare, 0) +
-        COALESCE(canceled_return_fare, 0) +
-        COALESCE(canceled_baggage_fee, 0)
+        ABS(COALESCE(canceled_outbound_fare, 0)) +
+        ABS(COALESCE(canceled_return_fare, 0)) +
+        ABS(COALESCE(canceled_baggage_fee, 0))
       ) AS total_canceled
     FROM \`${PROJECT_ID}.${DATASET}.sales_orders\`
     WHERE activity_type = 'Cancel'
@@ -182,6 +182,15 @@ export async function getCancelsByPaymentCategory(
       FROM \`${PROJECT_ID}.${DATASET}.sales_orders\`
       WHERE activity_type = 'Void'
     ),
+    rebook_originals AS (
+      SELECT DISTINCT CAST(CAST(previous_order AS FLOAT64) AS INT64) AS order_id
+      FROM \`${PROJECT_ID}.${DATASET}.sales_orders\`
+      WHERE previous_order IS NOT NULL
+        AND (activity_type = 'Sale' OR activity_type IS NULL)
+        AND selling_company = 'Salt Lake Express'
+        AND DATE(purchase_date) BETWEEN @start_date AND @end_date
+        AND order_id NOT IN (SELECT order_id FROM voided)
+    ),
     sales AS (
       SELECT order_id, payment_type_1
       FROM \`${PROJECT_ID}.${DATASET}.sales_orders\`
@@ -189,6 +198,7 @@ export async function getCancelsByPaymentCategory(
         AND (activity_type = 'Sale' OR activity_type IS NULL)
         AND selling_company = 'Salt Lake Express'
         AND order_id NOT IN (SELECT order_id FROM voided)
+        AND order_id NOT IN (SELECT order_id FROM rebook_originals)
     ),
     cancels AS (
       SELECT order_id,

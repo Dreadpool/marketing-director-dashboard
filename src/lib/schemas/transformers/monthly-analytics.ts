@@ -21,7 +21,7 @@ export function normalizeMonthlyAnalytics(
     notes: [`Generated: ${data.metadata.generated_at}`],
   });
 
-  const { revenue, customers, marketing, promotions } = data.current_month;
+  const { revenue, customers, marketing } = data.current_month;
   const { month_over_month: mom, year_over_year: yoy } = data.comparisons;
 
   const momComparison: MonthlyComparison | undefined = mom
@@ -180,25 +180,6 @@ export function normalizeMonthlyAnalytics(
         provenance: bqProvenance,
       },
     ],
-    promotions: {
-      totalOrders: promotions.usage_metrics.total_orders,
-      promoOrders: promotions.usage_metrics.promo_orders,
-      promoPercentage: promotions.usage_metrics.promo_percentage,
-      totalDiscountAmount: promotions.usage_metrics.total_discount_amount,
-      avgDiscountPerPromo: promotions.usage_metrics.avg_discount_per_promo,
-      revenueWithPromo: promotions.usage_metrics.revenue_with_promo,
-      revenueWithoutPromo: promotions.usage_metrics.revenue_without_promo,
-      aovWithPromo: promotions.usage_metrics.aov_with_promo,
-      aovWithoutPromo: promotions.usage_metrics.aov_without_promo,
-      topCodes: promotions.top_promo_codes.map((c) => ({
-        code: c.code,
-        uses: c.uses,
-        revenue: c.revenue,
-        discount: c.discount,
-        uniqueCustomers: c.unique_customers,
-      })),
-      provenance: monthlyProvenance,
-    },
     comparisons: {
       mom: momComparison,
       yoy: yoyComparison,

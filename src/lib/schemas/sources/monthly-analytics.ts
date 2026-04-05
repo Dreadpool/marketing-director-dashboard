@@ -198,9 +198,9 @@ export type MasterMetrics = {
     revenue: MasterMetricsRevenue;
     customers: MasterMetricsCustomers;
     marketing: MasterMetricsMarketing;
-    payment_methods: MasterMetricsPaymentMethods;
+    payment_methods?: MasterMetricsPaymentMethods;
     top_customers: MasterMetricsTopCustomers;
-    promotions: MasterMetricsPromotions;
+    promotions?: MasterMetricsPromotions;
   };
   comparisons: {
     month_over_month: MasterMetricsComparison;
