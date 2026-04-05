@@ -19,6 +19,9 @@ import type {
   SeoMover,
   SeoKeywordRow,
   SeoSourceDetail,
+  StrikingDistanceOpportunity,
+  CtrGapOpportunity,
+  GscQuickWins,
 } from "@/lib/schemas/sources/seo-ranking-metrics";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -70,6 +73,140 @@ function getSheetsClient(): SheetsClient {
     sheetsClient = sheets.spreadsheets;
   }
   return sheetsClient;
+}
+
+// ─── Google Search Console client ───────────────────────────────────────────
+
+type SearchConsoleClient = ReturnType<typeof google.searchconsole>;
+
+let gscClient: SearchConsoleClient | null = null;
+
+function getSearchConsoleClient(): SearchConsoleClient | null {
+  const siteUrls = process.env.GSC_SITE_URLS;
+  if (!siteUrls) return null;
+
+  if (!gscClient) {
+    const credentialsJson = process.env.GOOGLE_CREDENTIALS_JSON;
+    let auth;
+    if (credentialsJson) {
+      const credentials = JSON.parse(credentialsJson);
+      auth = new google.auth.GoogleAuth({
+        credentials,
+        scopes: ["https://www.googleapis.com/auth/webmasters.readonly"],
+      });
+    } else {
+      auth = new google.auth.GoogleAuth({
+        scopes: ["https://www.googleapis.com/auth/webmasters.readonly"],
+      });
+    }
+    gscClient = google.searchconsole({ version: "v1", auth });
+  }
+  return gscClient;
+}
+
+function getGscSiteUrls(): Record<string, string> {
+  const raw = process.env.GSC_SITE_URLS;
+  if (!raw) return {};
+  const urls = raw.split(",").map((u) => u.trim());
+  const keys = Object.keys(TABS);
+  const result: Record<string, string> = {};
+  for (let i = 0; i < Math.min(urls.length, keys.length); i++) {
+    result[keys[i]] = urls[i];
+  }
+  return result;
+}
+
+// CTR benchmarks by position (First Page Sage 2025, organic desktop)
+const CTR_BENCHMARKS: Record<number, number> = {
+  1: 0.398, 2: 0.187, 3: 0.102, 4: 0.072, 5: 0.051,
+  6: 0.044, 7: 0.030, 8: 0.021, 9: 0.019, 10: 0.016,
+};
+
+function getBenchmarkCtr(position: number): number {
+  const rounded = Math.round(position);
+  if (rounded < 1) return CTR_BENCHMARKS[1];
+  if (rounded > 10) return 0.01;
+  return CTR_BENCHMARKS[rounded] ?? 0.01;
+}
+
+// ─── GSC data fetching + analysis ───────────────────────────────────────────
+
+type GscRow = {
+  query: string;
+  page: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+};
+
+async function fetchGscData(
+  client: SearchConsoleClient,
+  siteUrl: string,
+  startDate: string,
+  endDate: string,
+): Promise<GscRow[]> {
+  const res = await client.searchanalytics.query({
+    siteUrl,
+    requestBody: {
+      startDate,
+      endDate,
+      dimensions: ["query", "page"],
+      rowLimit: 1000,
+      dataState: "final",
+    },
+  });
+
+  return (res.data.rows ?? []).map((row) => ({
+    query: row.keys![0],
+    page: row.keys![1],
+    clicks: row.clicks ?? 0,
+    impressions: row.impressions ?? 0,
+    ctr: row.ctr ?? 0,
+    position: row.position ?? 0,
+  }));
+}
+
+function analyzeStrikingDistance(rows: GscRow[]): StrikingDistanceOpportunity[] {
+  return rows
+    .filter((r) => r.impressions >= 10 && r.position >= 5 && r.position <= 20)
+    .map((r) => {
+      const estimatedAt3 = Math.round(r.impressions * 0.102);
+      return {
+        query: r.query,
+        page: r.page,
+        position: Math.round(r.position * 10) / 10,
+        impressions: r.impressions,
+        current_clicks: r.clicks,
+        estimated_clicks_at_3: estimatedAt3,
+        traffic_gain: estimatedAt3 - r.clicks,
+      };
+    })
+    .filter((r) => r.traffic_gain > 0)
+    .sort((a, b) => b.traffic_gain - a.traffic_gain)
+    .slice(0, 20);
+}
+
+function analyzeCtrGaps(rows: GscRow[]): CtrGapOpportunity[] {
+  return rows
+    .filter((r) => r.impressions >= 10 && r.position >= 1 && r.position < 10)
+    .map((r) => {
+      const benchmark = getBenchmarkCtr(r.position);
+      const gap = benchmark - r.ctr;
+      return {
+        query: r.query,
+        page: r.page,
+        position: Math.round(r.position * 10) / 10,
+        impressions: r.impressions,
+        actual_ctr: Math.round(r.ctr * 1000) / 1000,
+        benchmark_ctr: Math.round(benchmark * 1000) / 1000,
+        ctr_gap: Math.round(gap * 1000) / 1000,
+        missed_clicks: Math.round(r.impressions * gap),
+      };
+    })
+    .filter((r) => r.ctr_gap > 0.02)
+    .sort((a, b) => b.missed_clicks - a.missed_clicks)
+    .slice(0, 20);
 }
 
 // ─── Parsing helpers ────────────────────────────────────────────────────────
@@ -367,6 +504,53 @@ export async function fetchSeoRanking(
     });
   }
 
+  // ─── GSC Quick Wins (optional) ──────────────────────────────────────────────
+
+  const gscQuickWins: GscQuickWins[] = [];
+  const gsc = getSearchConsoleClient();
+  const gscSiteUrls = getGscSiteUrls();
+
+  if (gsc && Object.keys(gscSiteUrls).length > 0) {
+    const gscEntries = Object.entries(gscSiteUrls);
+    const gscResults = await Promise.allSettled(
+      gscEntries.map(([, url]) => fetchGscData(gsc, url, startDate, endDate)),
+    );
+
+    for (let i = 0; i < gscEntries.length; i++) {
+      const [key] = gscEntries[i];
+      const tabName = TABS[key] ?? key;
+      const sourceKey = `gsc_${key}`;
+      const result = gscResults[i];
+
+      if (result.status === "rejected") {
+        sourceDetails[sourceKey] = {
+          displayName: `GSC: ${tabName}`,
+          status: "error",
+          message: result.reason instanceof Error ? result.reason.message : "Unknown error",
+        };
+        missingSources.push(sourceKey);
+        continue;
+      }
+
+      const rows = result.value;
+      sourceDetails[sourceKey] = { displayName: `GSC: ${tabName}`, status: "ok" };
+      loadedSources.push(sourceKey);
+
+      const totalImpressions = rows.reduce((s, r) => s + r.impressions, 0);
+      const totalClicks = rows.reduce((s, r) => s + r.clicks, 0);
+
+      gscQuickWins.push({
+        site_key: key,
+        site_name: tabName,
+        total_queries: rows.length,
+        total_impressions: totalImpressions,
+        total_clicks: totalClicks,
+        striking_distance: analyzeStrikingDistance(rows),
+        ctr_gaps: analyzeCtrGaps(rows),
+      });
+    }
+  }
+
   return {
     period: {
       year: period.year,
@@ -375,6 +559,7 @@ export async function fetchSeoRanking(
       date_range: { start: startDate, end: endDate },
     },
     sites,
+    gsc_quick_wins: gscQuickWins,
     metadata: {
       generated_at: new Date().toISOString(),
       loaded_sources: loadedSources,

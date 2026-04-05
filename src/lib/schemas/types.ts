@@ -20,6 +20,7 @@ export type DataSource =
   | "ga4"
   | "quickbooks_gl"
   | "google_sheets"
+  | "google_search_console"
   | "monthly_analytics";
 
 export type ComparisonDirection = "mom" | "yoy";

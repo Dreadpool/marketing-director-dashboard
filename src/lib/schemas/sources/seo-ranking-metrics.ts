@@ -57,6 +57,37 @@ export type SeoSiteData = {
   keywords: SeoKeywordRow[];
 };
 
+export type StrikingDistanceOpportunity = {
+  query: string;
+  page: string;
+  position: number;
+  impressions: number;
+  current_clicks: number;
+  estimated_clicks_at_3: number;
+  traffic_gain: number;
+};
+
+export type CtrGapOpportunity = {
+  query: string;
+  page: string;
+  position: number;
+  impressions: number;
+  actual_ctr: number;
+  benchmark_ctr: number;
+  ctr_gap: number;
+  missed_clicks: number;
+};
+
+export type GscQuickWins = {
+  site_key: string;
+  site_name: string;
+  total_queries: number;
+  total_impressions: number;
+  total_clicks: number;
+  striking_distance: StrikingDistanceOpportunity[];
+  ctr_gaps: CtrGapOpportunity[];
+};
+
 export type SeoSourceDetail = {
   displayName: string;
   status: "ok" | "warning" | "error";
@@ -66,6 +97,7 @@ export type SeoSourceDetail = {
 export type SeoRankingMetrics = {
   period: SeoRankingPeriod;
   sites: SeoSiteData[];
+  gsc_quick_wins: GscQuickWins[];
   metadata: {
     generated_at: string;
     loaded_sources: string[];

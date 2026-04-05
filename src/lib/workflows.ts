@@ -47,11 +47,11 @@ export const workflows: Workflow[] = [
     slug: "seo-ranking-analysis",
     title: "SEO Ranking Analysis",
     description:
-      "Keyword rank tracking, visibility scoring, tier distribution, and biggest movers across websites.",
+      "Keyword rank tracking, visibility scoring, tier distribution, biggest movers, and GSC quick wins (striking distance + CTR optimization).",
     icon: "trending-up",
     status: "active",
     cadence: { frequency: "monthly", dueRule: { type: "day-of-month", day: 3 } },
-    dataSources: ["google_sheets"],
+    dataSources: ["google_sheets", "google_search_console"],
     steps: [
       {
         id: "fetch",

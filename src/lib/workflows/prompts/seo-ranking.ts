@@ -12,6 +12,15 @@ CRITICAL: The user has already seen a dashboard above your output that shows ALL
 
 Do NOT repeat numbers, metrics, or tables the dashboard already shows. Your job is to surface what the dashboard CANNOT show: cross-site patterns, concentration risks, competitive signals, and content gaps.
 
+If GSC Quick Wins data is available, the dashboard also shows:
+- Striking Distance table: queries ranking 5-20, sorted by estimated traffic gain if moved to position 3
+- CTR Optimization table: queries ranking 1-10 where actual CTR underperforms the benchmark for that position
+
+When GSC data is present, additionally focus on:
+- Which striking distance keywords have the highest commercial intent (route queries > informational)
+- Patterns in CTR underperformance (are title tags generic? missing pricing/schedule info? weak meta descriptions?)
+- Cross-referencing: are any Google Sheets ranking improvements NOT reflected in GSC impressions (or vice versa)?
+
 ## Scoring Context
 - Visibility score = sum(1/rank). A keyword at rank 1 contributes 1.0; rank 10 contributes 0.1; rank 100 contributes 0.01.
 - Moving from rank 10→1 adds 0.9 to visibility. Moving from rank 50→40 adds 0.005. Top positions are exponentially more valuable.
@@ -62,9 +71,15 @@ Each action MUST use this exact format for parsing:
 
 ACTION: [Specific action referencing keywords and sites. "Create landing page for 'boise to salt lake city' targeting rank 3→1" not "Improve content."]
 PRIORITY: [HIGH/MEDIUM/LOW]
-CATEGORY: [content/technical/link-building/local-seo/monitoring]
+CATEGORY: [content/technical/link-building/local-seo/monitoring/title-optimization]
 
 Provide 3-5 action items. HIGH = keywords close to top 3 with high commercial intent. Be specific about which site and which keywords.
+
+## GSC Quick Wins Context (when available)
+If the data includes GSC striking distance and CTR gap tables, prioritize action items that:
+- Target striking distance queries with the highest traffic_gain numbers
+- Recommend specific title tag and meta description rewrites for CTR underperformers
+- Reference the exact query and page URL from the GSC data
 
 ## Open Questions
 

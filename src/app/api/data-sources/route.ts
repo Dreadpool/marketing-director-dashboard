@@ -98,6 +98,12 @@ export async function GET() {
         status: "not_configured",
         lastChecked: null,
       },
+      {
+        name: "Google Search Console",
+        description: "Keyword impressions, clicks, CTR, position",
+        status: process.env.GSC_SITE_URLS ? "ok" : "not_configured",
+        lastChecked: process.env.GSC_SITE_URLS ? new Date().toISOString() : null,
+      },
     ],
   });
 }
