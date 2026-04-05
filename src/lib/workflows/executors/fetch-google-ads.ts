@@ -11,6 +11,7 @@ import type {
   GoogleAdsTrend,
   GoogleAdsPeriod,
   GoogleAdsSourceDetail,
+  GoogleAdsSegmentTrend,
 } from "@/lib/schemas/sources/google-ads-metrics";
 import type { GoogleAdsCampaignRow } from "@/lib/schemas/sources/google-ads";
 import { microsToUSD, percentChange } from "@/lib/schemas/utils";
@@ -222,6 +223,54 @@ function computeTrend(
   };
 }
 
+function computeSegmentTrends(
+  currentCampaigns: GoogleAdsCampaignMetrics[],
+  priorMonthRows: GoogleAdsCampaignRow[] | null,
+  priorYearRows: GoogleAdsCampaignRow[] | null,
+): GoogleAdsSegmentTrend[] {
+  const priorMonthCampaigns = priorMonthRows?.map(mapCampaignRow) ?? [];
+  const priorYearCampaigns = priorYearRows?.map(mapCampaignRow) ?? [];
+
+  const activeSegments = [...new Set(currentCampaigns.map((c) => c.segment))];
+
+  return activeSegments.map((segment) => {
+    const current = computeSegmentHealth(currentCampaigns, segment);
+    const priorMonth = computeSegmentHealth(priorMonthCampaigns, segment);
+    const priorYear = computeSegmentHealth(priorYearCampaigns, segment);
+
+    const currentCvr = safeDivide(current.total_conversions, current.total_clicks);
+    const priorMonthCvr = safeDivide(priorMonth.total_conversions, priorMonth.total_clicks);
+    const hasPriorYear = priorYear.campaign_count > 0;
+    const priorYearCvr = hasPriorYear
+      ? safeDivide(priorYear.total_conversions, priorYear.total_clicks)
+      : null;
+
+    return {
+      segment,
+      cpa: computeTrend(
+        current.cpa,
+        priorMonth.cpa,
+        hasPriorYear ? priorYear.cpa : null,
+      ),
+      avg_cpc: computeTrend(
+        current.avg_cpc,
+        priorMonth.avg_cpc,
+        hasPriorYear ? priorYear.avg_cpc : null,
+      ),
+      cvr: computeTrend(
+        currentCvr,
+        priorMonthCvr,
+        priorYearCvr,
+      ),
+      conversions: computeTrend(
+        current.total_conversions,
+        priorMonth.total_conversions,
+        hasPriorYear ? priorYear.total_conversions : null,
+      ),
+    };
+  });
+}
+
 // --- Main executor ---
 
 export async function fetchGoogleAds(
@@ -346,6 +395,8 @@ export async function fetchGoogleAds(
     ? safeDivide(priorYearConversionsValue, priorYearSpend)
     : null;
 
+  const segmentTrends = computeSegmentTrends(campaigns, priorMonthRows, priorYearRows);
+
   // Build period info
   const lastDay = new Date(period.year, period.month, 0).getDate();
   const mm = String(period.month).padStart(2, "0");
@@ -370,6 +421,7 @@ export async function fetchGoogleAds(
       conversions: computeTrend(currentConversions, priorMonthConversions, priorYearConversions),
       spend: computeTrend(currentSpend, priorMonthSpend, priorYearSpend),
     },
+    segment_trends: segmentTrends,
     metadata: {
       generated_at: new Date().toISOString(),
       loaded_sources: loadedSources,
