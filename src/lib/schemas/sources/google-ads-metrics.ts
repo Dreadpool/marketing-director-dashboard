@@ -103,7 +103,7 @@ export type GoogleAdsMetrics = {
     conversions: GoogleAdsTrend;
     spend: GoogleAdsTrend;
   };
-  segment_trends: GoogleAdsSegmentTrend[];
+  segment_trends?: GoogleAdsSegmentTrend[];
   metadata: {
     generated_at: string;
     loaded_sources: string[];

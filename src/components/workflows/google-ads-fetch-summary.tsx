@@ -33,8 +33,7 @@ export function isGoogleAdsMetrics(data: unknown): data is GoogleAdsMetrics {
     data !== null &&
     "account_health" in data &&
     "campaigns" in data &&
-    "ground_truth" in data &&
-    "segment_trends" in data
+    "ground_truth" in data
   );
 }
 
@@ -341,7 +340,7 @@ function SegmentCard({
         ) : (
           <div>
             <div className="text-[8px] text-muted-foreground">CONV</div>
-            <div>{num.format(segment.total_conversions)}</div>
+            <div>{num.format(Math.round(segment.total_conversions))}</div>
           </div>
         )}
       </div>
@@ -481,7 +480,7 @@ function SegmentCampaignTable({
                       isZombie ? "text-red-400" : ""
                     }`}
                   >
-                    {num.format(c.conversions)}
+                    {num.format(Math.round(c.conversions))}
                   </td>
                 </>
               )}
@@ -542,7 +541,8 @@ export function GoogleAdsFetchSummary({
 }: {
   data: GoogleAdsMetrics;
 }) {
-  const { period, account_health, campaigns, ground_truth, segment_trends, metadata } = data;
+  const { period, account_health, campaigns, ground_truth, metadata } = data;
+  const segment_trends = data.segment_trends ?? [];
   const segments = account_health.segments;
 
   const trendBySegment = new Map(
@@ -551,7 +551,7 @@ export function GoogleAdsFetchSummary({
 
   const channelContext =
     ground_truth.bigquery_bookings > 0
-      ? `Google claims ${num.format(ground_truth.google_ads_conversions)} of ${num.format(ground_truth.bigquery_bookings)} total bookings (${Math.round((ground_truth.google_ads_conversions / ground_truth.bigquery_bookings) * 100)}%)`
+      ? `Google claims ${num.format(Math.round(ground_truth.google_ads_conversions))} of ${num.format(Math.round(ground_truth.bigquery_bookings))} total bookings (${Math.round((ground_truth.google_ads_conversions / ground_truth.bigquery_bookings) * 100)}%)`
       : null;
 
   const segmentOrder: CampaignSegment[] = [
