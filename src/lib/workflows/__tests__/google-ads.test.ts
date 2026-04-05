@@ -120,6 +120,40 @@ describe("getRoasStatus", () => {
   });
 });
 
+import { isGoogleAdsMetrics } from "@/components/workflows/google-ads-fetch-summary";
+
+describe("isGoogleAdsMetrics type guard", () => {
+  it("returns true for valid GoogleAdsMetrics data", () => {
+    const data = {
+      account_health: {},
+      campaigns: [],
+      ground_truth: {},
+      segment_trends: [],
+      metadata: {},
+    };
+    expect(isGoogleAdsMetrics(data)).toBe(true);
+  });
+
+  it("returns false for Meta Ads data (has signals, no ground_truth)", () => {
+    const data = {
+      account_health: {},
+      campaigns: [],
+      metadata: {},
+      signals: {},
+      audience: {},
+    };
+    expect(isGoogleAdsMetrics(data)).toBe(false);
+  });
+
+  it("returns false for null", () => {
+    expect(isGoogleAdsMetrics(null)).toBe(false);
+  });
+
+  it("returns false for string", () => {
+    expect(isGoogleAdsMetrics("hello")).toBe(false);
+  });
+});
+
 import { googleAdsPrompts } from "@/lib/workflows/prompts/google-ads";
 import { getExecutor } from "@/lib/workflows/executors/index";
 import { getDefaultPrompt } from "@/lib/workflows/prompts/index";

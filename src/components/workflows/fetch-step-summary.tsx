@@ -39,6 +39,10 @@ import {
   SeoRankingFetchSummary,
   isSeoRankingMetrics,
 } from "./seo-ranking-fetch-summary";
+import {
+  GoogleAdsFetchSummary,
+  isGoogleAdsMetrics,
+} from "./google-ads-fetch-summary";
 
 // ─── Formatters ──────────────────────────────────────────────────────────────
 
@@ -666,6 +670,7 @@ function DataQuality({ data }: { data: MasterMetrics }) {
 
 export function FetchStepSummary({ data }: { data: unknown }) {
   if (isPromoCodeMetrics(data)) return <PromoCodeFetchSummary data={data} />;
+  if (isGoogleAdsMetrics(data)) return <GoogleAdsFetchSummary data={data} />;
   if (isMetaAdsMetrics(data)) return <MetaAdsFetchSummary data={data} />;
   if (isSeoRankingMetrics(data)) return <SeoRankingFetchSummary data={data} />;
   if (!isMasterMetrics(data)) return null;
