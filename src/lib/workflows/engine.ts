@@ -195,8 +195,9 @@ export async function initWorkflowRun(
 export async function executeWorkflowSteps(
   runId: string,
   slug: string,
-  period: MonthPeriod,
+  initialPeriod: MonthPeriod,
 ): Promise<void> {
+  let period = initialPeriod;
   const workflow = getWorkflowBySlug(slug)!;
   const executor = getExecutor(slug)!;
 
@@ -323,6 +324,27 @@ export async function executeWorkflowSteps(
 
       // Chain output to next step
       previousStepOutputs[stepDef.id] = outputData;
+
+      // If the fetch step returned a derivedPeriod, update the run record
+      // (used by promo-code-analysis where the period comes from the data, not user input)
+      if (
+        stepDef.type === "fetch" &&
+        outputData &&
+        typeof outputData === "object" &&
+        "derivedPeriod" in outputData
+      ) {
+        const dp = (outputData as Record<string, unknown>).derivedPeriod as {
+          year: number;
+          month: number;
+        };
+        if (dp?.year && dp?.month) {
+          period = { year: dp.year, month: dp.month };
+          await db
+            .update(workflowRuns)
+            .set({ periodYear: dp.year, periodMonth: dp.month })
+            .where(eq(workflowRuns.id, runId));
+        }
+      }
 
       // Parse action items from recommend step
       if (stepDef.type === "recommend" && aiOutput) {

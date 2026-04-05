@@ -52,6 +52,7 @@ interface RunSummary {
   status: string;
   startedAt: string;
   completedAt: string | null;
+  inputParams?: Record<string, unknown>;
 }
 
 interface WorkflowDetailProps {

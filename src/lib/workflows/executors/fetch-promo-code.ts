@@ -33,6 +33,7 @@ export interface PromoCodeMetrics {
     netProfit: number;
   };
   similarCodes?: Array<{ code: string; orders: number }>;
+  derivedPeriod?: { year: number; month: number };
   metadata: { generatedAt: string; provenanceNote: string };
 }
 
@@ -199,8 +200,8 @@ export async function fetchPromoCode(
     uniqueEmails.add(order.email);
     const firstEverDate = firstPurchaseMap.get(order.email);
     const firstPromoOrderDate = order.purchase_date.value;
-    // New if their first-ever SLE purchase IS the promo order (same date)
-    if (firstEverDate && firstEverDate >= firstPromoOrderDate) {
+    // New if their first-ever SLE purchase is the same date as their promo order
+    if (firstEverDate && firstEverDate === firstPromoOrderDate) {
       newCustomers++;
     }
     // If no firstEverDate or it's earlier → returning (conservative default)
@@ -302,6 +303,10 @@ export async function fetchPromoCode(
     },
     campaignCost,
     roi,
+    derivedPeriod: {
+      year: new Date(endDate).getFullYear(),
+      month: new Date(endDate).getMonth() + 1,
+    },
     metadata: {
       generatedAt: new Date().toISOString(),
       provenanceNote: `BigQuery sales_orders, promo code "${promoCode.toUpperCase().trim()}", ${startDate} to ${endDate}`,

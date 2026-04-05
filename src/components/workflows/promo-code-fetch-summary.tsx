@@ -247,7 +247,7 @@ export function PromoCodeFetchSummary({ data }: { data: PromoCodeMetrics }) {
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">AOV baseline (no promo)</span>
                 <span className="text-sm font-semibold tabular-nums">
-                  {baselineAov > 0 ? usd2.format(baselineAov) : "—"}
+                  {baselineAov > 0 ? usd2.format(baselineAov) : "-"}
                 </span>
               </div>
             </div>
