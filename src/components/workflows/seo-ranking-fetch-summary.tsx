@@ -32,6 +32,7 @@ import type {
   SeoRankingMetrics,
   SeoSiteData,
   SeoSourceDetail,
+  GscQuickWins,
 } from "@/lib/schemas/sources/seo-ranking-metrics";
 
 // ─── Type guard ──────────────────────────────────────────────────────────────
@@ -454,6 +455,121 @@ function SiteSection({
   );
 }
 
+// ─── GSC Quick Wins section ─────────────────────────────────────────────────
+
+const pct = (n: number) => `${(n * 100).toFixed(1)}%`;
+const num = new Intl.NumberFormat("en-US");
+
+function pathOnly(url: string): string {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return url;
+  }
+}
+
+function gainColor(n: number): string {
+  if (n > 50) return "text-emerald-400";
+  if (n > 20) return "text-amber-400";
+  return "";
+}
+
+function GscSiteSection({ data }: { data: GscQuickWins }) {
+  return (
+    <CollapsibleSection title={data.site_name} defaultOpen>
+      <div className="space-y-4">
+        <div className="grid grid-cols-3 gap-2">
+          <MetricCard
+            label="GSC Queries"
+            value={num.format(data.total_queries)}
+            tooltip="Total queries with at least 1 impression in this period"
+          />
+          <MetricCard
+            label="Total Impressions"
+            value={num.format(data.total_impressions)}
+            tooltip="Total search impressions across all queries"
+          />
+          <MetricCard
+            label="Total Clicks"
+            value={num.format(data.total_clicks)}
+            tooltip="Total clicks from search results"
+          />
+        </div>
+
+        {data.striking_distance.length > 0 && (
+          <CollapsibleSection title="Striking Distance Opportunities" defaultOpen>
+            <p className="text-[11px] text-muted-foreground mb-2">
+              Queries ranking 5-20 with the highest estimated traffic gain if moved to position 3.
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border/50">
+                    <th className="text-left py-1.5 pr-3 font-medium text-muted-foreground">Query</th>
+                    <th className="text-left py-1.5 pr-3 font-medium text-muted-foreground">Page</th>
+                    <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">Pos</th>
+                    <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">Impr</th>
+                    <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">Clicks</th>
+                    <th className="text-right py-1.5 pl-2 font-medium text-muted-foreground">Est. Gain</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.striking_distance.map((row) => (
+                    <tr key={`${row.query}-${row.page}`} className="border-b border-border/30">
+                      <td className="py-1.5 pr-3 max-w-[200px] truncate" title={row.query}>{row.query}</td>
+                      <td className="py-1.5 pr-3 max-w-[150px] truncate text-muted-foreground" title={row.page}>{pathOnly(row.page)}</td>
+                      <td className="text-right py-1.5 px-2 tabular-nums">{row.position}</td>
+                      <td className="text-right py-1.5 px-2 tabular-nums text-muted-foreground">{num.format(row.impressions)}</td>
+                      <td className="text-right py-1.5 px-2 tabular-nums text-muted-foreground">{row.current_clicks}</td>
+                      <td className={`text-right py-1.5 pl-2 tabular-nums font-medium ${gainColor(row.traffic_gain)}`}>+{row.traffic_gain}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CollapsibleSection>
+        )}
+
+        {data.ctr_gaps.length > 0 && (
+          <CollapsibleSection title="CTR Optimization Opportunities" defaultOpen>
+            <p className="text-[11px] text-muted-foreground mb-2">
+              Queries ranking 1-10 where actual CTR is below the benchmark for that position. Fix with better title tags and meta descriptions.
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border/50">
+                    <th className="text-left py-1.5 pr-3 font-medium text-muted-foreground">Query</th>
+                    <th className="text-left py-1.5 pr-3 font-medium text-muted-foreground">Page</th>
+                    <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">Pos</th>
+                    <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">Impr</th>
+                    <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">CTR</th>
+                    <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">Bench</th>
+                    <th className="text-right py-1.5 pl-2 font-medium text-muted-foreground">Missed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.ctr_gaps.map((row) => (
+                    <tr key={`${row.query}-${row.page}`} className="border-b border-border/30">
+                      <td className="py-1.5 pr-3 max-w-[200px] truncate" title={row.query}>{row.query}</td>
+                      <td className="py-1.5 pr-3 max-w-[150px] truncate text-muted-foreground" title={row.page}>{pathOnly(row.page)}</td>
+                      <td className="text-right py-1.5 px-2 tabular-nums">{row.position}</td>
+                      <td className="text-right py-1.5 px-2 tabular-nums text-muted-foreground">{num.format(row.impressions)}</td>
+                      <td className="text-right py-1.5 px-2 tabular-nums text-red-400">{pct(row.actual_ctr)}</td>
+                      <td className="text-right py-1.5 px-2 tabular-nums text-muted-foreground">{pct(row.benchmark_ctr)}</td>
+                      <td className={`text-right py-1.5 pl-2 tabular-nums font-medium ${gainColor(row.missed_clicks)}`}>+{row.missed_clicks}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CollapsibleSection>
+        )}
+      </div>
+    </CollapsibleSection>
+  );
+}
+
 // ─── Main Export ─────────────────────────────────────────────────────────────
 
 export function SeoRankingFetchSummary({ data }: { data: SeoRankingMetrics }) {
@@ -498,6 +614,17 @@ export function SeoRankingFetchSummary({ data }: { data: SeoRankingMetrics }) {
       {data.sites.map((site, idx) => (
         <SiteSection key={site.site_key} site={site} defaultOpen={idx === 0} />
       ))}
+
+      {/* GSC Quick Wins */}
+      {data.gsc_quick_wins && data.gsc_quick_wins.length > 0 && (
+        <CollapsibleSection title="GSC Quick Wins" defaultOpen>
+          <div className="space-y-4">
+            {data.gsc_quick_wins.map((gsc) => (
+              <GscSiteSection key={gsc.site_key} data={gsc} />
+            ))}
+          </div>
+        </CollapsibleSection>
+      )}
 
       {data.sites.length === 0 && (
         <p className="text-sm text-muted-foreground">No site data available.</p>
