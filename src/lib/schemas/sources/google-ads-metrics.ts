@@ -78,6 +78,14 @@ export type GoogleAdsTrend = {
   yoy_change: number | null;
 };
 
+export type GoogleAdsSegmentTrend = {
+  segment: CampaignSegment;
+  cpa: GoogleAdsTrend;
+  avg_cpc: GoogleAdsTrend;
+  cvr: GoogleAdsTrend;
+  conversions: GoogleAdsTrend;
+};
+
 export type GoogleAdsSourceDetail = {
   displayName: string;
   status: "ok" | "warning" | "error";
@@ -95,6 +103,7 @@ export type GoogleAdsMetrics = {
     conversions: GoogleAdsTrend;
     spend: GoogleAdsTrend;
   };
+  segment_trends: GoogleAdsSegmentTrend[];
   metadata: {
     generated_at: string;
     loaded_sources: string[];

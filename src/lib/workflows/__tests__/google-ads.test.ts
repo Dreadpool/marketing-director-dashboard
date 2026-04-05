@@ -3,6 +3,7 @@ import type {
   CampaignSegment,
   CpaStatus,
   RoasStatus,
+  GoogleAdsSegmentTrend,
 } from "@/lib/schemas/sources/google-ads-metrics";
 import {
   classifySegment,
@@ -27,6 +28,19 @@ describe("Google Ads metrics types", () => {
   it("RoasStatus includes watch tier", () => {
     const statuses: RoasStatus[] = ["above-target", "watch", "below-target"];
     expect(statuses).toHaveLength(3);
+  });
+
+  it("GoogleAdsSegmentTrend has required fields", () => {
+    const trend: GoogleAdsSegmentTrend = {
+      segment: "non-brand",
+      cpa: { current: 6, prior_month: 5, prior_year: 7, mom_change: 0.2, yoy_change: -0.14 },
+      avg_cpc: { current: 1.89, prior_month: 1.80, prior_year: 1.85, mom_change: 0.05, yoy_change: 0.02 },
+      cvr: { current: 0.032, prior_month: 0.035, prior_year: 0.041, mom_change: -0.086, yoy_change: -0.22 },
+      conversions: { current: 572, prior_month: 620, prior_year: 650, mom_change: -0.077, yoy_change: -0.12 },
+    };
+    expect(trend.segment).toBe("non-brand");
+    expect(trend.cpa.current).toBe(6);
+    expect(trend.cvr.yoy_change).toBe(-0.22);
   });
 });
 
