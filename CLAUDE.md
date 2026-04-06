@@ -88,8 +88,8 @@ Built first for Salt Lake Express (SLE) marketing operations. Designed to suppor
 - [ ] SEO Content Gap Analysis: Keywords competitors (Wanderu, BusBud, Rome2Rio) rank for that SLE does not. Categorize by intent type. Data source: Ahrefs/Semrush API or CSV export. Framework: Ahrefs Content Gap tool, Kevin Indig competitive strategy.
 - [ ] Local SEO Scorecard: GBP audit per SLE stop location (completeness, reviews, photos, NAP consistency). Framework: BrightLocal Local Search Ranking Factors 2025.
 - [ ] Email Marketing Review workflow: fetch executor (email platform API TBD), open/click rates, list health, segmentation analysis
-- [ ] Creative/Content Planning workflow: fetch executor (prior month performance + content calendar), theme identification, content calendar and creative briefs
-- [ ] Flyer/Event Planning workflow: fetch executor (upcoming events + venue schedules), event calendar review, flyer briefs and promotion plan
+- [ ] Creative/Content Planning workflow: fetch executor (prior month performance + content calendar), theme identification, content calendar and creative briefs. **Context wiring:** Analyze and recommend steps should reference `~/workspace/sle/context/` -- brand voice from `brand-voice/sle-brandscript.md` (copy rules, always/never words, tone) and winning ad patterns from `ad-copy/`. The recommend step generates briefs in the SLE brand voice, not generic marketing copy.
+- [ ] Flyer/Event Planning workflow: fetch executor (upcoming events + venue schedules), event calendar review, flyer briefs and promotion plan. **Context wiring:** Recommend step should reference `~/workspace/sle/context/brand-voice/sle-brandscript.md` for copy rules and `ad-copy/` for proven messaging patterns. Flyer results should be saved back to `~/workspace/sle/context/flyers/` to grow the pattern-matching corpus.
 - [ ] Promo Code Analysis Phase 2: Automated analysis triggered by promo expiration dates, FTP fetch, route results to james.glass@saltlakeexpress.com
 - [x] Meta Ads Dashboard: Expandable campaigns → ad sets (2026-03-31)
 - [x] Meta Ads Dashboard: Expandable ad sets → ads with fatigue signals (2026-03-31)
