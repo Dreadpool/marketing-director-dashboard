@@ -59,6 +59,7 @@ const SEGMENT_COLORS: Record<CampaignSegment, string> = {
   "non-brand": "#4ade80",
   pmax: "#c084fc",
   competitor: "#f97316",
+  charters: "#f59e0b",
   video: "#06b6d4",
   other: "#888888",
 };
@@ -121,11 +122,15 @@ function statusBadge(segment: GoogleAdsSegmentHealth): {
 const SEGMENT_LABELS: Record<CampaignSegment, string> = {
   brand: "BRAND",
   "non-brand": "NON-BRAND",
+  charters: "CHARTERS",
   pmax: "PMAX",
   competitor: "COMPETITOR",
   video: "VIDEO",
   other: "OTHER",
 };
+
+// Charters are tracked separately (different business unit, not shuttle CAC)
+const CHARTER_SEGMENT: CampaignSegment = "charters";
 
 // ─── Collapsible section ─────────────────────────────────────────────────────
 
@@ -543,7 +548,10 @@ export function GoogleAdsFetchSummary({
 }) {
   const { period, account_health, campaigns, ground_truth, metadata } = data;
   const segment_trends = data.segment_trends ?? [];
-  const segments = account_health.segments;
+  // Separate charters from main segments (different business unit)
+  const mainSegments = account_health.segments.filter((s) => s.segment !== CHARTER_SEGMENT);
+  const chartersSegment = account_health.segments.find((s) => s.segment === CHARTER_SEGMENT);
+  const chartersCampaigns = campaigns.filter((c) => c.segment === CHARTER_SEGMENT);
 
   const trendBySegment = new Map(
     segment_trends.map((t) => [t.segment, t]),
@@ -595,8 +603,9 @@ export function GoogleAdsFetchSummary({
 
         <SourceBadges details={metadata.source_details} />
 
+        {/* ── Segment health cards (excludes charters) ── */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {segments.map((seg) => (
+          {mainSegments.map((seg) => (
             <SegmentCard
               key={seg.segment}
               segment={seg}
@@ -605,10 +614,11 @@ export function GoogleAdsFetchSummary({
           ))}
         </div>
 
+        {/* ── Campaign tables by segment (excludes charters) ── */}
         <div className="mt-2">
           {activeSegments.map((seg) => {
             const segCampaigns = campaigns.filter((c) => c.segment === seg);
-            const segHealth = segments.find((s) => s.segment === seg);
+            const segHealth = mainSegments.find((s) => s.segment === seg);
             const segSpend = segCampaigns.reduce((s, c) => s + c.spend, 0);
             const segCpa = segHealth?.cpa ?? 0;
             const summary = `${segCampaigns.length} campaigns · ${usd.format(segSpend)} spend${seg !== "video" ? ` · CPA ${usd2.format(segCpa)}` : ""}`;
@@ -625,6 +635,35 @@ export function GoogleAdsFetchSummary({
             );
           })}
         </div>
+
+        {/* ── Charters (separate business unit) ── */}
+        {chartersCampaigns.length > 0 && chartersSegment && (
+          <div className="mt-4 border-t border-border/40 pt-4">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <h3 className="text-[11px] font-bold uppercase tracking-wider text-amber-400">
+                  Charters
+                </h3>
+                <p className="text-[10px] text-muted-foreground">
+                  Separate business unit. Not included in shuttle acquisition metrics above.
+                </p>
+              </div>
+              <div className="text-right text-[10px]">
+                <span className="text-muted-foreground">Spend: </span>
+                <span className="font-semibold">{usd.format(chartersSegment.total_spend)}</span>
+                <span className="text-muted-foreground"> · CPA: </span>
+                <span className={`font-semibold ${cpaColor(chartersSegment.cpa)}`}>
+                  {chartersSegment.total_conversions === 0
+                    ? "—"
+                    : usd2.format(chartersSegment.cpa)}
+                </span>
+                <span className="text-muted-foreground"> · Conv: </span>
+                <span>{num.format(Math.round(chartersSegment.total_conversions))}</span>
+              </div>
+            </div>
+            <SegmentCampaignTable campaigns={campaigns} segment={CHARTER_SEGMENT} />
+          </div>
+        )}
       </div>
     </TooltipProvider>
   );

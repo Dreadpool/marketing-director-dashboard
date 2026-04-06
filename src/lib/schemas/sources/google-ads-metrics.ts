@@ -11,7 +11,7 @@ export type GoogleAdsPeriod = {
   date_range: { start: string; end: string };
 };
 
-export type CampaignSegment = "brand" | "non-brand" | "competitor" | "pmax" | "video" | "other";
+export type CampaignSegment = "brand" | "non-brand" | "charters" | "competitor" | "pmax" | "video" | "other";
 
 export type CpaStatus = "on-target" | "elevated" | "high";
 export type RoasStatus = "above-target" | "watch" | "below-target";

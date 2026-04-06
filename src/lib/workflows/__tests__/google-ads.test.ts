@@ -15,9 +15,9 @@ import {
 describe("Google Ads metrics types", () => {
   it("CampaignSegment covers all SLE campaign types", () => {
     const segments: CampaignSegment[] = [
-      "brand", "non-brand", "competitor", "pmax", "video", "other",
+      "brand", "non-brand", "charters", "competitor", "pmax", "video", "other",
     ];
-    expect(segments).toHaveLength(6);
+    expect(segments).toHaveLength(7);
   });
 
   it("CpaStatus matches SLE thresholds", () => {
@@ -64,7 +64,7 @@ describe("classifySegment", () => {
     expect(classifySegment("SLE | Search | Non-Branded")).toBe("non-brand");
     expect(classifySegment("STGEO | Search | Non-Branded")).toBe("non-brand");
     expect(classifySegment("NWS | Search | Non-Branded")).toBe("non-brand");
-    expect(classifySegment("SLE Charters")).toBe("non-brand");
+    expect(classifySegment("SLE Charters")).toBe("charters");
   });
 
   it("classifies competitor campaigns", () => {

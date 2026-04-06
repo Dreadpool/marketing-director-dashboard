@@ -44,7 +44,8 @@ export function classifySegment(campaignName: string): CampaignSegment {
   if (name.includes("competitor")) return "competitor";
   if (name.includes("brand") && !name.includes("non-brand")) return "brand";
   if (name.includes("non-brand")) return "non-brand";
-  if (name.includes("charter") || name.includes("stgeo") || name.includes("nws")) return "non-brand";
+  if (name.includes("charter")) return "charters";
+  if (name.includes("stgeo") || name.includes("nws")) return "non-brand";
   return "other";
 }
 
@@ -161,7 +162,7 @@ function computeAccountHealth(
   const roas = safeDivide(totalConversionsValue, totalSpend);
 
   const allSegments: CampaignSegment[] = [
-    "brand", "non-brand", "competitor", "pmax", "video", "other",
+    "brand", "non-brand", "charters", "competitor", "pmax", "video", "other",
   ];
   const segments = allSegments
     .map((seg) => computeSegmentHealth(campaigns, seg))
