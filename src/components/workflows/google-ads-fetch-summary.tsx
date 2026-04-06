@@ -282,7 +282,7 @@ function SegmentCard({
   const convTrend = segmentTrend?.conversions;
   const cpaChange = cpaTrend?.yoy_change ?? cpaTrend?.mom_change ?? null;
   const convChange = convTrend?.yoy_change ?? convTrend?.mom_change ?? null;
-  const trendLabel = cpaTrend?.yoy_change !== null ? "last year" : "last month";
+  const trendLabel = cpaTrend?.yoy_change != null ? "last year" : "last month";
 
   return (
     <div
@@ -549,7 +549,9 @@ export function GoogleAdsFetchSummary({
   const { period, account_health, campaigns, ground_truth, metadata } = data;
   const segment_trends = data.segment_trends ?? [];
   // Separate charters from main segments (different business unit)
-  const mainSegments = account_health.segments.filter((s) => s.segment !== CHARTER_SEGMENT);
+  const mainSegments = account_health.segments.filter(
+    (s) => s.segment !== CHARTER_SEGMENT && s.campaign_count > 0,
+  );
   const chartersSegment = account_health.segments.find((s) => s.segment === CHARTER_SEGMENT);
   const chartersCampaigns = campaigns.filter((c) => c.segment === CHARTER_SEGMENT);
 
