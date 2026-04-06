@@ -157,14 +157,16 @@ async function fetchGscData(
     },
   });
 
-  return (res.data.rows ?? []).map((row) => ({
-    query: row.keys![0],
-    page: row.keys![1],
-    clicks: row.clicks ?? 0,
-    impressions: row.impressions ?? 0,
-    ctr: row.ctr ?? 0,
-    position: row.position ?? 0,
-  }));
+  return (res.data.rows ?? [])
+    .filter((row) => row.keys && row.keys.length >= 2)
+    .map((row) => ({
+      query: row.keys![0],
+      page: row.keys![1],
+      clicks: row.clicks ?? 0,
+      impressions: row.impressions ?? 0,
+      ctr: row.ctr ?? 0,
+      position: row.position ?? 0,
+    }));
 }
 
 function analyzeStrikingDistance(rows: GscRow[]): StrikingDistanceOpportunity[] {
