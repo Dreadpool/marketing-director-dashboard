@@ -7,10 +7,8 @@ import {
   workflowStepPrompts,
 } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
-import Anthropic from "@anthropic-ai/sdk";
 import { getWorkflowBySlug } from "@/lib/workflows";
-
-const anthropic = new Anthropic();
+import { callXai } from "./xai-client";
 import { getExecutor } from "./executors";
 import { getDefaultPrompt } from "./prompts";
 import type { MonthPeriod } from "@/lib/schemas/types";
@@ -294,17 +292,7 @@ export async function executeWorkflowSteps(
 
         const userMessage = `Analyze the data for ${period.year}-${String(period.month).padStart(2, "0")}.\n\n${contextParts.join("\n\n")}`;
 
-        const response = await anthropic.messages.create({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 4096,
-          system: prompt,
-          messages: [{ role: "user", content: userMessage }],
-        });
-
-        const text = response.content
-          .filter((b): b is Anthropic.TextBlock => b.type === "text")
-          .map((b) => b.text)
-          .join("\n");
+        const text = await callXai(prompt, userMessage, 4096);
 
         aiOutput = text;
         outputData = { analysis: text };

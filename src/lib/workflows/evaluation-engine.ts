@@ -7,7 +7,6 @@ import {
   actionItems,
 } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import Anthropic from "@anthropic-ai/sdk";
 import type { MonthPeriod } from "@/lib/schemas/types";
 import type {
   PreparedStep,
@@ -29,9 +28,8 @@ import {
   getWeeklyFrequency,
 } from "@/lib/services/meta-ads";
 import { getEvaluationPrompt } from "./prompts/meta-ads-evaluation";
+import { callXai } from "./xai-client";
 import type { MetaAdsMetrics } from "@/lib/schemas/sources/meta-ads-metrics";
-
-const anthropic = new Anthropic();
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -53,17 +51,7 @@ async function runAiEvaluation(
   systemPrompt: string,
   userMessage: string,
 ): Promise<string> {
-  const response = await anthropic.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 2048,
-    system: systemPrompt,
-    messages: [{ role: "user", content: userMessage }],
-  });
-
-  return response.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("\n");
+  return callXai(systemPrompt, userMessage, 2048);
 }
 
 function parseAiActionItems(

@@ -42,6 +42,10 @@
   --color-gold: var(--gold);
   --color-gold-foreground: var(--gold-foreground);
   --color-surface: var(--surface);
+  --color-sle-blue: var(--sle-blue);
+  --color-interline-amber: var(--interline-amber);
+  --color-growth: var(--growth);
+  --color-decline: var(--decline);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -77,6 +81,10 @@
   --gold: oklch(0.78 0.12 85);
   --gold-foreground: oklch(0.15 0 0);
   --surface: oklch(0.16 0.004 285);
+  --sle-blue: #4a8cff;
+  --interline-amber: #f59e0b;
+  --growth: #22c55e;
+  --decline: #ef4444;
   --chart-1: oklch(0.78 0.12 85);
   --chart-2: oklch(0.65 0.15 250);
   --chart-3: oklch(0.70 0.15 160);
@@ -118,6 +126,10 @@
   --chart-3: oklch(0.70 0.15 160);
   --chart-4: oklch(0.65 0.12 30);
   --chart-5: oklch(0.60 0.15 310);
+  --sle-blue: #4a8cff;
+  --interline-amber: #f59e0b;
+  --growth: #22c55e;
+  --decline: #ef4444;
   --sidebar: oklch(0.15 0.004 285);
   --sidebar-foreground: oklch(0.92 0 0);
   --sidebar-primary: oklch(0.78 0.12 85);

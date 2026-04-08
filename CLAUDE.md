@@ -12,7 +12,7 @@ Built first for Salt Lake Express (SLE) marketing operations. Designed to suppor
 - **Backend**: Next.js API Routes + Server Actions (no separate backend)
 - **Database**: Neon Postgres via Drizzle ORM (app state only)
 - **Data Source of Truth**: BigQuery (sales, customers, revenue)
-- **AI**: Claude Haiku 4.5 via Anthropic SDK (workflow analysis steps)
+- **AI**: Grok 4.1 Fast Reasoning via xAI API (workflow analysis steps)
 - **Charts**: Recharts
 - **Animations**: Framer Motion
 - **Fonts**: Space Grotesk (headings), IBM Plex Sans (body)
@@ -39,7 +39,7 @@ Built first for Salt Lake Express (SLE) marketing operations. Designed to suppor
 - `GOOGLE_ADS_LOGIN_CUSTOMER_ID` -- Google Ads manager account ID (default: `4381990003`)
 - `GOOGLE_ADS_CUSTOMER_ID` -- Google Ads client account ID (default: `7716669181`)
 - `POSTGRES_URL` -- Neon Postgres connection string
-- `ANTHROPIC_API_KEY` -- Anthropic API key (Haiku 4.5 for workflow steps)
+- `XAI_API_KEY` -- xAI API key (Grok 4.1 Fast Reasoning for workflow steps)
 
 ## Roadmap
 
@@ -75,6 +75,7 @@ Built first for Salt Lake Express (SLE) marketing operations. Designed to suppor
 ### In Progress
 
 ### Up Next
+- [ ] MMC ridership data integration: Pull monthly route revenue/passenger KPIs from mmc-ridership-summaries API (`GET /api/report?month=X`) into dashboard homepage. Data is cached server-side (Vercel KV) so reads are instant, no recalculation needed.
 - [ ] Fix action_items insert (recommendation step fails on long text params, needs schema or parsing fix)
 - [ ] Tune analysis + recommendations prompts (currently too opinionated, missing business context. Feed a user prompt before generating. Reform action item parsing.)
 - [ ] Dashboard KPI board (replicate Jacob's spreadsheet metrics on `/` homepage, sourced from BigQuery/QuickBooks GL)
@@ -89,7 +90,11 @@ Built first for Salt Lake Express (SLE) marketing operations. Designed to suppor
 - [ ] Local SEO Scorecard: GBP audit per SLE stop location (completeness, reviews, photos, NAP consistency). Framework: BrightLocal Local Search Ranking Factors 2025.
 - [ ] Email Marketing Review workflow: fetch executor (email platform API TBD), open/click rates, list health, segmentation analysis
 - [ ] Creative/Content Planning workflow: fetch executor (prior month performance + content calendar), theme identification, content calendar and creative briefs. **Context wiring:** Analyze and recommend steps should reference `~/workspace/sle/context/` -- brand voice from `brand-voice/sle-brandscript.md` (copy rules, always/never words, tone) and winning ad patterns from `ad-copy/`. The recommend step generates briefs in the SLE brand voice, not generic marketing copy.
-- [ ] Flyer/Event Planning workflow: fetch executor (upcoming events + venue schedules), event calendar review, flyer briefs and promotion plan. **Context wiring:** Recommend step should reference `~/workspace/sle/context/brand-voice/sle-brandscript.md` for copy rules and `ad-copy/` for proven messaging patterns. Flyer results should be saved back to `~/workspace/sle/context/flyers/` to grow the pattern-matching corpus.
+- [ ] Flyer/Event Planning workflow: Fetch executor pulls from "Community Events & Relationship Opportunities" Google Calendar (calendarId: c_4839c82d86cf7237a72dbaaadaeeb753a3ec8732e8b055386e2bb7f025ff1eba@group.calendar.google.com) via domain-wide delegation on the BigQuery service account (bigquery-analysis-sa@jovial-root-443516-a7.iam.gserviceaccount.com). Admin prerequisite: Admin Console → Security → API Controls → Domain-wide Delegation → add service account with scope https://www.googleapis.com/auth/calendar.readonly, impersonating an SLE domain user. Shows upcoming events for the next 60-90 days, plus same-season events from the prior year with any linked post-event notes and promo results. AI analysis generates flyer briefs and event promotion plan. Context wiring: reference brand voice and ad copy patterns from ~/workspace/sle/context/.
+- [ ] Post-Event Review loop: After an event date passes (or its promo code expires), surface a review prompt on the dashboard. User adds post-event notes and optionally links a promo code to trigger Promo Code Analysis for that event. Notes and promo run link stored on the calendar event via extendedProperties. Next year's Event Planning workflow reads this history to show "Last year's Spring Fling: 45 orders from SPRING25, notes: BYU flyers worked, skip USU." Calendar is the source of truth for events, no separate events table needed.
+- [ ] Budget Spend Analysis workflow: Pull previous month's spend from QuickBooks GL data in BigQuery (`quickbooks_gl.gl_transactions`), break down by channel/category, compare against budget targets, flag overspend/underspend. Monthly cadence.
+- [ ] Fix QuickBooks GL ad spend pipeline (currently broken, needs debugging)
+- [ ] Customer Interview workflow: structured interview process, question templates, note capture, theme extraction across interviews, actionable insights summary
 - [ ] Promo Code Analysis Phase 2: Automated analysis triggered by promo expiration dates, FTP fetch, route results to james.glass@saltlakeexpress.com
 - [x] Meta Ads Dashboard: Expandable campaigns → ad sets (2026-03-31)
 - [x] Meta Ads Dashboard: Expandable ad sets → ads with fatigue signals (2026-03-31)
@@ -172,7 +177,7 @@ Built first for Salt Lake Express (SLE) marketing operations. Designed to suppor
 ### Workflow Engine
 - 3 step types: `fetch` → `analyze` → `recommend`
 - Fetch calls data services via `Promise.allSettled` (BigQuery required, platforms optional)
-- AI steps call Claude Haiku 4.5 with editable framework prompts (stored in Postgres, fallback in `src/lib/workflows/prompts/`)
+- AI steps call Grok 4.1 Fast Reasoning (xAI) with editable framework prompts (stored in Postgres, fallback in `src/lib/workflows/prompts/`)
 - Each step's output chains into next via `previousStepOutputs`
 - Step failures don't abort the run (partial results allowed)
 - Action items parsed from recommend step: `ACTION:`, `PRIORITY:`, `CATEGORY:` markers
