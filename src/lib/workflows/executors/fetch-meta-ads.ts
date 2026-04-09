@@ -20,6 +20,10 @@ import {
   classifyAdHealth,
   classifyAdSetHealth,
 } from "@/lib/workflows/classifiers/meta-ads-health";
+import {
+  extractPurchases,
+  extractRevenue,
+} from "@/lib/schemas/transformers/meta-ads-actions";
 
 const MONTH_NAMES = [
   "",
@@ -41,20 +45,6 @@ const MONTH_NAMES = [
 
 function safeDivide(num: number, den: number, fallback = 0): number {
   return den > 0 ? num / den : fallback;
-}
-
-function extractPurchases(row: MetaAdsInsightRow): number {
-  const actions = Array.isArray(row.actions) ? row.actions : [];
-  const action = actions.find((a) => a.action_type === "purchase");
-  const val = action ? Number(action.value) : 0;
-  return isNaN(val) ? 0 : val;
-}
-
-function extractRevenue(row: MetaAdsInsightRow): number {
-  const actions = Array.isArray(row.action_values) ? row.action_values : [];
-  const action = actions.find((a) => a.action_type === "purchase");
-  const val = action ? Number(action.value) : 0;
-  return isNaN(val) ? 0 : val;
 }
 
 const RETARGETING_KEYWORDS = [

@@ -9,7 +9,7 @@ import type {
   AdSetDailyTrendResponse,
   AdDailyTrend,
 } from "@/lib/schemas/sources/meta-ads-metrics";
-import type { MetaAdsInsightRow } from "@/lib/schemas/sources/meta-ads";
+import { extractPurchases } from "@/lib/schemas/transformers/meta-ads-actions";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -107,16 +107,4 @@ export async function POST(req: NextRequest) {
       err instanceof Error ? err.message : "Failed to fetch daily trends";
     return NextResponse.json({ error: message }, { status: 500 });
   }
-}
-
-/** Extract purchase count from a Meta insight row's actions array. */
-function extractPurchases(row: MetaAdsInsightRow): number {
-  const actions = Array.isArray(row.actions) ? row.actions : [];
-  const action = actions.find(
-    (a) =>
-      a.action_type === "purchase" ||
-      a.action_type === "offsite_conversion.fb_pixel_purchase",
-  );
-  const val = action ? Number(action.value) : 0;
-  return Number.isNaN(val) ? 0 : val;
 }
