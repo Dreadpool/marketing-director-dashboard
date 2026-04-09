@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useState } from "react";
 import {
   Tooltip,
   TooltipTrigger,
@@ -22,8 +22,10 @@ import type {
   MetaAdsAdSetRow,
   MetaAdsAdRow,
   MetaAdsBreakdownRow,
-  MetaAdsFatigueSignal,
   MetaAdsSourceDetail,
+  AdHealthStatus,
+  AdHealthClassification,
+  AdSetHealthClassification,
 } from "@/lib/schemas/sources/meta-ads-metrics";
 
 // ─── Type guard ──────────────────────────────────────────────────────────────
@@ -253,167 +255,54 @@ function HeadlineKPIs({ health }: { health: MetaAdsMetrics["account_health"] }) 
   );
 }
 
-// ─── Ad Diagnostic Tags ─────────────────────────────────────────────────────
+// ─── Health Badge ────────────────────────────────────────────────────────────
 
-type AdDiagnostic = {
-  label: string;
-  color: string;
-  tooltip: string;
+const HEALTH_STYLES: Record<
+  AdHealthStatus,
+  { bg: string; label: string }
+> = {
+  healthy: { bg: "bg-emerald-600 text-white", label: "Healthy" },
+  learning: { bg: "bg-blue-500 text-white", label: "Learning" },
+  watch: { bg: "bg-amber-500 text-white", label: "Watch" },
+  underperforming: { bg: "bg-red-600 text-white", label: "Underperforming" },
+  kill: { bg: "bg-red-700 text-white", label: "Kill" },
 };
 
-function diagnoseAd({
-  ad,
-  campaignCpa,
-  signalsByAdId,
-  highFreqCampaigns,
-  accountCvr,
+function HealthBadge({
+  health,
 }: {
-  ad: MetaAdsAdRow;
-  campaignCpa: number;
-  signalsByAdId: Map<string, MetaAdsFatigueSignal[]>;
-  highFreqCampaigns: Map<string, number>;
-  accountCvr: number;
-}): AdDiagnostic | null {
-  const adSignals = signalsByAdId.get(ad.ad_id) ?? [];
-  const ctrSignal = adSignals.find((s) => s.signal_type === "declining_ctr");
-  const cpmSignal = adSignals.find((s) => s.signal_type === "rising_cpm");
-  const campaignFreq = highFreqCampaigns.get(ad.campaign_id);
-  const campaignHighFreq = campaignFreq !== undefined;
+  health: AdHealthClassification | AdSetHealthClassification | undefined;
+}) {
+  if (!health) return null;
 
-  const adCvr = ad.clicks > 0 ? ad.purchases / ad.clicks : 0;
-
-  // Priority 1: Creative Fatigue (CTC D5 Pattern 1)
-  if (ctrSignal && campaignHighFreq) {
-    const ctrDrop = ctrSignal.threshold > 0
-      ? Math.round((1 - ctrSignal.current_value / ctrSignal.threshold) * 100)
-      : 0;
-    return {
-      label: "Creative Fatigue",
-      color: "bg-red-500/10 text-red-400 border-red-500/20",
-      tooltip: [
-        "CTC Pattern: Creative Fatigue (freq↑ + CTR↓)",
-        "",
-        `Ad CTR: ${ctrSignal.current_value.toFixed(2)}%`,
-        `Account avg: ${ctrSignal.threshold.toFixed(2)}%`,
-        `Drop: ${ctrDrop}% below average`,
-        `Campaign freq: ${campaignFreq!.toFixed(1)}x (threshold 3.0)`,
-        "",
-        "Audience has seen this ad too many times and is",
-        "ignoring it. Rotate creative or expand audience.",
-      ].join("\n"),
-    };
-  }
-
-  // Priority 2: Low Conversion (CTC D4 — Landing Page Problem)
-  if (ad.clicks >= 20 && accountCvr > 0 && adCvr < accountCvr * 0.5 && !ctrSignal) {
-    const cvrDrop = Math.round((1 - adCvr / accountCvr) * 100);
-    return {
-      label: "Low Conversion",
-      color: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
-      tooltip: [
-        "CTC Pattern: Conversion Drop (CTR ok + CVR↓)",
-        "",
-        `Ad CVR: ${pct(adCvr * 100)}`,
-        `Account avg: ${pct(accountCvr * 100)}`,
-        `Drop: ${cvrDrop}% below average`,
-        "",
-        "Creative is getting clicks but they're not",
-        "converting. Check landing page, booking flow,",
-        "or offer alignment.",
-      ].join("\n"),
-    };
-  }
-
-  // Priority 3: Underperforming (relative to own campaign)
-  if (ad.purchases >= 5 && campaignCpa > 0 && ad.cpa > campaignCpa * 1.5) {
-    const cpaPct = Math.round((ad.cpa / campaignCpa - 1) * 100);
-    return {
-      label: "Underperforming",
-      color: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
-      tooltip: [
-        "Ad CPA is significantly above its campaign average.",
-        "",
-        `Ad CPA: ${usd2.format(ad.cpa)}`,
-        `Campaign CPA: ${usd2.format(campaignCpa)}`,
-        `Difference: ${cpaPct}% higher`,
-        "",
-        "This ad is dragging down campaign efficiency.",
-        "Consider pausing or revising creative/targeting.",
-      ].join("\n"),
-    };
-  }
-
-  // Priority 4: Low Engagement (CTR below avg, but no high freq)
-  if (ctrSignal && !campaignHighFreq) {
-    const ctrDrop = ctrSignal.threshold > 0
-      ? Math.round((1 - ctrSignal.current_value / ctrSignal.threshold) * 100)
-      : 0;
-    return {
-      label: "Low Engagement",
-      color: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-      tooltip: [
-        "CTR is below account average.",
-        "",
-        `Ad CTR: ${ctrSignal.current_value.toFixed(2)}%`,
-        `Account avg: ${ctrSignal.threshold.toFixed(2)}%`,
-        `Drop: ${ctrDrop}% below average`,
-        "",
-        "Creative isn't resonating with this audience.",
-        "Test different angles, copy, or imagery.",
-      ].join("\n"),
-    };
-  }
-
-  // Priority 5: Low Hook (video only)
-  if (ad.hook_rate != null && ad.hook_rate < 0.25) {
-    return {
-      label: "Low Hook",
-      color: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-      tooltip: [
-        "Video hook rate below 25%.",
-        "",
-        `Hook rate: ${pct(ad.hook_rate * 100)}`,
-        `Benchmark: 25%+`,
-        "",
-        "First 3 seconds aren't capturing attention.",
-        "Test a stronger opening frame or visual hook.",
-      ].join("\n"),
-    };
-  }
-
-  // Priority 6: Low Hold (video only)
-  if (ad.hold_rate != null && ad.hold_rate < 0.30) {
-    return {
-      label: "Low Hold",
-      color: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-      tooltip: [
-        "Video hold rate below 30%.",
-        "",
-        `Hold rate: ${pct(ad.hold_rate * 100)}`,
-        `Benchmark: 30%+`,
-        "",
-        "People are clicking away before the message lands.",
-        "Shorten the video or front-load the value prop.",
-      ].join("\n"),
-    };
-  }
-
-  return null;
-}
-
-function AdDiagnosticBadge({ diagnostic }: { diagnostic: AdDiagnostic | null }) {
-  if (!diagnostic) return null;
+  const style = HEALTH_STYLES[health.status];
 
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger className="cursor-help">
-          <Badge variant="outline" className={`text-[9px] ${diagnostic.color}`}>
-            {diagnostic.label}
-          </Badge>
+          <span
+            className={`inline-block text-xs px-2 py-0.5 rounded font-medium ${style.bg}`}
+          >
+            {style.label}
+          </span>
         </TooltipTrigger>
-        <TooltipContent side="top" className="max-w-xs text-xs whitespace-pre-line">
-          {diagnostic.tooltip}
+        <TooltipContent
+          side="top"
+          className="max-w-xs text-xs whitespace-normal"
+        >
+          <div className="space-y-2 py-1">
+            <div className="text-sm font-semibold">{style.label}</div>
+            <p className="text-muted-foreground">{health.reason}</p>
+            <p className="font-semibold text-gold">{health.action}</p>
+            {health.signals.length > 0 && (
+              <ul className="list-disc pl-4 space-y-0.5 text-muted-foreground">
+                {health.signals.map((signal, i) => (
+                  <li key={i}>{signal}</li>
+                ))}
+              </ul>
+            )}
+          </div>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
@@ -426,49 +315,13 @@ function CampaignTable({
   campaigns,
   adsets,
   ads,
-  fatigueSignals,
-  accountHealth,
 }: {
   campaigns: MetaAdsCampaignRow[];
   adsets: MetaAdsAdSetRow[];
   ads: MetaAdsAdRow[];
-  fatigueSignals: MetaAdsFatigueSignal[];
-  accountHealth: MetaAdsMetrics["account_health"];
 }) {
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
   const [expandedAdSets, setExpandedAdSets] = useState<Set<string>>(new Set());
-
-  const signalsByAdId = useMemo(() => {
-    const map = new Map<string, MetaAdsFatigueSignal[]>();
-    for (const signal of fatigueSignals) {
-      const existing = map.get(signal.ad_id) ?? [];
-      existing.push(signal);
-      map.set(signal.ad_id, existing);
-    }
-    return map;
-  }, [fatigueSignals]);
-
-  const highFreqCampaigns = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const signal of fatigueSignals) {
-      if (signal.signal_type === "high_frequency") {
-        map.set(signal.ad_id, signal.current_value);
-      }
-    }
-    return map;
-  }, [fatigueSignals]);
-
-  const accountCvr = accountHealth.total_clicks > 0
-    ? accountHealth.total_purchases / accountHealth.total_clicks
-    : 0;
-
-  const campaignCpaMap = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const c of campaigns) {
-      map.set(c.campaign_id, c.cpa);
-    }
-    return map;
-  }, [campaigns]);
 
   if (campaigns.length === 0) {
     return (
@@ -597,7 +450,9 @@ function CampaignTable({
                               {as.adset_name}
                             </span>
                           </td>
-                          <td className="py-1.5 pr-3" />
+                          <td className="py-1.5 pr-3">
+                            <HealthBadge health={as.health} />
+                          </td>
                           <td className="py-1.5 pr-3 text-right tabular-nums text-muted-foreground">
                             {usd.format(as.spend)}
                           </td>
@@ -635,15 +490,7 @@ function CampaignTable({
                                 {ad.ad_name}
                               </td>
                               <td className="py-1.5 pr-3">
-                                <AdDiagnosticBadge
-                                  diagnostic={diagnoseAd({
-                                    ad,
-                                    campaignCpa: campaignCpaMap.get(ad.campaign_id) ?? 0,
-                                    signalsByAdId,
-                                    highFreqCampaigns,
-                                    accountCvr,
-                                  })}
-                                />
+                                <HealthBadge health={ad.health} />
                               </td>
                               <td className="py-1.5 pr-3 text-right tabular-nums text-muted-foreground/60">
                                 {usd.format(ad.spend)}
@@ -891,51 +738,6 @@ function BreakdownTable({ rows }: { rows: MetaAdsBreakdownRow[] }) {
   );
 }
 
-// ─── Fatigue Signals ─────────────────────────────────────────────────────────
-
-function FatigueSignals({
-  signals,
-}: {
-  signals: MetaAdsMetrics["signals"];
-}) {
-  if (signals.fatigued_ads.length === 0) {
-    return (
-      <p className="text-sm text-emerald-400/70">No fatigue signals detected.</p>
-    );
-  }
-
-  const labels: Record<string, string> = {
-    high_frequency: "High Frequency",
-    rising_cpm: "Rising CPM",
-    declining_ctr: "Declining CTR",
-  };
-
-  return (
-    <div className="space-y-1.5">
-      {signals.fatigued_ads.map((signal, i) => (
-        <div
-          key={`${signal.ad_id}-${signal.signal_type}-${i}`}
-          className="flex items-center gap-2 text-sm"
-        >
-          <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-          <span className="truncate max-w-[200px]" title={signal.ad_name}>
-            {signal.ad_name}
-          </span>
-          <Badge
-            variant="outline"
-            className="text-[10px] bg-amber-500/10 text-amber-400 border-amber-500/20"
-          >
-            {labels[signal.signal_type] ?? signal.signal_type}
-          </Badge>
-          <span className="text-muted-foreground text-xs tabular-nums">
-            {signal.current_value.toFixed(1)} (threshold: {signal.threshold.toFixed(1)})
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // ─── Main Export ─────────────────────────────────────────────────────────────
 
 export function MetaAdsFetchSummary({ data }: { data: MetaAdsMetrics }) {
@@ -978,8 +780,6 @@ export function MetaAdsFetchSummary({ data }: { data: MetaAdsMetrics }) {
           campaigns={data.campaigns}
           adsets={data.adsets ?? []}
           ads={data.ads}
-          fatigueSignals={data.signals.fatigued_ads}
-          accountHealth={data.account_health}
         />
       </CollapsibleSection>
 
@@ -996,11 +796,6 @@ export function MetaAdsFetchSummary({ data }: { data: MetaAdsMetrics }) {
       {/* Creative Performance */}
       <CollapsibleSection title="Creative Performance">
         <CreativePerformance ads={data.ads} />
-      </CollapsibleSection>
-
-      {/* Fatigue Signals */}
-      <CollapsibleSection title="Fatigue Signals">
-        <FatigueSignals signals={data.signals} />
       </CollapsibleSection>
 
       {/* Audience Breakdowns */}
