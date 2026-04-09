@@ -239,6 +239,81 @@ async function _getAdInsights(
   return rows;
 }
 
+/** Fetch daily ad-level insights for a single ad set over the given month.
+ *  One API call with time_increment=1 returns one row per ad per day. */
+export async function getAdSetDailyInsights(
+  adsetId: string,
+  period: MonthPeriod,
+): Promise<MetaAdsInsightRow[]> {
+  return withRetry(
+    () => _getAdSetDailyInsights(adsetId, period),
+    `adset-daily:${adsetId}`,
+  );
+}
+
+const AD_DAILY_FIELDS = [
+  "spend",
+  "impressions",
+  "clicks",
+  "actions",
+  "action_values",
+  "ad_id",
+  "ad_name",
+  "adset_id",
+  "campaign_id",
+  "date_start",
+  "date_stop",
+];
+
+async function _getAdSetDailyInsights(
+  adsetId: string,
+  period: MonthPeriod,
+): Promise<MetaAdsInsightRow[]> {
+  const { start, end } = monthToDateRange(period);
+  const account = getAdAccount();
+
+  const cursor = await account.getInsights(AD_DAILY_FIELDS, {
+    time_range: { since: start, until: end },
+    time_increment: 1,
+    level: "ad",
+    filtering: [
+      { field: "adset.id", operator: "EQUAL", value: adsetId },
+    ],
+    action_attribution_windows: ["28d_click"],
+  });
+
+  const rows: MetaAdsInsightRow[] = [];
+
+  for (;;) {
+    for (const raw of cursor) {
+      const row = raw as Record<string, unknown>;
+      rows.push({
+        campaign_id: String(row.campaign_id ?? ""),
+        campaign_name: "",
+        adset_id: String(row.adset_id ?? ""),
+        ad_id: String(row.ad_id ?? ""),
+        ad_name: String(row.ad_name ?? ""),
+        spend: String(row.spend ?? "0"),
+        impressions: String(row.impressions ?? "0"),
+        clicks: String(row.clicks ?? "0"),
+        actions: (row.actions as MetaAdsInsightRow["actions"]) ?? [],
+        action_values:
+          (row.action_values as MetaAdsInsightRow["action_values"]) ?? [],
+        date_start: String(row.date_start ?? ""),
+        date_stop: String(row.date_stop ?? ""),
+      });
+    }
+
+    if (cursor.hasNext()) {
+      await cursor.next();
+    } else {
+      break;
+    }
+  }
+
+  return rows;
+}
+
 /** Fetch ad-set-level insights for a month */
 export async function getAdSetInsights(
   period: MonthPeriod,

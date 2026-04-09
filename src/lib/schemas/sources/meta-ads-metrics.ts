@@ -135,6 +135,51 @@ export type MetaAdsFatigueSignal = {
   threshold: number;
 };
 
+// ─── Daily trend types (Phase 2: on-demand ad-set drill-in) ─────────────────
+
+export type DailyPoint = {
+  date: string; // YYYY-MM-DD
+  spend: number;
+  impressions: number;
+  clicks: number;
+  purchases: number;
+  cpa: number;
+  ctr: number; // Ratio (clicks/impressions), e.g. 0.012 for 1.2%
+};
+
+export type TrendDirection = "rising" | "flat" | "declining";
+
+export type TrendSummary = {
+  ctr_direction: TrendDirection;
+  cpa_direction: TrendDirection;
+  /** Percent change of latest 7d vs previous 7d. null if insufficient data. */
+  ctr_7d_change_pct: number | null;
+  cpa_7d_change_pct: number | null;
+  /** Highest CTR observed in the period (as ratio) */
+  peak_ctr: number;
+  /** Most recent CTR (last 3-day avg for smoothing) */
+  current_ctr: number;
+  lifecycle_stage:
+    | "learning"
+    | "performing"
+    | "fatiguing"
+    | "dead"
+    | "born_bad";
+};
+
+export type AdDailyTrend = {
+  ad_id: string;
+  ad_name: string;
+  daily: DailyPoint[];
+  trend: TrendSummary;
+  revised_health: AdHealthClassification;
+};
+
+export type AdSetDailyTrendResponse = {
+  adset_id: string;
+  ads: AdDailyTrend[];
+};
+
 export type MetaAdsSourceDetail = {
   displayName: string;
   status: "ok" | "warning" | "error";
