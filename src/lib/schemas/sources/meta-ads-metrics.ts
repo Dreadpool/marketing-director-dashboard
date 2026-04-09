@@ -47,6 +47,34 @@ export type MetaAdsCampaignRow = {
   roas: number;
 };
 
+export type AdHealthStatus =
+  | "healthy" // On target, leave running
+  | "learning" // Not enough data to judge
+  | "watch" // One signal off, monitor
+  | "underperforming" // Losing money
+  | "kill"; // Clear kill criteria met
+
+export type AdHealthClassification = {
+  status: AdHealthStatus;
+  reason: string; // Why this classification
+  action: string; // What to do (prescribed, unambiguous)
+  signals: string[]; // Contributing signals
+};
+
+export type AdSetHealthStatus =
+  | "healthy"
+  | "learning"
+  | "watch"
+  | "underperforming"
+  | "kill";
+
+export type AdSetHealthClassification = {
+  status: AdSetHealthStatus;
+  reason: string;
+  action: string;
+  signals: string[];
+};
+
 export type MetaAdsAdSetRow = {
   adset_id: string;
   adset_name: string;
@@ -60,6 +88,7 @@ export type MetaAdsAdSetRow = {
   attributed_revenue: number;
   cpa: number;
   roas: number;
+  health?: AdSetHealthClassification;
 };
 
 export type MetaAdsAdRow = {
@@ -81,6 +110,7 @@ export type MetaAdsAdRow = {
   hold_rate: number | null;
   video_3s_views: number;
   video_thruplay: number;
+  health?: AdHealthClassification;
 };
 
 export type MetaAdsBreakdownRow = {

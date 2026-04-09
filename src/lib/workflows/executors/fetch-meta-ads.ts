@@ -15,6 +15,11 @@ import {
   getAdSetInsights,
   getAudienceBreakdowns,
 } from "@/lib/services/meta-ads";
+import {
+  buildBenchmarks,
+  classifyAdHealth,
+  classifyAdSetHealth,
+} from "@/lib/workflows/classifiers/meta-ads-health";
 
 const MONTH_NAMES = [
   "",
@@ -285,7 +290,7 @@ export async function fetchMetaAds(
     : [];
 
   // 6. Map ad set rows
-  const adsets: MetaAdsAdSetRow[] = adSetRows
+  const adsetsBase: MetaAdsAdSetRow[] = adSetRows
     ? adSetRows
         .map((row) => {
           const spend = Number(row.spend);
@@ -308,6 +313,37 @@ export async function fetchMetaAds(
         })
         .sort((a, b) => b.spend - a.spend)
     : [];
+
+  // 6b. Build the account_health object (used both for classifier benchmarks
+  //     and for the final return payload).
+  const accountHealth: MetaAdsMetrics["account_health"] = {
+    total_spend: totalSpend,
+    total_purchases: totalPurchases,
+    total_attributed_revenue: totalRevenue,
+    cpa: accountCpa,
+    roas: accountRoas,
+    cpm: accountCpm,
+    ctr: accountCtr,
+    total_impressions: totalImpressions,
+    total_clicks: totalClicks,
+    total_reach: totalReach,
+    avg_frequency: accountFreq,
+    cpa_status: cpaStatus,
+    roas_status: roasStatus,
+  };
+
+  // Classify per-ad and per-ad-set health using account benchmarks.
+  // Pure, synchronous classifier - src/lib/workflows/classifiers/meta-ads-health.ts
+  const benchmarks = buildBenchmarks(accountHealth, campaigns);
+
+  const adsWithHealth: MetaAdsAdRow[] = ads.map((ad) => ({
+    ...ad,
+    health: classifyAdHealth(ad, benchmarks),
+  }));
+  const adsetsWithHealth: MetaAdsAdSetRow[] = adsetsBase.map((adSet) => ({
+    ...adSet,
+    health: classifyAdSetHealth(adSet),
+  }));
 
   // 7. Detect fatigue signals
   const fatigued_ads: MetaAdsFatigueSignal[] = [];
@@ -422,25 +458,11 @@ export async function fetchMetaAds(
       month_num: period.month,
       date_range: { start: startDate, end: endDate },
     },
-    account_health: {
-      total_spend: totalSpend,
-      total_purchases: totalPurchases,
-      total_attributed_revenue: totalRevenue,
-      cpa: accountCpa,
-      roas: accountRoas,
-      cpm: accountCpm,
-      ctr: accountCtr,
-      total_impressions: totalImpressions,
-      total_clicks: totalClicks,
-      total_reach: totalReach,
-      avg_frequency: accountFreq,
-      cpa_status: cpaStatus,
-      roas_status: roasStatus,
-    },
+    account_health: accountHealth,
     campaigns,
     hiring_campaigns: hiringCampaigns,
-    ads,
-    adsets,
+    ads: adsWithHealth,
+    adsets: adsetsWithHealth,
     audience: {
       age_gender: ageGenderRows,
       geo: audienceData
