@@ -40,13 +40,23 @@ describe("Evaluation prompts", () => {
     expect(prompt).toContain("Attribution Inflation");
   });
 
-  it("all prompts include ACTION/PRIORITY/OWNER format instructions", () => {
-    for (const stepId of stepIds) {
+  it("action-producing prompts include ACTION/PRIORITY/OWNER format instructions", () => {
+    // D1 is a data collection step only. Actions come from D5 pattern match
+    // based on compound signals, so D1 is intentionally excluded here.
+    const actionProducingStepIds = stepIds.filter((id) => id !== "d1-frequency");
+    for (const stepId of actionProducingStepIds) {
       const prompt = getEvaluationPrompt(stepId);
       expect(prompt).toContain("ACTION:");
       expect(prompt).toContain("PRIORITY:");
       expect(prompt).toContain("OWNER:");
     }
+  });
+
+  it("d1-frequency is data collection only and does not produce action items", () => {
+    const prompt = getEvaluationPrompt("d1-frequency");
+    expect(prompt).not.toContain("ACTION:");
+    expect(prompt).toContain("Do NOT");
+    expect(prompt).toContain("D5");
   });
 
   it("returns a fallback prompt for unknown step IDs", () => {

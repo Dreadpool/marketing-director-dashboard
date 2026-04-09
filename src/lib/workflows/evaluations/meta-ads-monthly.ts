@@ -37,15 +37,17 @@ export const META_ADS_EVALUATION_STEPS: EvaluationStepDef[] = [
     id: "d1-frequency",
     label: "D1: Frequency Check",
     description:
-      "Check 7-day rolling frequency by campaign. >3.0 in 7 days = fatigue risk.",
+      "Check 7-day rolling frequency by campaign. Frequency > 3.0 is a risk factor, not a standalone problem. It becomes actionable when combined with CTR decline or CPM increase (see D5 Pattern Match).",
     spineStep: null,
     parentStepId: "step1-decision-metrics",
     order: 1,
     condition: { type: "cpa-off-target" },
     thresholds: {
-      frequency_7day: `>${SLE_THRESHOLDS.frequency_fatigue} in 7 days = fatigue risk`,
-      diagnosis:
-        "People seeing the same ad too many times. Creative fatigue or audience too small.",
+      frequency_7day: `>${SLE_THRESHOLDS.frequency_fatigue} in 7 days = elevated (risk factor, not verdict)`,
+      compound_required:
+        "Frequency alone is not a problem. Actionable only when combined with CTR decline (D3) or CPM increase (D2).",
+      context:
+        "Regional audiences (like SLE's) naturally run higher frequency than national brands.",
     },
   },
   {

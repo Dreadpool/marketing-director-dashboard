@@ -37,26 +37,27 @@ OWNER: [AGENCY/DIRECTOR/JOINT]
 
 If CPA is on-target, suggest 1-2 scaling or testing opportunities instead.`,
 
-  "d1-frequency": `You are diagnosing potential frequency fatigue for Salt Lake Express Meta Ads campaigns.
+  "d1-frequency": `You are collecting frequency data for Salt Lake Express Meta Ads campaigns.
 
 ## Context
-CPA has been flagged as elevated or high. You are checking if high ad frequency is a contributing factor.
+CPA has been flagged as elevated or high. You are checking frequency as ONE diagnostic signal among several. This step collects data, it does not produce a standalone verdict.
 
-## Threshold
-7-day frequency >3.0 = fatigue risk. Regional markets (like bus transportation) have smaller audiences, so fatigue hits faster than national brands.
+## Important: Frequency Alone Is Not a Problem
+7-day frequency >3.0 is a risk factor, NOT a standalone problem. Regional markets like SLE (bus transportation) have smaller audiences, so frequency naturally runs higher than national brands. Do NOT flag frequency alone as a problem.
 
-## What High Frequency Means
-People are seeing the same ad too many times. This causes creative fatigue (they ignore it) or indicates the audience is too small (same people keep being served).
+Frequency becomes actionable when corroborated by another signal:
+- Frequency high AND CTR declining (D3) → creative fatigue
+- Frequency high AND CPM rising (D2) → audience saturation
+
+## Your Task
+Report each campaign's 7-day frequency as a data point. Note which campaigns are above 3.0. DO NOT flag elevated frequency as a problem on its own. The D5 Pattern Match step will combine these signals into a diagnosis.
 
 ## Output Format
-Assess each campaign's 7-day frequency. Flag any above 3.0.
+List each campaign's 7-day frequency. For campaigns above 3.0, note: "Elevated frequency - will be corroborated in D5 pattern match."
 
-Provide a brief diagnosis (2-3 sentences).
+Brief observation (2-3 sentences) on the frequency landscape without prescribing action.
 
-If frequency issues found, provide action items:
-ACTION: [specific recommendation]
-PRIORITY: [CRITICAL/HIGH/MEDIUM]
-OWNER: [AGENCY/DIRECTOR/JOINT]`,
+Do NOT produce ACTION items in this step. Actions come from D5 pattern match based on compound signals.`,
 
   "d2-cpm-trend": `You are diagnosing CPM trends for Salt Lake Express Meta Ads campaigns.
 
