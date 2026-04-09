@@ -15,9 +15,13 @@ import {
   XCircle,
   AlertTriangle,
   Info,
+  TrendingUp,
+  TrendingDown,
+  Minus,
 } from "lucide-react";
 import type {
   MetaAdsMetrics,
+  MetaAdsPeriod,
   MetaAdsCampaignRow,
   MetaAdsAdSetRow,
   MetaAdsAdRow,
@@ -27,6 +31,8 @@ import type {
   AdSetHealthStatus,
   AdHealthClassification,
   AdSetHealthClassification,
+  AdSetDailyTrendResponse,
+  TrendDirection,
 } from "@/lib/schemas/sources/meta-ads-metrics";
 
 // ─── Type guard ──────────────────────────────────────────────────────────────
@@ -325,19 +331,47 @@ function HealthBadge({
   );
 }
 
+// ─── Trend Arrow ─────────────────────────────────────────────────────────────
+
+function TrendArrow({
+  direction,
+  inverse = false,
+}: {
+  direction: TrendDirection;
+  inverse?: boolean;
+}) {
+  if (direction === "flat") {
+    return <Minus className="inline h-3 w-3 text-muted-foreground" />;
+  }
+  const good = inverse ? direction === "declining" : direction === "rising";
+  const Icon = direction === "rising" ? TrendingUp : TrendingDown;
+  return (
+    <Icon
+      className={`inline h-3 w-3 ${good ? "text-growth" : "text-decline"}`}
+    />
+  );
+}
+
 // ─── Campaign Table ──────────────────────────────────────────────────────────
 
 function CampaignTable({
   campaigns,
   adsets,
   ads,
+  period,
 }: {
   campaigns: MetaAdsCampaignRow[];
   adsets: MetaAdsAdSetRow[];
   ads: MetaAdsAdRow[];
+  period: MetaAdsPeriod;
 }) {
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
   const [expandedAdSets, setExpandedAdSets] = useState<Set<string>>(new Set());
+  const [trendData, setTrendData] = useState<
+    Map<string, AdSetDailyTrendResponse>
+  >(new Map());
+  const [loadingAdSets, setLoadingAdSets] = useState<Set<string>>(new Set());
+  const [errorAdSets, setErrorAdSets] = useState<Map<string, string>>(new Map());
 
   if (campaigns.length === 0) {
     return (
@@ -369,6 +403,58 @@ function CampaignTable({
 
   function adsFor(adsetId: string) {
     return ads.filter((ad) => ad.adset_id === adsetId);
+  }
+
+  async function handleAnalyze(adsetId: string) {
+    setLoadingAdSets((prev) => {
+      const next = new Set(prev);
+      next.add(adsetId);
+      return next;
+    });
+    setErrorAdSets((prev) => {
+      const next = new Map(prev);
+      next.delete(adsetId);
+      return next;
+    });
+
+    try {
+      const res = await fetch("/api/workflows/meta-ads-analysis/adset-daily", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          adsetId,
+          period: { year: period.year, month: period.month_num },
+        }),
+      });
+
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        throw new Error(data.error ?? "Failed to analyze");
+      }
+
+      const data = (await res.json()) as AdSetDailyTrendResponse;
+      setTrendData((prev) => {
+        const next = new Map(prev);
+        next.set(adsetId, data);
+        return next;
+      });
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to analyze";
+      setErrorAdSets((prev) => {
+        const next = new Map(prev);
+        next.set(adsetId, message);
+        return next;
+      });
+    } finally {
+      setLoadingAdSets((prev) => {
+        const next = new Set(prev);
+        next.delete(adsetId);
+        return next;
+      });
+    }
   }
 
   return (
@@ -467,7 +553,33 @@ function CampaignTable({
                             </span>
                           </td>
                           <td className="py-1.5 pr-3">
-                            <HealthBadge health={as.health} />
+                            <div className="flex flex-col items-start gap-1">
+                              <HealthBadge health={as.health} />
+                              {hasAds && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleAnalyze(as.adset_id);
+                                    }}
+                                    disabled={loadingAdSets.has(as.adset_id)}
+                                    className="text-[10px] text-gold hover:text-gold/80 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    {loadingAdSets.has(as.adset_id)
+                                      ? "Analyzing..."
+                                      : trendData.has(as.adset_id)
+                                        ? "Refresh"
+                                        : "Analyze"}
+                                  </button>
+                                  {errorAdSets.get(as.adset_id) && (
+                                    <span className="text-[10px] text-red-400 max-w-[160px]">
+                                      {errorAdSets.get(as.adset_id)}
+                                    </span>
+                                  )}
+                                </>
+                              )}
+                            </div>
                           </td>
                           <td className="py-1.5 pr-3 text-right tabular-nums text-muted-foreground">
                             {usd.format(as.spend)}
@@ -494,41 +606,70 @@ function CampaignTable({
 
                         {/* Ad rows */}
                         {isAdSetExpanded &&
-                          childAds.map((ad) => (
-                            <tr
-                              key={ad.ad_id}
-                              className="border-b border-border/20 border-l-2 border-l-border/40 bg-muted/5 text-xs"
-                            >
-                              <td
-                                className="py-1.5 pr-4 pl-14 max-w-[200px] truncate text-muted-foreground/80"
-                                title={ad.ad_name}
+                          childAds.map((ad) => {
+                            const adTrend = trendData
+                              .get(as.adset_id)
+                              ?.ads.find((t) => t.ad_id === ad.ad_id);
+                            return (
+                              <tr
+                                key={ad.ad_id}
+                                className="border-b border-border/20 border-l-2 border-l-border/40 bg-muted/5 text-xs"
                               >
-                                {ad.ad_name}
-                              </td>
-                              <td className="py-1.5 pr-3">
-                                <HealthBadge health={ad.health} />
-                              </td>
-                              <td className="py-1.5 pr-3 text-right tabular-nums text-muted-foreground/60">
-                                {usd.format(ad.spend)}
-                              </td>
-                              <td className={`py-1.5 pr-3 text-right tabular-nums ${cpaColor(ad.cpa)}`}>
-                                {ad.purchases > 0 ? usd2.format(ad.cpa) : "—"}
-                              </td>
-                              <td className="py-1.5 pr-3 text-right tabular-nums text-muted-foreground/60">
-                                {ad.clicks > 0 ? (
-                                  <span><span className="text-[10px] text-muted-foreground/40">CVR </span>{pct((ad.purchases / ad.clicks) * 100)}</span>
-                                ) : "—"}
-                              </td>
-                              <td className="py-1.5 pr-3 text-right tabular-nums text-muted-foreground/60">
-                                {num.format(ad.purchases)}
-                              </td>
-                              <td className="py-1.5 text-right tabular-nums text-muted-foreground/60">
-                                {ad.impressions > 0 ? (
-                                  <span><span className="text-[10px] text-muted-foreground/40">CTR </span>{pct((ad.clicks / ad.impressions) * 100)}</span>
-                                ) : "—"}
-                              </td>
-                            </tr>
-                          ))}
+                                <td
+                                  className="py-1.5 pr-4 pl-14 max-w-[200px] truncate text-muted-foreground/80"
+                                  title={ad.ad_name}
+                                >
+                                  {ad.ad_name}
+                                </td>
+                                <td className="py-1.5 pr-3">
+                                  <HealthBadge
+                                    health={adTrend?.revised_health ?? ad.health}
+                                  />
+                                </td>
+                                <td className="py-1.5 pr-3 text-right tabular-nums text-muted-foreground/60">
+                                  {usd.format(ad.spend)}
+                                </td>
+                                <td className={`py-1.5 pr-3 text-right tabular-nums ${cpaColor(ad.cpa)}`}>
+                                  {ad.purchases > 0 ? (
+                                    <span className="inline-flex items-center gap-1 justify-end">
+                                      {adTrend && (
+                                        <TrendArrow
+                                          direction={adTrend.trend.cpa_direction}
+                                          inverse
+                                        />
+                                      )}
+                                      {usd2.format(ad.cpa)}
+                                    </span>
+                                  ) : (
+                                    "—"
+                                  )}
+                                </td>
+                                <td className="py-1.5 pr-3 text-right tabular-nums text-muted-foreground/60">
+                                  {ad.clicks > 0 ? (
+                                    <span><span className="text-[10px] text-muted-foreground/40">CVR </span>{pct((ad.purchases / ad.clicks) * 100)}</span>
+                                  ) : "—"}
+                                </td>
+                                <td className="py-1.5 pr-3 text-right tabular-nums text-muted-foreground/60">
+                                  {num.format(ad.purchases)}
+                                </td>
+                                <td className="py-1.5 text-right tabular-nums text-muted-foreground/60">
+                                  {ad.impressions > 0 ? (
+                                    <span className="inline-flex items-center gap-1 justify-end">
+                                      {adTrend && (
+                                        <TrendArrow
+                                          direction={adTrend.trend.ctr_direction}
+                                        />
+                                      )}
+                                      <span className="text-[10px] text-muted-foreground/40">CTR </span>
+                                      {pct((ad.clicks / ad.impressions) * 100)}
+                                    </span>
+                                  ) : (
+                                    "—"
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
                       </Fragment>
                     );
                   })}
@@ -796,6 +937,7 @@ export function MetaAdsFetchSummary({ data }: { data: MetaAdsMetrics }) {
           campaigns={data.campaigns}
           adsets={data.adsets ?? []}
           ads={data.ads}
+          period={data.period}
         />
       </CollapsibleSection>
 
