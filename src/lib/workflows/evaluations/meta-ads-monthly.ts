@@ -134,10 +134,16 @@ export const META_ADS_EVALUATION_STEPS: EvaluationStepDef[] = [
     id: "step4-creative-health",
     label: "Creative Health",
     description:
-      "Analyze ad-level performance, hook/hold rates, creative fatigue, and refresh needs.",
+      "Classify every ad and ad set by health status. Review kill and underperforming ads by name. Determine which need creative refresh vs which should be paused.",
     spineStep: 4,
     order: 8,
-    condition: { type: "phase2-placeholder" },
+    condition: { type: "always" },
+    thresholds: {
+      kill_trigger: "Ads with spend >= $27 and zero purchases, or CTR < 0.5%, or video hook rate < 15%",
+      underperforming: "Ads with purchases > 0 and CPA > $14 (losing money after over-attribution)",
+      learning_pct_warning: "If >50% of spend is in learning ads, portfolio is understeered",
+      healthy_target: "70%+ of spend should be in healthy ads for a stable account",
+    },
   },
   {
     id: "step5-audience-check",

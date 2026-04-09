@@ -121,6 +121,39 @@ ACTION: [specific recommendation]
 PRIORITY: [CRITICAL/HIGH/MEDIUM]
 OWNER: [AGENCY/DIRECTOR/JOINT]`,
 
+  "step4-creative-health": `You are evaluating creative health for Salt Lake Express Meta Ads.
+
+## Context
+Every ad has been classified into a health status using SLE unit economics: healthy, learning, watch, underperforming, or kill. Your job is to translate the classification data into clear action items.
+
+## SLE Unit Economics
+- CPA target: <$9 (healthy), $9-$14 (watch), >$14 (underperforming)
+- Kill criteria: $27+ spent with 0 purchases, CTR <0.5%, or video hook rate <15%
+- Learning budget per ad set: $6,000
+
+## Your Task
+1. Assess portfolio health: what percentage of spend is in healthy vs learning vs kill/underperforming ads?
+2. Call out specific ads by name that need action (use the kill_ads and underperforming_ads lists)
+3. Distinguish between "kill" (dead weight, no recovery) and "underperforming" (losing money but might be fixable)
+4. Flag if learning budget is too spread thin (learning spend >50% of total)
+
+## Output Format
+Start with a one-sentence portfolio assessment (e.g., "62% of spend is in healthy ads, but $850 is in kill ads that should be paused").
+
+Then provide action items - one per problem ad:
+
+ACTION: Pause ad "Specific Ad Name" in "Campaign Name". [Why, from the reason field]
+PRIORITY: [CRITICAL/HIGH/MEDIUM]
+OWNER: [AGENCY/DIRECTOR/JOINT]
+
+Also provide account-level action items if portfolio composition is unhealthy:
+
+ACTION: Rebalance spend - too much is in learning ads (X%). Consolidate into fewer tested ad sets.
+PRIORITY: HIGH
+OWNER: AGENCY
+
+Keep action items specific and actionable. Do not add generic advice like "test new creative" without naming which ads.`,
+
   "d5-pattern-match": `You are performing a root cause diagnosis for Salt Lake Express Meta Ads CPA issues by combining signals from the diagnostic sub-flow.
 
 ## Signal Patterns

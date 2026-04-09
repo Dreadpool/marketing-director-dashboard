@@ -423,6 +423,102 @@ async function prepareStepData(
       };
     }
 
+    case "step4-creative-health": {
+      // Aggregate health classifications from ads and ad sets
+      const adsWithHealth = metrics.ads.filter((a) => a.health);
+      const adsetsWithHealth = metrics.adsets.filter((a) => a.health);
+
+      // Count ads by status
+      const adStatusCounts = {
+        healthy: 0,
+        learning: 0,
+        watch: 0,
+        underperforming: 0,
+        kill: 0,
+      };
+      const adSpendByStatus = {
+        healthy: 0,
+        learning: 0,
+        watch: 0,
+        underperforming: 0,
+        kill: 0,
+      };
+
+      for (const ad of adsWithHealth) {
+        const status = ad.health!.status;
+        adStatusCounts[status]++;
+        adSpendByStatus[status] += ad.spend;
+      }
+
+      const totalAdSpend = adsWithHealth.reduce((s, a) => s + a.spend, 0);
+
+      // Detailed lists for kill and underperforming
+      const killAds = adsWithHealth
+        .filter((a) => a.health!.status === "kill")
+        .sort((a, b) => b.spend - a.spend)
+        .slice(0, 10)
+        .map((a) => ({
+          ad_name: a.ad_name,
+          campaign_name: a.campaign_name,
+          adset_name: a.adset_name,
+          spend: a.spend,
+          purchases: a.purchases,
+          cpa: a.cpa,
+          reason: a.health!.reason,
+          action: a.health!.action,
+        }));
+
+      const underperformingAds = adsWithHealth
+        .filter((a) => a.health!.status === "underperforming")
+        .sort((a, b) => b.spend - a.spend)
+        .slice(0, 10)
+        .map((a) => ({
+          ad_name: a.ad_name,
+          campaign_name: a.campaign_name,
+          adset_name: a.adset_name,
+          spend: a.spend,
+          purchases: a.purchases,
+          cpa: a.cpa,
+          reason: a.health!.reason,
+          action: a.health!.action,
+        }));
+
+      // Ad set summary
+      const adSetStatusCounts = {
+        healthy: 0,
+        learning: 0,
+        watch: 0,
+        underperforming: 0,
+        kill: 0,
+      };
+      for (const as of adsetsWithHealth) {
+        adSetStatusCounts[as.health!.status]++;
+      }
+
+      return {
+        period: metrics.period,
+        account_health: metrics.account_health,
+        ad_summary: {
+          total_ads: adsWithHealth.length,
+          status_counts: adStatusCounts,
+          spend_by_status: adSpendByStatus,
+          total_spend: totalAdSpend,
+          pct_spend_healthy:
+            totalAdSpend > 0 ? (adSpendByStatus.healthy / totalAdSpend) * 100 : 0,
+          pct_spend_learning:
+            totalAdSpend > 0 ? (adSpendByStatus.learning / totalAdSpend) * 100 : 0,
+          pct_spend_kill:
+            totalAdSpend > 0 ? (adSpendByStatus.kill / totalAdSpend) * 100 : 0,
+        },
+        adset_summary: {
+          total_adsets: adsetsWithHealth.length,
+          status_counts: adSetStatusCounts,
+        },
+        kill_ads: killAds,
+        underperforming_ads: underperformingAds,
+      };
+    }
+
     case "step6-action-summary": {
       return {
         period: metrics.period,

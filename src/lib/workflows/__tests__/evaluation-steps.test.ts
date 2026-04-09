@@ -55,6 +55,13 @@ describe("Evaluation step definitions", () => {
     expect(step!.spineStep).toBe(1);
   });
 
+  it("Step 4 (creative-health) is always active", () => {
+    const step = getStepDef("step4-creative-health");
+    expect(step).toBeDefined();
+    expect(step!.condition.type).toBe("always");
+    expect(step!.spineStep).toBe(4);
+  });
+
   it("Step 6 (action-summary) is always active", () => {
     const step = getStepDef("step6-action-summary");
     expect(step).toBeDefined();
@@ -79,11 +86,10 @@ describe("Evaluation step definitions", () => {
     }
   });
 
-  it("Steps 2-5 are phase2 placeholders", () => {
+  it("Steps 2, 3, and 5 are phase2 placeholders", () => {
     const placeholderIds = [
       "step2-backend-verification",
       "step3-campaign-structure",
-      "step4-creative-health",
       "step5-audience-check",
     ];
     for (const id of placeholderIds) {
@@ -102,12 +108,16 @@ describe("Evaluation step definitions", () => {
 });
 
 describe("resolveActiveSteps", () => {
-  it("healthy account gets Step 1 + Step 6 only (skip diagnostics and placeholders)", () => {
+  it("healthy account gets Step 1 + Step 4 + Step 6 (skip diagnostics and remaining placeholders)", () => {
     const steps = resolveActiveSteps(false);
-    expect(steps).toEqual(["step1-decision-metrics", "step6-action-summary"]);
+    expect(steps).toEqual([
+      "step1-decision-metrics",
+      "step4-creative-health",
+      "step6-action-summary",
+    ]);
   });
 
-  it("unhealthy CPA gets Step 1 + D1-D5 + Step 6", () => {
+  it("unhealthy CPA gets Step 1 + D1-D5 + Step 4 + Step 6", () => {
     const steps = resolveActiveSteps(true);
     expect(steps).toEqual([
       "step1-decision-metrics",
@@ -116,6 +126,7 @@ describe("resolveActiveSteps", () => {
       "d3-ctr-trend",
       "d4-conversion-rate",
       "d5-pattern-match",
+      "step4-creative-health",
       "step6-action-summary",
     ]);
   });
@@ -126,7 +137,6 @@ describe("resolveActiveSteps", () => {
     const placeholders = [
       "step2-backend-verification",
       "step3-campaign-structure",
-      "step4-creative-health",
       "step5-audience-check",
     ];
     for (const id of placeholders) {
