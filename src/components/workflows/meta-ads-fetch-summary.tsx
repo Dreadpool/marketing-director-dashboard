@@ -24,6 +24,7 @@ import type {
   MetaAdsBreakdownRow,
   MetaAdsSourceDetail,
   AdHealthStatus,
+  AdSetHealthStatus,
   AdHealthClassification,
   AdSetHealthClassification,
 } from "@/lib/schemas/sources/meta-ads-metrics";
@@ -258,14 +259,29 @@ function HeadlineKPIs({ health }: { health: MetaAdsMetrics["account_health"] }) 
 // ─── Health Badge ────────────────────────────────────────────────────────────
 
 const HEALTH_STYLES: Record<
-  AdHealthStatus,
+  AdHealthStatus | AdSetHealthStatus,
   { bg: string; label: string }
 > = {
-  healthy: { bg: "bg-emerald-600 text-white", label: "Healthy" },
-  learning: { bg: "bg-blue-500 text-white", label: "Learning" },
-  watch: { bg: "bg-amber-500 text-white", label: "Watch" },
-  underperforming: { bg: "bg-red-600 text-white", label: "Underperforming" },
-  kill: { bg: "bg-red-700 text-white", label: "Kill" },
+  healthy: {
+    bg: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
+    label: "Healthy",
+  },
+  learning: {
+    bg: "bg-blue-500/10 text-blue-400 border border-blue-500/20",
+    label: "Learning",
+  },
+  watch: {
+    bg: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
+    label: "Watch",
+  },
+  underperforming: {
+    bg: "bg-red-500/10 text-red-400 border border-red-500/20",
+    label: "Underperforming",
+  },
+  kill: {
+    bg: "bg-red-700 text-white",
+    label: "Kill",
+  },
 };
 
 function HealthBadge({
