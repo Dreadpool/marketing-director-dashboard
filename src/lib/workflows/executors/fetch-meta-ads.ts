@@ -95,7 +95,7 @@ export async function fetchMetaAds(
   //    Each call has built-in retry with backoff on rate limit errors.
   const priorPeriod = getPriorPeriod(period);
 
-  const [campaignResult, adResult, audienceResult, adSetResult, priorCampaignResult, priorAdSetResult, creativeResult] =
+  const [campaignResult, adResult, audienceResult, adSetResult, priorCampaignResult, priorAdSetResult] =
     await Promise.allSettled([
       getMonthlyInsights(period),
       getAdInsights(period),
@@ -103,7 +103,6 @@ export async function fetchMetaAds(
       getAdSetInsights(period),
       getMonthlyInsights(priorPeriod),
       getAdSetInsights(priorPeriod),
-      getAdCreatives(period),
     ]);
 
   if (campaignResult.status === "rejected") {
@@ -183,24 +182,6 @@ export async function fetchMetaAds(
           : "No data",
     };
     missingSources.push("audience");
-  }
-
-  const creativeMap =
-    creativeResult.status === "fulfilled" ? creativeResult.value : null;
-
-  if (creativeMap) {
-    sourceDetails.creatives = { displayName: "Meta Ad Creatives", status: "ok" };
-    loadedSources.push("creatives");
-  } else {
-    sourceDetails.creatives = {
-      displayName: "Meta Ad Creatives",
-      status: "warning",
-      message:
-        creativeResult.status === "rejected"
-          ? String(creativeResult.reason)
-          : "No data",
-    };
-    missingSources.push("creatives");
   }
 
   // 3. Separate hiring campaigns from acquisition campaigns
@@ -339,14 +320,29 @@ export async function fetchMetaAds(
         .slice(0, 50) // cap at top 50 by spend to keep payload manageable
     : [];
 
-  // Merge creative URLs into ad rows
-  if (creativeMap) {
-    for (const ad of ads) {
-      const creative = creativeMap.get(ad.ad_id);
-      if (creative) {
-        ad.image_url = creative.image_url;
-        ad.thumbnail_url = creative.thumbnail_url;
+  // Fetch and merge creative URLs into ad rows.
+  // Must happen after ad mapping because we need the ad_ids from insights.
+  // getAds filtered by specific IDs returns creatives for historical ads too.
+  if (ads.length > 0) {
+    try {
+      const adIds = ads.map((a) => a.ad_id).filter(Boolean);
+      const creativeMap = await getAdCreatives(adIds);
+      for (const ad of ads) {
+        const creative = creativeMap.get(ad.ad_id);
+        if (creative) {
+          ad.image_url = creative.image_url;
+          ad.thumbnail_url = creative.thumbnail_url;
+        }
       }
+      sourceDetails.creatives = { displayName: "Meta Ad Creatives", status: "ok" };
+      loadedSources.push("creatives");
+    } catch (err) {
+      sourceDetails.creatives = {
+        displayName: "Meta Ad Creatives",
+        status: "warning",
+        message: err instanceof Error ? err.message : "Failed to fetch creatives",
+      };
+      missingSources.push("creatives");
     }
   }
 

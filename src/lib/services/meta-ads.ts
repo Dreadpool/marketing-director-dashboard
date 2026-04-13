@@ -452,15 +452,19 @@ async function _getAudienceBreakdowns(
   };
 }
 
-/** Fetch ad creative image URLs (thumbnail + full-size) keyed by ad ID */
+/** Fetch ad creative image URLs (thumbnail + full-size) keyed by ad ID.
+ *  Must receive the ad IDs from insights to filter correctly — getAds with
+ *  effective_status returns currently active ads, which may differ from the
+ *  ads that ran during the insights period. */
 export async function getAdCreatives(
-  period: MonthPeriod,
+  adIds: string[],
 ): Promise<Map<string, { image_url: string | null; thumbnail_url: string | null }>> {
-  return withRetry(() => _getAdCreatives(period), "ad-creatives");
+  if (adIds.length === 0) return new Map();
+  return withRetry(() => _getAdCreatives(adIds), "ad-creatives");
 }
 
 async function _getAdCreatives(
-  _period: MonthPeriod,
+  adIds: string[],
 ): Promise<Map<string, { image_url: string | null; thumbnail_url: string | null }>> {
   const account = getAdAccount();
   const result = new Map<string, { image_url: string | null; thumbnail_url: string | null }>();
@@ -470,7 +474,7 @@ async function _getAdCreatives(
   const cursor = await (account as any).getAds(
     ["id", "creative{thumbnail_url,image_url}"],
     {
-      effective_status: ["ACTIVE", "PAUSED"],
+      filtering: [{ field: "id", operator: "IN", value: adIds }],
       limit: 100,
     },
   );
