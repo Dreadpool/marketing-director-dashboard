@@ -572,6 +572,7 @@ export async function fetchMetaAds(
       loaded_sources: loadedSources,
       missing_sources: missingSources,
       source_details: sourceDetails,
+      executor_version: "2026-04-13-creatives",
     },
   };
 }
