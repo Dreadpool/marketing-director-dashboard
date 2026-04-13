@@ -45,6 +45,7 @@ export type MetaAdsCampaignRow = {
   attributed_revenue: number;
   cpa: number;
   roas: number;
+  mom?: MomDelta;
 };
 
 export type AdHealthStatus =
@@ -59,6 +60,13 @@ export type AdHealthClassification = {
   reason: string; // Why this classification
   action: string; // What to do (prescribed, unambiguous)
   signals: string[]; // Contributing signals
+};
+
+export type MomDelta = {
+  spend_pct: number | null;
+  cpa_pct: number | null;
+  roas_pct: number | null;
+  purchases_pct: number | null;
 };
 
 export type AdSetHealthStatus =
@@ -89,6 +97,7 @@ export type MetaAdsAdSetRow = {
   cpa: number;
   roas: number;
   health?: AdSetHealthClassification;
+  mom?: MomDelta;
 };
 
 export type MetaAdsAdRow = {

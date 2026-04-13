@@ -47,6 +47,18 @@ function safeDivide(num: number, den: number, fallback = 0): number {
   return den > 0 ? num / den : fallback;
 }
 
+function getPriorPeriod(period: MonthPeriod): MonthPeriod {
+  if (period.month === 1) {
+    return { year: period.year - 1, month: 12 };
+  }
+  return { year: period.year, month: period.month - 1 };
+}
+
+function pctChange(current: number, prior: number): number | null {
+  if (prior === 0) return current > 0 ? null : null;
+  return ((current - prior) / prior) * 100;
+}
+
 const RETARGETING_KEYWORDS = [
   "retarget",
   "remarketing",
@@ -80,12 +92,16 @@ export async function fetchMetaAds(
 
   // 1. Parallel fetch: campaigns required, ads + ad sets + audience optional.
   //    Each call has built-in retry with backoff on rate limit errors.
-  const [campaignResult, adResult, audienceResult, adSetResult] =
+  const priorPeriod = getPriorPeriod(period);
+
+  const [campaignResult, adResult, audienceResult, adSetResult, priorCampaignResult, priorAdSetResult] =
     await Promise.allSettled([
       getMonthlyInsights(period),
       getAdInsights(period),
       getAudienceBreakdowns(period),
       getAdSetInsights(period),
+      getMonthlyInsights(priorPeriod),
+      getAdSetInsights(priorPeriod),
     ]);
 
   if (campaignResult.status === "rejected") {
@@ -101,6 +117,10 @@ export async function fetchMetaAds(
     audienceResult.status === "fulfilled" ? audienceResult.value : null;
   const adSetRows =
     adSetResult.status === "fulfilled" ? adSetResult.value : null;
+  const priorCampaignRows =
+    priorCampaignResult.status === "fulfilled" ? priorCampaignResult.value : null;
+  const priorAdSetRows =
+    priorAdSetResult.status === "fulfilled" ? priorAdSetResult.value : null;
 
   // 2. Source tracking
   const sourceDetails: Record<string, MetaAdsSourceDetail> = {
@@ -232,6 +252,26 @@ export async function fetchMetaAds(
     .map(mapCampaignRow)
     .sort((a, b) => b.spend - a.spend);
 
+  // Compute MoM deltas for campaigns
+  if (priorCampaignRows) {
+    const priorMapped = priorCampaignRows
+      .filter((row) => classifyFunnelStage(row.campaign_name) !== "other")
+      .map(mapCampaignRow);
+    const priorMap = new Map(priorMapped.map((c) => [c.campaign_id, c]));
+
+    for (const campaign of campaigns) {
+      const prior = priorMap.get(campaign.campaign_id);
+      if (prior) {
+        campaign.mom = {
+          spend_pct: pctChange(campaign.spend, prior.spend),
+          cpa_pct: pctChange(campaign.cpa, prior.cpa),
+          roas_pct: pctChange(campaign.roas, prior.roas),
+          purchases_pct: pctChange(campaign.purchases, prior.purchases),
+        };
+      }
+    }
+  }
+
   const hiringCampaigns = hiringRows
     .map(mapCampaignRow)
     .sort((a, b) => b.spend - a.spend);
@@ -303,6 +343,35 @@ export async function fetchMetaAds(
         })
         .sort((a, b) => b.spend - a.spend)
     : [];
+
+  // Compute MoM deltas for ad sets
+  if (priorAdSetRows) {
+    const priorAdSets = priorAdSetRows.map((row) => {
+      const spend = Number(row.spend);
+      const purchases = extractPurchases(row);
+      const revenue = extractRevenue(row);
+      return {
+        adset_id: row.adset_id ?? "",
+        spend,
+        purchases,
+        cpa: safeDivide(spend, purchases),
+        roas: safeDivide(revenue, spend),
+      };
+    });
+    const priorAdSetMap = new Map(priorAdSets.map((a) => [a.adset_id, a]));
+
+    for (const adSet of adsetsBase) {
+      const prior = priorAdSetMap.get(adSet.adset_id);
+      if (prior) {
+        adSet.mom = {
+          spend_pct: pctChange(adSet.spend, prior.spend),
+          cpa_pct: pctChange(adSet.cpa, prior.cpa),
+          roas_pct: pctChange(adSet.roas, prior.roas),
+          purchases_pct: pctChange(adSet.purchases, prior.purchases),
+        };
+      }
+    }
+  }
 
   // 6b. Build the account_health object (used both for classifier benchmarks
   //     and for the final return payload).
