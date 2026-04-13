@@ -7,6 +7,7 @@ import {
   TooltipContent,
   TooltipProvider,
 } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import {
   ChevronDown,
@@ -18,6 +19,8 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
+  ImageOff,
+  ExternalLink,
 } from "lucide-react";
 import type {
   MetaAdsMetrics,
@@ -363,6 +366,58 @@ function MomDeltaLabel({
   );
 }
 
+// ─── Ad Thumbnail ───────────────────────────────────────────────────────────
+
+function AdThumbnail({
+  ad,
+  onClick,
+}: {
+  ad: {
+    ad_id: string;
+    ad_name: string;
+    image_url?: string | null;
+    thumbnail_url?: string | null;
+  };
+  onClick: (ad: {
+    ad_name: string;
+    ad_id: string;
+    image_url: string;
+  }) => void;
+}) {
+  const src = ad.image_url || ad.thumbnail_url;
+
+  if (!src) {
+    return (
+      <div className="w-10 h-10 rounded bg-muted/30 flex items-center justify-center shrink-0">
+        <ImageOff className="h-4 w-4 text-muted-foreground/40" />
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick({
+          ad_name: ad.ad_name,
+          ad_id: ad.ad_id,
+          image_url: ad.image_url || ad.thumbnail_url || "",
+        });
+      }}
+      className="w-10 h-10 rounded overflow-hidden shrink-0 hover:ring-2 hover:ring-gold/50 transition-shadow"
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element -- external Meta CDN URL */}
+      <img
+        src={src}
+        alt={ad.ad_name}
+        className="w-full h-full object-cover"
+        loading="lazy"
+      />
+    </button>
+  );
+}
+
 // ─── Campaign Table ──────────────────────────────────────────────────────────
 
 function CampaignTable({
@@ -383,6 +438,11 @@ function CampaignTable({
   >(new Map());
   const [loadingAdSets, setLoadingAdSets] = useState<Set<string>>(new Set());
   const [errorAdSets, setErrorAdSets] = useState<Map<string, string>>(new Map());
+  const [lightboxAd, setLightboxAd] = useState<{
+    ad_name: string;
+    ad_id: string;
+    image_url: string;
+  } | null>(null);
 
   if (campaigns.length === 0) {
     return (
@@ -627,11 +687,21 @@ function CampaignTable({
                                   className="py-1.5 pr-4 pl-14 max-w-[200px] text-muted-foreground/80"
                                   title={ad.ad_name}
                                 >
-                                  <div className="flex items-center gap-1.5 truncate">
-                                    <span className="truncate">{ad.ad_name}</span>
-                                    <HealthBadge
-                                      health={adTrend?.revised_health ?? ad.health}
+                                  <div className="flex items-center gap-2">
+                                    <AdThumbnail
+                                      ad={ad}
+                                      onClick={setLightboxAd}
                                     />
+                                    <div className="min-w-0">
+                                      <span className="truncate block text-xs">
+                                        {ad.ad_name}
+                                      </span>
+                                      <HealthBadge
+                                        health={
+                                          adTrend?.revised_health ?? ad.health
+                                        }
+                                      />
+                                    </div>
                                   </div>
                                 </td>
                                 <td className="py-1.5 pr-3 text-right tabular-nums text-muted-foreground/60">
@@ -686,6 +756,38 @@ function CampaignTable({
           })}
         </tbody>
       </table>
+
+      <Dialog open={!!lightboxAd} onOpenChange={() => setLightboxAd(null)}>
+        <DialogContent className="sm:max-w-lg p-0 overflow-hidden bg-card">
+          <DialogTitle className="sr-only">
+            {lightboxAd?.ad_name ?? "Ad Creative"}
+          </DialogTitle>
+          {lightboxAd && (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element -- external Meta CDN URL */}
+              <img
+                src={lightboxAd.image_url}
+                alt={lightboxAd.ad_name}
+                className="w-full"
+              />
+              <div className="p-4 space-y-2">
+                <p className="text-sm font-medium text-foreground">
+                  {lightboxAd.ad_name}
+                </p>
+                <a
+                  href={`https://www.facebook.com/adsmanager/manage/ads?act=1599255740369627&selected_ad_ids=${lightboxAd.ad_id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs text-gold hover:text-gold/80"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  View in Ads Manager
+                </a>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
