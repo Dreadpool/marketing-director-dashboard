@@ -158,24 +158,6 @@ function efficiencyColor(index: number): string {
   return "text-red-400";
 }
 
-function funnelBadge(stage: string) {
-  const colors: Record<string, string> = {
-    tof: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-    retargeting: "bg-purple-500/10 text-purple-400 border-purple-500/20",
-    other: "bg-muted text-muted-foreground border-border",
-  };
-  const labels: Record<string, string> = {
-    tof: "TOF",
-    retargeting: "RT",
-    other: "Other",
-  };
-  return (
-    <Badge variant="outline" className={`text-[10px] ${colors[stage] ?? ""}`}>
-      {labels[stage] ?? stage}
-    </Badge>
-  );
-}
-
 // ─── Source badges ────────────────────────────────────────────────────────────
 
 function SourceBadges({
@@ -352,6 +334,35 @@ function TrendArrow({
   );
 }
 
+// ─── MoM Delta Label ────────────────────────────────────────────────────────
+
+function MomDeltaLabel({
+  pct,
+  inverse = false,
+  neutral = false,
+}: {
+  pct: number | null | undefined;
+  inverse?: boolean;
+  neutral?: boolean;
+}) {
+  if (pct === null || pct === undefined) return null;
+  const flat = Math.abs(pct) < 5;
+  const isPositive = pct > 0;
+  const arrow = flat ? "→" : isPositive ? "↑" : "↓";
+
+  let colorClass = "text-muted-foreground/60";
+  if (!flat && !neutral) {
+    const isGood = inverse ? !isPositive : isPositive;
+    colorClass = isGood ? "text-growth" : "text-decline";
+  }
+
+  return (
+    <div className={`text-[10px] leading-tight ${colorClass}`}>
+      {arrow} {isPositive ? "+" : ""}{pct.toFixed(0)}%
+    </div>
+  );
+}
+
 // ─── Campaign Table ──────────────────────────────────────────────────────────
 
 function CampaignTable({
@@ -463,7 +474,6 @@ function CampaignTable({
         <thead>
           <tr className="border-b border-border text-left text-[11px] uppercase tracking-wider text-muted-foreground">
             <th className="pb-2 pr-4">Campaign</th>
-            <th className="pb-2 pr-3">Stage</th>
             <th className="pb-2 pr-3 text-right">Spend</th>
             <th className="pb-2 pr-3 text-right">CPA</th>
             <th className="pb-2 pr-3 text-right">ROAS</th>
@@ -498,22 +508,25 @@ function CampaignTable({
                       {c.campaign_name}
                     </span>
                   </td>
-                  <td className="py-2 pr-3">{funnelBadge(c.funnel_stage)}</td>
                   <td className="py-2 pr-3 text-right tabular-nums">
                     {usd.format(c.spend)}
+                    <MomDeltaLabel pct={c.mom?.spend_pct} neutral />
                   </td>
                   <td
                     className={`py-2 pr-3 text-right tabular-nums ${cpaColor(c.cpa)}`}
                   >
                     {c.purchases > 0 ? usd2.format(c.cpa) : "—"}
+                    <MomDeltaLabel pct={c.mom?.cpa_pct} inverse />
                   </td>
                   <td
                     className={`py-2 pr-3 text-right tabular-nums ${c.roas > 0 ? roasColor(c.roas) : ""}`}
                   >
                     {c.purchases > 0 ? `${c.roas.toFixed(2)}x` : "—"}
+                    <MomDeltaLabel pct={c.mom?.roas_pct} />
                   </td>
                   <td className="py-2 pr-3 text-right tabular-nums">
                     {num.format(c.purchases)}
+                    <MomDeltaLabel pct={c.mom?.purchases_pct} />
                   </td>
                   <td
                     className={`py-2 text-right tabular-nums ${c.frequency > 3 ? "text-red-400" : ""}`}
@@ -535,11 +548,8 @@ function CampaignTable({
                           className={`border-b border-border/30 bg-muted/20 ${hasAds ? "cursor-pointer hover:bg-muted/30 transition-colors" : ""}`}
                           onClick={hasAds ? (e) => { e.stopPropagation(); toggleAdSet(as.adset_id); } : undefined}
                         >
-                          <td
-                            className="py-1.5 pr-4 pl-8 max-w-[200px] text-muted-foreground"
-                            title={as.adset_name}
-                          >
-                            <span className="flex items-center gap-1.5 truncate">
+                          <td className="py-1.5 pr-4 max-w-[200px]" title={as.adset_name}>
+                            <div className="flex items-center gap-1.5 pl-8">
                               {hasAds ? (
                                 isAdSetExpanded ? (
                                   <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground/60" />
@@ -549,53 +559,51 @@ function CampaignTable({
                               ) : (
                                 <span className="w-3 shrink-0" />
                               )}
-                              {as.adset_name}
-                            </span>
-                          </td>
-                          <td className="py-1.5 pr-3">
-                            <div className="flex flex-col items-start gap-1">
+                              <span className="truncate text-muted-foreground">{as.adset_name}</span>
+                            </div>
+                            <div className="flex items-center gap-2 pl-8 mt-0.5">
                               <HealthBadge health={as.health} />
                               {hasAds && (
-                                <>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleAnalyze(as.adset_id);
-                                    }}
-                                    disabled={loadingAdSets.has(as.adset_id)}
-                                    className="text-[10px] text-gold hover:text-gold/80 disabled:opacity-50 disabled:cursor-not-allowed"
-                                  >
-                                    {loadingAdSets.has(as.adset_id)
-                                      ? "Analyzing..."
-                                      : trendData.has(as.adset_id)
-                                        ? "Refresh"
-                                        : "Analyze"}
-                                  </button>
-                                  {errorAdSets.get(as.adset_id) && (
-                                    <span className="text-[10px] text-red-400 max-w-[160px]">
-                                      {errorAdSets.get(as.adset_id)}
-                                    </span>
-                                  )}
-                                </>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleAnalyze(as.adset_id);
+                                  }}
+                                  disabled={loadingAdSets.has(as.adset_id)}
+                                  className="text-[10px] text-gold hover:text-gold/80 disabled:opacity-50"
+                                >
+                                  {loadingAdSets.has(as.adset_id)
+                                    ? "Analyzing..."
+                                    : trendData.has(as.adset_id)
+                                      ? "Refresh"
+                                      : "Analyze"}
+                                </button>
+                              )}
+                              {errorAdSets.get(as.adset_id) && (
+                                <span className="text-[10px] text-red-400">{errorAdSets.get(as.adset_id)}</span>
                               )}
                             </div>
                           </td>
                           <td className="py-1.5 pr-3 text-right tabular-nums text-muted-foreground">
                             {usd.format(as.spend)}
+                            <MomDeltaLabel pct={as.mom?.spend_pct} neutral />
                           </td>
                           <td
                             className={`py-1.5 pr-3 text-right tabular-nums ${cpaColor(as.cpa)}`}
                           >
                             {as.purchases > 0 ? usd2.format(as.cpa) : "—"}
+                            <MomDeltaLabel pct={as.mom?.cpa_pct} inverse />
                           </td>
                           <td
                             className={`py-1.5 pr-3 text-right tabular-nums ${as.purchases > 0 ? roasColor(as.roas) : ""}`}
                           >
                             {as.purchases > 0 ? `${as.roas.toFixed(2)}x` : "—"}
+                            <MomDeltaLabel pct={as.mom?.roas_pct} />
                           </td>
                           <td className="py-1.5 pr-3 text-right tabular-nums text-muted-foreground">
                             {num.format(as.purchases)}
+                            <MomDeltaLabel pct={as.mom?.purchases_pct} />
                           </td>
                           <td
                             className={`py-1.5 text-right tabular-nums ${as.frequency > 3 ? "text-red-400" : ""}`}
@@ -616,15 +624,15 @@ function CampaignTable({
                                 className="border-b border-border/20 border-l-2 border-l-border/40 bg-muted/5 text-xs"
                               >
                                 <td
-                                  className="py-1.5 pr-4 pl-14 max-w-[200px] truncate text-muted-foreground/80"
+                                  className="py-1.5 pr-4 pl-14 max-w-[200px] text-muted-foreground/80"
                                   title={ad.ad_name}
                                 >
-                                  {ad.ad_name}
-                                </td>
-                                <td className="py-1.5 pr-3">
-                                  <HealthBadge
-                                    health={adTrend?.revised_health ?? ad.health}
-                                  />
+                                  <div className="flex items-center gap-1.5 truncate">
+                                    <span className="truncate">{ad.ad_name}</span>
+                                    <HealthBadge
+                                      health={adTrend?.revised_health ?? ad.health}
+                                    />
+                                  </div>
                                 </td>
                                 <td className="py-1.5 pr-3 text-right tabular-nums text-muted-foreground/60">
                                   {usd.format(ad.spend)}
