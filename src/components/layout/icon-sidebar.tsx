@@ -89,6 +89,11 @@ export function IconSidebar({ onToggleChat, isChatOpen }: IconSidebarProps) {
             isActive={item.label.includes("Hide")}
           />
         ))}
+        {process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA && (
+          <span className="mt-1 text-[8px] text-muted-foreground/40 font-mono select-all" title={`Build: ${process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA}`}>
+            {process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA.slice(0, 7)}
+          </span>
+        )}
       </div>
     </div>
   );
