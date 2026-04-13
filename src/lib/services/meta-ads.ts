@@ -452,6 +452,54 @@ async function _getAudienceBreakdowns(
   };
 }
 
+/** Fetch ad creative image URLs (thumbnail + full-size) keyed by ad ID */
+export async function getAdCreatives(
+  period: MonthPeriod,
+): Promise<Map<string, { image_url: string | null; thumbnail_url: string | null }>> {
+  return withRetry(() => _getAdCreatives(period), "ad-creatives");
+}
+
+async function _getAdCreatives(
+  _period: MonthPeriod,
+): Promise<Map<string, { image_url: string | null; thumbnail_url: string | null }>> {
+  const account = getAdAccount();
+  const result = new Map<string, { image_url: string | null; thumbnail_url: string | null }>();
+
+  // getAds exists on AdAccount at runtime but lacks TypeScript declarations
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cursor = await (account as any).getAds(
+    ["id", "creative{thumbnail_url,image_url}"],
+    {
+      effective_status: ["ACTIVE", "PAUSED"],
+      limit: 100,
+    },
+  );
+
+  const processRow = (ad: Record<string, unknown>) => {
+    const data = (ad as { _data?: Record<string, unknown> })._data ?? ad;
+    const creativeRaw = data.creative as { _data?: Record<string, unknown> } | undefined;
+    const creative = (creativeRaw?._data ?? creativeRaw ?? {}) as Record<string, unknown>;
+    result.set(String(data.id), {
+      image_url: (creative.image_url as string) || null,
+      thumbnail_url: (creative.thumbnail_url as string) || null,
+    });
+  };
+
+  for (;;) {
+    for (const raw of cursor) {
+      processRow(raw as Record<string, unknown>);
+    }
+
+    if (cursor.hasNext()) {
+      await cursor.next();
+    } else {
+      break;
+    }
+  }
+
+  return result;
+}
+
 /**
  * Fetch 7-day rolling frequency by campaign for the last 7 days of the given month.
  * Used by CPA Diagnostic step D1 to check short-term frequency fatigue.

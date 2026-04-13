@@ -119,6 +119,10 @@ export type MetaAdsAdRow = {
   hold_rate: number | null;
   video_3s_views: number;
   video_thruplay: number;
+  /** Full-size creative image URL from Meta CDN. Null for video-only ads. */
+  image_url?: string | null;
+  /** Small thumbnail URL (64x64) from Meta CDN. Available for all ad types. */
+  thumbnail_url?: string | null;
   health?: AdHealthClassification;
 };
 
