@@ -229,5 +229,6 @@ export type MetaAdsMetrics = {
     loaded_sources: string[];
     missing_sources: string[];
     source_details: Record<string, MetaAdsSourceDetail>;
+    executor_version?: string;
   };
 };
