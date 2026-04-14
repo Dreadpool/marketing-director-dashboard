@@ -1,7 +1,7 @@
 # References
 
 ## BigQuery Schema
-- Full schema docs: `~/workspace/sle/bigquery-data-analysis/CLAUDE.md`
+- Full schema docs: `~/workspace/sle/analytics/bigquery-data-analysis/CLAUDE.md`
 - Key views: `vw_sle_active_orders` (net revenue after voids/cancels), `customer_first_order` (first order date per customer)
 - Dataset: `tds_sales`
 

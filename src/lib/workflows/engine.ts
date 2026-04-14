@@ -101,6 +101,28 @@ async function loadHistoricalMetrics(
   };
 }
 
+/** Schema constraints for action_items varchar columns */
+const PRIORITY_MAX_LENGTH = 10;
+const CATEGORY_MAX_LENGTH = 50;
+const ALLOWED_PRIORITIES = ["critical", "high", "medium", "low"] as const;
+
+/** Normalize a raw priority string to one of the allowed values, or null. */
+function normalizePriority(raw: string | null): string | null {
+  if (!raw) return null;
+  const lower = raw.toLowerCase();
+  for (const p of ALLOWED_PRIORITIES) {
+    if (lower.includes(p)) return p;
+  }
+  // Fallback: truncate to column width so a novel value does not crash insert
+  return lower.slice(0, PRIORITY_MAX_LENGTH);
+}
+
+/** Normalize a raw category string to fit the varchar column. */
+function normalizeCategory(raw: string | null): string | null {
+  if (!raw) return null;
+  return raw.slice(0, CATEGORY_MAX_LENGTH);
+}
+
 /** Parse action items from the recommend step's AI output */
 function parseActionItems(
   aiOutput: string,
@@ -118,18 +140,20 @@ function parseActionItems(
 
   const stripMd = (s: string) => s.replace(/\*+/g, "").replace(/_+/g, "").trim();
 
+  const flush = () => {
+    if (!currentAction) return;
+    items.push({
+      text: currentAction,
+      priority: normalizePriority(currentPriority),
+      category: normalizeCategory(currentCategory),
+    });
+  };
+
   for (const line of lines) {
     const trimmed = stripMd(line);
 
     if (trimmed.startsWith("ACTION:")) {
-      // Save previous action if exists
-      if (currentAction) {
-        items.push({
-          text: currentAction,
-          priority: currentPriority,
-          category: currentCategory,
-        });
-      }
+      flush();
       currentAction = trimmed.slice(7).trim();
       currentPriority = null;
       currentCategory = null;
@@ -140,14 +164,7 @@ function parseActionItems(
     }
   }
 
-  // Don't forget the last action
-  if (currentAction) {
-    items.push({
-      text: currentAction,
-      priority: currentPriority,
-      category: currentCategory,
-    });
-  }
+  flush();
 
   return items;
 }
