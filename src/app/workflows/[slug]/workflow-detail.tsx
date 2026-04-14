@@ -2,7 +2,12 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Play, Loader2, BookOpen, ClipboardCheck } from "lucide-react";
+import { Play, Loader2, BookOpen, ClipboardCheck, Info } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { PeriodSelector } from "@/components/workflows/period-selector";
 import { StepProgress } from "@/components/workflows/step-progress";
 import { StepResult } from "@/components/workflows/step-result";
@@ -71,6 +76,7 @@ export function WorkflowDetail({ workflow }: WorkflowDetailProps) {
   const [evaluationMode, setEvaluationMode] = useState(false);
   const [promoCode, setPromoCode] = useState("");
   const [campaignCost, setCampaignCost] = useState("");
+  const [forceRefresh, setForceRefresh] = useState(false);
 
   const loadRuns = useCallback(async () => {
     try {
@@ -114,6 +120,7 @@ export function WorkflowDetail({ workflow }: WorkflowDetailProps) {
 
     try {
       const bodyPayload: Record<string, unknown> = { period: { year, month } };
+      if (forceRefresh) bodyPayload.forceRefresh = true;
       if (workflow.slug === "promo-code-analysis" && promoCode.trim()) {
         bodyPayload.params = {
           promoCode: promoCode.trim().toUpperCase(),
@@ -330,6 +337,24 @@ export function WorkflowDetail({ workflow }: WorkflowDetailProps) {
               )}
               {running ? "Running..." : "Run Analysis"}
             </button>
+            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={forceRefresh}
+                onChange={(e) => setForceRefresh(e.target.checked)}
+                disabled={running}
+                className="rounded border-border accent-gold"
+              />
+              <span className="text-xs text-muted-foreground">Fresh data</span>
+              <Tooltip>
+                <TooltipTrigger>
+                  <Info className="h-3 w-3 text-muted-foreground/50" />
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-[240px] text-xs">
+                  Bypass cached data and re-fetch from Meta API. Use after ad account changes or dashboard code updates.
+                </TooltipContent>
+              </Tooltip>
+            </label>
           </div>
         )}
       </div>

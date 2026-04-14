@@ -12,7 +12,7 @@ export async function POST(request: Request, { params }: RunParams) {
   try {
     const { slug } = await params;
     const body = await request.json();
-    const { period, params: workflowParams } = body;
+    const { period, params: workflowParams, forceRefresh } = body;
 
     if (
       !period ||
@@ -29,7 +29,9 @@ export async function POST(request: Request, { params }: RunParams) {
 
     after(async () => {
       try {
-        await executeWorkflowSteps(runId, slug, period);
+        await executeWorkflowSteps(runId, slug, period, {
+          forceRefresh: !!forceRefresh,
+        });
       } catch (err) {
         console.error("Background workflow execution error:", err);
       }

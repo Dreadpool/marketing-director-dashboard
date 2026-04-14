@@ -211,6 +211,7 @@ export async function executeWorkflowSteps(
   runId: string,
   slug: string,
   initialPeriod: MonthPeriod,
+  options?: { forceRefresh?: boolean },
 ): Promise<void> {
   let period = initialPeriod;
   const workflow = getWorkflowBySlug(slug)!;
@@ -250,8 +251,9 @@ export async function executeWorkflowSteps(
       if (stepDef.type === "fetch") {
         // Check period cache before calling the API
         // Skip cache for workflows with inputParams (e.g., promo-code-analysis)
-        // since the same period can produce different results for different inputs
-        const useCache = !params;
+        // since the same period can produce different results for different inputs.
+        // Also skip when forceRefresh is set (after executor code changes).
+        const useCache = !params && !options?.forceRefresh;
         let cached: Array<{ metrics: unknown }> = [];
 
         if (useCache) {
