@@ -22,6 +22,7 @@ import {
   ImageOff,
   ExternalLink,
 } from "lucide-react";
+import { AdSetAnalyzePanel } from "@/components/workflows/adset-analyze-panel";
 import type {
   MetaAdsMetrics,
   MetaAdsPeriod,
@@ -36,6 +37,8 @@ import type {
   AdSetHealthClassification,
   AdSetDailyTrendResponse,
   TrendDirection,
+  AdSetFlag,
+  AdSetFlagType,
 } from "@/lib/schemas/sources/meta-ads-metrics";
 
 // ─── Type guard ──────────────────────────────────────────────────────────────
@@ -313,6 +316,50 @@ function HealthBadge({
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
+  );
+}
+
+// ─── Ad Set Flag Badge ──────────────────────────────────────────────────────
+
+const FLAG_STYLES: Record<AdSetFlagType, { label: string; className: string }> =
+  {
+    ctr_below_peers: {
+      label: "Low CTR",
+      className: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
+    },
+    cpa_increasing: {
+      label: "CPA ↑",
+      className: "bg-red-500/10 text-red-400 border border-red-500/20",
+    },
+  };
+
+function AdSetFlagBadge({ flags }: { flags?: AdSetFlag[] }) {
+  if (!flags || flags.length === 0) return null;
+  return (
+    <div className="flex items-center gap-1">
+      {flags.map((flag) => {
+        const style = FLAG_STYLES[flag.type];
+        return (
+          <TooltipProvider key={flag.type}>
+            <Tooltip>
+              <TooltipTrigger className="cursor-help">
+                <span
+                  className={`inline-block text-[10px] px-1.5 py-0.5 rounded font-medium ${style.className}`}
+                >
+                  {style.label}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent
+                side="top"
+                className="max-w-xs text-xs whitespace-normal"
+              >
+                {flag.detail}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        );
+      })}
+    </div>
   );
 }
 
@@ -622,7 +669,7 @@ function CampaignTable({
                               <span className="truncate text-muted-foreground">{as.adset_name}</span>
                             </div>
                             <div className="flex items-center gap-2 pl-8 mt-0.5">
-                              <HealthBadge health={as.health} />
+                              <AdSetFlagBadge flags={as.flags} />
                               {hasAds && (
                                 <button
                                   type="button"
@@ -672,7 +719,24 @@ function CampaignTable({
                           </td>
                         </tr>
 
-                        {/* Ad rows */}
+                        {/* Analyze Panel (shows when trend data loaded) */}
+                        {trendData.has(as.adset_id) && (
+                          <AdSetAnalyzePanel
+                            adSet={as}
+                            trendData={trendData.get(as.adset_id)!}
+                            campaignAdSets={childAdSets}
+                            campaign={c}
+                            onCollapse={() => {
+                              setTrendData((prev) => {
+                                const next = new Map(prev);
+                                next.delete(as.adset_id);
+                                return next;
+                              });
+                            }}
+                          />
+                        )}
+
+                        {/* Ad rows (below the analyze panel) */}
                         {isAdSetExpanded &&
                           childAds.map((ad) => {
                             const adTrend = trendData
