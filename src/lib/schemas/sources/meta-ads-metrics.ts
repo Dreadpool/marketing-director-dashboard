@@ -83,6 +83,15 @@ export type AdSetHealthClassification = {
   signals: string[];
 };
 
+// ─── Ad Set Flags (replaces health classification for new runs) ──────────────
+
+export type AdSetFlagType = "ctr_below_peers" | "cpa_increasing";
+
+export type AdSetFlag = {
+  type: AdSetFlagType;
+  detail: string;
+};
+
 export type MetaAdsAdSetRow = {
   adset_id: string;
   adset_name: string;
@@ -97,6 +106,7 @@ export type MetaAdsAdSetRow = {
   cpa: number;
   roas: number;
   health?: AdSetHealthClassification;
+  flags?: AdSetFlag[];
   mom?: MomDelta;
 };
 

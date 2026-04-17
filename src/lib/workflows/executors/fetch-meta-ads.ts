@@ -19,8 +19,8 @@ import {
 import {
   buildBenchmarks,
   classifyAdHealth,
-  classifyAdSetHealth,
 } from "@/lib/workflows/classifiers/meta-ads-health";
+import { flagAdSets } from "@/lib/workflows/classifiers/meta-ads-adset-flags";
 import {
   extractPurchases,
   extractRevenue,
@@ -426,9 +426,11 @@ export async function fetchMetaAds(
     ...ad,
     health: classifyAdHealth(ad, benchmarks),
   }));
-  const adsetsWithHealth: MetaAdsAdSetRow[] = adsetsBase.map((adSet) => ({
+  // Flag ad sets with relative comparison (CTR vs peers, CPA trend)
+  const adsetFlagMap = flagAdSets(adsetsBase, campaigns);
+  const adsetsWithFlags: MetaAdsAdSetRow[] = adsetsBase.map((adSet) => ({
     ...adSet,
-    health: classifyAdSetHealth(adSet),
+    flags: adsetFlagMap.get(adSet.adset_id),
   }));
 
   // 7. Detect fatigue signals
@@ -548,7 +550,7 @@ export async function fetchMetaAds(
     campaigns,
     hiring_campaigns: hiringCampaigns,
     ads: adsWithHealth,
-    adsets: adsetsWithHealth,
+    adsets: adsetsWithFlags,
     audience: {
       age_gender: ageGenderRows,
       geo: audienceData
