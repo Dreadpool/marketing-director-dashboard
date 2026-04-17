@@ -66,6 +66,18 @@ describe("diagnoseAdSet", () => {
     expect(result.action).toContain("landing page");
   });
 
+  it("does not diagnose post_click when clicks are too few", () => {
+    const adset = makeAdSet({
+      adset_id: "a1",
+      campaign_id: "c1",
+      clicks: 10, // under the 20-click minimum
+      impressions: 10000,
+      purchases: 0,
+    });
+    const result = diagnoseAdSet(adset, peers);
+    expect(result.scenario).not.toBe("post_click");
+  });
+
   it("diagnoses auction competition: rising CPA + good CTR", () => {
     const adset = makeAdSet({
       adset_id: "a1",

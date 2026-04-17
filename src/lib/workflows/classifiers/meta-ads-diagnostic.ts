@@ -21,6 +21,8 @@ export type DiagnosticResult = {
   };
 };
 
+const MIN_CLICKS_FOR_POST_CLICK = 20;
+
 export function diagnoseAdSet(
   adset: MetaAdsAdSetRow,
   campaignPeers: MetaAdsAdSetRow[],
@@ -39,8 +41,8 @@ export function diagnoseAdSet(
 
   const lowCtr = pctBelowMedian >= 25;
   const highFreq = adset.frequency >= 3.5;
-  const hasClicks = adset.clicks > 0;
-  const lowCvr = hasClicks && adset.purchases === 0;
+  const hasEnoughClicks = adset.clicks >= MIN_CLICKS_FOR_POST_CLICK;
+  const lowCvr = hasEnoughClicks && adset.purchases === 0;
   const risingCpa =
     adset.mom?.cpa_pct != null &&
     adset.mom.cpa_pct >= 25 &&
