@@ -10,6 +10,7 @@ import {
   TooltipProvider,
 } from "@/components/ui/tooltip";
 import { Info } from "lucide-react";
+import { cpaColor, roasColor } from "@/lib/utils/meta-ads-formatting";
 
 // ─── Formatters ─────────────────────────────────────────────────────────────
 
@@ -24,17 +25,6 @@ const usd2 = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
 });
 const num = new Intl.NumberFormat("en-US");
-
-function cpaColor(cpa: number): string {
-  if (cpa <= 0) return "";
-  if (cpa < 9) return "text-emerald-400";
-  if (cpa < 14) return "text-amber-400";
-  return "text-red-400";
-}
-
-function roasColor(roas: number): string {
-  return roas >= 3.0 ? "text-muted-foreground" : "text-red-400";
-}
 
 function cpaStatusBadge(status: string) {
   const colors: Record<string, string> = {

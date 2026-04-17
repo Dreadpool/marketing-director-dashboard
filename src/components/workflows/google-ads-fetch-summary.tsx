@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   Info,
 } from "lucide-react";
+import { cpaColor, roasColor } from "@/lib/utils/meta-ads-formatting";
 import type {
   GoogleAdsMetrics,
   GoogleAdsSegmentHealth,
@@ -63,17 +64,6 @@ const SEGMENT_COLORS: Record<CampaignSegment, string> = {
   video: "#06b6d4",
   other: "#888888",
 };
-
-function cpaColor(cpa: number): string {
-  if (cpa <= 0) return "";
-  if (cpa < 9) return "text-emerald-400";
-  if (cpa < 14) return "text-amber-400";
-  return "text-red-400";
-}
-
-function roasColor(roas: number): string {
-  return roas >= 3.0 ? "text-muted-foreground" : "text-red-400";
-}
 
 function trendColor(change: number, inverted = false): string {
   const isBad = inverted ? change > 0 : change < 0;
