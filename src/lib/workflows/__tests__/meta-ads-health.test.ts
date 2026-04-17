@@ -2,12 +2,10 @@ import { describe, it, expect } from "vitest";
 import {
   buildBenchmarks,
   classifyAdHealth,
-  classifyAdSetHealth,
   type AccountBenchmarks,
 } from "@/lib/workflows/classifiers/meta-ads-health";
 import type {
   MetaAdsAdRow,
-  MetaAdsAdSetRow,
   MetaAdsCampaignRow,
   MetaAdsAccountHealth,
 } from "@/lib/schemas/sources/meta-ads-metrics";
@@ -32,26 +30,6 @@ function makeAd(overrides: Partial<MetaAdsAdRow> = {}): MetaAdsAdRow {
     hold_rate: null,
     video_3s_views: 0,
     video_thruplay: 0,
-    ...overrides,
-  };
-}
-
-function makeAdSet(
-  overrides: Partial<MetaAdsAdSetRow> = {},
-): MetaAdsAdSetRow {
-  return {
-    adset_id: "adset_1",
-    adset_name: "Test Ad Set",
-    campaign_id: "campaign_1",
-    spend: 1000,
-    impressions: 50000,
-    reach: 25000,
-    clicks: 500,
-    frequency: 2,
-    purchases: 100,
-    attributed_revenue: 3500,
-    cpa: 10,
-    roas: 3.5,
     ...overrides,
   };
 }
@@ -274,41 +252,3 @@ describe("classifyAdHealth", () => {
   });
 });
 
-// ─── classifyAdSetHealth ──────────────────────────────────────────────────
-
-describe("classifyAdSetHealth", () => {
-  it("returns learning for ad set with $3000 spend", () => {
-    const adSet = makeAdSet({ spend: 3000, purchases: 10, cpa: 300 });
-    const result = classifyAdSetHealth(adSet);
-    expect(result.status).toBe("learning");
-    expect(result.action).toMatch(/learning phase/i);
-  });
-
-  it("returns kill for ad set with $7000 spend and 0 purchases", () => {
-    const adSet = makeAdSet({ spend: 7000, purchases: 0, cpa: 0 });
-    const result = classifyAdSetHealth(adSet);
-    expect(result.status).toBe("kill");
-    expect(result.signals).toContain("0 purchases");
-  });
-
-  it("returns underperforming for ad set with CPA $20 and 5 purchases", () => {
-    const adSet = makeAdSet({ spend: 7000, purchases: 5, cpa: 20 });
-    const result = classifyAdSetHealth(adSet);
-    expect(result.status).toBe("underperforming");
-    expect(result.reason).toMatch(/\$14/);
-  });
-
-  it("returns watch for ad set with CPA $12 (elevated)", () => {
-    const adSet = makeAdSet({ spend: 7000, purchases: 100, cpa: 12 });
-    const result = classifyAdSetHealth(adSet);
-    expect(result.status).toBe("watch");
-    expect(result.reason).toMatch(/elevated/i);
-  });
-
-  it("returns healthy for ad set with CPA $7", () => {
-    const adSet = makeAdSet({ spend: 7000, purchases: 150, cpa: 7 });
-    const result = classifyAdSetHealth(adSet);
-    expect(result.status).toBe("healthy");
-    expect(result.action).toMatch(/on track/i);
-  });
-});

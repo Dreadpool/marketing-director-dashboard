@@ -1,10 +1,8 @@
 import type {
   MetaAdsAdRow,
-  MetaAdsAdSetRow,
   MetaAdsCampaignRow,
   MetaAdsAccountHealth,
   AdHealthClassification,
-  AdSetHealthClassification,
 } from "@/lib/schemas/sources/meta-ads-metrics";
 
 export type AccountBenchmarks = {
@@ -147,60 +145,6 @@ export function classifyAdHealth(
     status: "healthy",
     reason: `CPA $${ad.cpa.toFixed(2)}, CTR ${(adCtr * 100).toFixed(2)}%, ${ad.purchases} purchases on $${ad.spend.toFixed(0)} spend.`,
     action: "Performing well. Leave it running.",
-    signals: [],
-  };
-}
-
-export function classifyAdSetHealth(
-  adSet: MetaAdsAdSetRow,
-): AdSetHealthClassification {
-  const LEARNING_BUDGET = 6000;
-
-  // Priority 1: Learning (under learning budget)
-  if (adSet.spend < LEARNING_BUDGET) {
-    return {
-      status: "learning",
-      reason: `Spent $${adSet.spend.toFixed(0)} of $${LEARNING_BUDGET} learning budget. Need more data before making decisions.`,
-      action: "Still in learning phase. Don't make changes yet.",
-      signals: [],
-    };
-  }
-
-  // Priority 2: Kill - learning budget spent with zero conversions
-  if (adSet.spend >= LEARNING_BUDGET && adSet.purchases === 0) {
-    return {
-      status: "kill",
-      reason: `Spent full $${LEARNING_BUDGET} learning budget with zero conversions. Audience or offer is not working.`,
-      action: "Kill. Full learning budget spent, zero conversions.",
-      signals: [`$${adSet.spend.toFixed(0)} spent`, "0 purchases"],
-    };
-  }
-
-  // Priority 3: Underperforming - high CPA with enough volume
-  if (adSet.cpa > 14 && adSet.purchases >= 3) {
-    return {
-      status: "underperforming",
-      reason: `CPA of $${adSet.cpa.toFixed(2)} with ${adSet.purchases} purchases. Above the $14 high threshold.`,
-      action: "Losing money. Review individual ads or kill the set.",
-      signals: [`CPA $${adSet.cpa.toFixed(2)} > $14`],
-    };
-  }
-
-  // Priority 4: Watch - elevated CPA
-  if (adSet.cpa > 9 && adSet.cpa <= 14) {
-    return {
-      status: "watch",
-      reason: `CPA of $${adSet.cpa.toFixed(2)} in elevated range ($9-$14).`,
-      action: "CPA elevated. Check individual ads and audience targeting.",
-      signals: [`CPA $${adSet.cpa.toFixed(2)} > $9`],
-    };
-  }
-
-  // Priority 5: Healthy
-  return {
-    status: "healthy",
-    reason: `CPA $${adSet.cpa.toFixed(2)}, ${adSet.purchases} purchases on $${adSet.spend.toFixed(0)} spend.`,
-    action: "On track. Consider scaling budget if CPA stays stable.",
     signals: [],
   };
 }
