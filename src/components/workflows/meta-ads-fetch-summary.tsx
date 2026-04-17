@@ -23,6 +23,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { AdSetAnalyzePanel } from "@/components/workflows/adset-analyze-panel";
+import { cpaColor, roasColor } from "@/lib/utils/meta-ads-formatting";
 import type {
   MetaAdsMetrics,
   MetaAdsPeriod,
@@ -143,20 +144,7 @@ function MetricCard({
   );
 }
 
-// ─── CPA color helper ────────────────────────────────────────────────────────
-
-// CPA thresholds: $35.23 GP/order, 43% margin, 1.3x over-attribution
-function cpaColor(cpa: number): string {
-  if (cpa <= 0) return "";
-  if (cpa < 9) return "text-emerald-400";
-  if (cpa < 14) return "text-amber-400";
-  return "text-red-400";
-}
-
-// ROAS: 3.0x = GP breakeven. No green state — CPA is the decision metric.
-function roasColor(roas: number): string {
-  return roas >= 3.0 ? "text-muted-foreground" : "text-red-400";
-}
+// ─── Color helpers ───────────────────────────────────────────────────────────
 
 function efficiencyColor(index: number): string {
   if (index < 0.8) return "text-emerald-400";
