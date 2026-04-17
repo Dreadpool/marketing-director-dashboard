@@ -726,6 +726,7 @@ function CampaignTable({
                             trendData={trendData.get(as.adset_id)!}
                             campaignAdSets={childAdSets}
                             campaign={c}
+                            ads={ads.filter((a) => a.adset_id === as.adset_id)}
                             onCollapse={() => {
                               setTrendData((prev) => {
                                 const next = new Map(prev);
