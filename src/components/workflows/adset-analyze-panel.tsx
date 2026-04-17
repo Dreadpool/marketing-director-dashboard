@@ -21,6 +21,8 @@ import {
   diagnoseAdSet,
   type DiagnosticScenario,
 } from "@/lib/workflows/classifiers/meta-ads-diagnostic";
+import { cpaColor } from "@/lib/utils/meta-ads-formatting";
+import { median } from "@/lib/utils/stats";
 
 // ─── Chart colors (oklch to match dashboard theme) ─────────────────────────
 
@@ -171,6 +173,49 @@ function Sparkline({ points, color, fillColor }: { points: number[]; color: stri
   );
 }
 
+// ─── Ad row computation ────────────────────────────────────────────────────
+
+type AdRowData = {
+  ad_id: string;
+  ad_name: string;
+  spend: number;
+  purchases: number;
+  ctr: number;
+  cpa: number;
+  dailyCtrs: number[];
+  image_url: string | null;
+};
+
+function computeAdRows(
+  trendAds: AdSetDailyTrendResponse["ads"],
+  ads: MetaAdsAdRow[] | undefined,
+): AdRowData[] {
+  return trendAds
+    .map((adTrend) => {
+      const totalSpend = adTrend.daily.reduce((s, d) => s + d.spend, 0);
+      const totalImpressions = adTrend.daily.reduce((s, d) => s + d.impressions, 0);
+      const totalClicks = adTrend.daily.reduce((s, d) => s + d.clicks, 0);
+      const totalPurchases = adTrend.daily.reduce((s, d) => s + d.purchases, 0);
+      const ctr = totalImpressions > 0 ? totalClicks / totalImpressions : 0;
+      const cpa = totalPurchases > 0 ? totalSpend / totalPurchases : 0;
+      const dailyCtrs = adTrend.daily.map((d) =>
+        d.impressions > 0 ? d.clicks / d.impressions : 0,
+      );
+      const adMatch = ads?.find((a) => a.ad_id === adTrend.ad_id);
+      return {
+        ad_id: adTrend.ad_id,
+        ad_name: adTrend.ad_name,
+        spend: totalSpend,
+        purchases: totalPurchases,
+        ctr,
+        cpa,
+        dailyCtrs,
+        image_url: adMatch?.image_url ?? adMatch?.thumbnail_url ?? null,
+      };
+    })
+    .sort((a, b) => b.ctr - a.ctr);
+}
+
 // ─── Main Component ─────────────────────────────────────────────────────────
 
 interface AdSetAnalyzePanelProps {
@@ -196,17 +241,9 @@ export function AdSetAnalyzePanel({
   });
 
   const medianCtr = diagnosis.context.medianCtr;
-  const medianCpa =
-    campaignAdSets.filter((a) => a.purchases > 0).length > 0
-      ? (() => {
-          const cpas = campaignAdSets
-            .filter((a) => a.purchases > 0)
-            .map((a) => a.cpa)
-            .sort((a, b) => a - b);
-          const mid = Math.floor(cpas.length / 2);
-          return cpas.length % 2 === 0 ? (cpas[mid - 1] + cpas[mid]) / 2 : cpas[mid];
-        })()
-      : 0;
+  const medianCpa = median(
+    campaignAdSets.filter((a) => a.purchases > 0).map((a) => a.cpa)
+  );
 
   const peerBars = [...campaignAdSets]
     .filter((a) => a.impressions > 0)
@@ -419,29 +456,7 @@ export function AdSetAnalyzePanel({
               </div>
               <div className="space-y-0">
                 {(() => {
-                  const adRows = trendData.ads
-                    .map((adTrend) => {
-                      const totalSpend = adTrend.daily.reduce((s, d) => s + d.spend, 0);
-                      const totalImpressions = adTrend.daily.reduce((s, d) => s + d.impressions, 0);
-                      const totalClicks = adTrend.daily.reduce((s, d) => s + d.clicks, 0);
-                      const totalPurchases = adTrend.daily.reduce((s, d) => s + d.purchases, 0);
-                      const ctr = totalImpressions > 0 ? totalClicks / totalImpressions : 0;
-                      const cpa = totalPurchases > 0 ? totalSpend / totalPurchases : 0;
-                      const dailyCtrs = adTrend.daily.map((d) => d.impressions > 0 ? d.clicks / d.impressions : 0);
-                      const adMatch = ads?.find((a) => a.ad_id === adTrend.ad_id);
-                      return {
-                        ad_id: adTrend.ad_id,
-                        ad_name: adTrend.ad_name,
-                        spend: totalSpend,
-                        purchases: totalPurchases,
-                        ctr,
-                        cpa,
-                        dailyCtrs,
-                        image_url: adMatch?.image_url ?? adMatch?.thumbnail_url ?? null,
-                      };
-                    })
-                    .sort((a, b) => b.ctr - a.ctr);
-
+                  const adRows = computeAdRows(trendData.ads, ads);
                   const showTags = adRows.length >= 3;
 
                   return adRows.map((ad, idx) => {
@@ -499,11 +514,7 @@ export function AdSetAnalyzePanel({
                         {/* CPA */}
                         <div className="text-right">
                           <div className={`font-mono text-[11px] ${
-                            ad.purchases === 0 ? "text-muted-foreground/30" :
-                            ad.cpa < 9 ? "text-emerald-400" :
-                            ad.cpa > 14 ? "text-red-400" :
-                            ad.cpa > 9 ? "text-amber-400" :
-                            "text-muted-foreground"
+                            ad.purchases === 0 ? "text-muted-foreground/30" : cpaColor(ad.cpa)
                           }`}>
                             {ad.purchases > 0 ? `$${ad.cpa.toFixed(2)}` : "\u2014"}
                           </div>
