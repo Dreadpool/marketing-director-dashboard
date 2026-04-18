@@ -1,5 +1,14 @@
-const ANGLES = ['price', 'convenience', 'social-proof', 'vs-driving'];
-const STAGES = ['prospecting', 'retargeting', 'awareness'];
+const ANGLES: Array<{ key: string; label: string; full: string }> = [
+  { key: 'price', label: 'Price', full: 'price' },
+  { key: 'convenience', label: 'Conv.', full: 'convenience' },
+  { key: 'social-proof', label: 'Social', full: 'social-proof' },
+  { key: 'vs-driving', label: 'Driving', full: 'vs-driving' },
+];
+const STAGES: Array<{ key: string; label: string }> = [
+  { key: 'prospecting', label: 'Prospect' },
+  { key: 'retargeting', label: 'Retarget' },
+  { key: 'awareness', label: 'Awareness' },
+];
 
 export function MatrixCoverage({ briefs }: { briefs: { matrixCell: string }[] }) {
   const counts = new Map<string, number>();
@@ -17,19 +26,20 @@ export function MatrixCoverage({ briefs }: { briefs: { matrixCell: string }[] })
         <div />
         {ANGLES.map(a => (
           <div
-            key={a}
-            className="text-slate-500 text-center pb-1 font-semibold break-words leading-tight px-1"
+            key={a.key}
+            className="text-slate-500 text-center pb-1 font-semibold whitespace-nowrap"
+            title={a.full}
           >
-            {a}
+            {a.label}
           </div>
         ))}
         {STAGES.map(s => (
-          <div key={s} className="contents">
+          <div key={s.key} className="contents">
             <div className="text-slate-500 font-semibold py-2 pr-3 whitespace-nowrap">
-              {s}
+              {s.label}
             </div>
             {ANGLES.map(a => {
-              const cell = `${a}×${s}`;
+              const cell = `${a.full}×${s.key}`;
               const count = counts.get(cell) || 0;
               return (
                 <div
@@ -41,7 +51,7 @@ export function MatrixCoverage({ briefs }: { briefs: { matrixCell: string }[] })
                       ? 'border-emerald-900/40 bg-emerald-950/20 text-emerald-300'
                       : 'border-amber-900/40 bg-amber-950/20 text-amber-300'
                   }`}
-                  title={count > 1 ? 'Duplicate cell' : ''}
+                  title={count > 1 ? `Duplicate cell: ${a.full}×${s.key}` : `${a.full}×${s.key}`}
                 >
                   {count > 0 ? count : '—'}
                 </div>
