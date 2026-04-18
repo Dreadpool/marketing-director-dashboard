@@ -5,6 +5,7 @@ import { eq, sql, desc } from 'drizzle-orm';
 import { runBrandVoiceGate } from '@/lib/workflows/creative-pipeline/gates/brand-voice';
 import { runDuplicateGate } from '@/lib/workflows/creative-pipeline/gates/duplicate';
 import { runMatrixDiversityGate } from '@/lib/workflows/creative-pipeline/gates/matrix-diversity';
+import { runSniffTestGate } from '@/lib/workflows/creative-pipeline/gates/sniff-test';
 import type { InputsLoaded } from '@/lib/workflows/creative-pipeline/types';
 
 export const dynamic = 'force-dynamic';
@@ -33,10 +34,12 @@ export async function GET(
       .where(sql`${creativeBriefs.cycleId} < ${cycleId}`);
     const priorNames = priorRows.map(r => r.conceptName);
 
+    const sniffTest = await runSniffTestGate(briefs as any);
     const gates = {
       brandVoice: runBrandVoiceGate(briefs as any, BANNED_WORDS),
       duplicate: runDuplicateGate(briefs as any, priorNames),
       matrixDiversity: runMatrixDiversityGate(briefs as any),
+      sniffTest,
     };
 
     const latestRun = await db
