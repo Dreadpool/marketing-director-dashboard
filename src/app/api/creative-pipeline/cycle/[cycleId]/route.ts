@@ -13,11 +13,12 @@ export const dynamic = 'force-dynamic';
 const BANNED_WORDS = ['discover', 'experience', 'journey', 'elevate', 'unlock', 'unleash'];
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ cycleId: string }> }
 ) {
   try {
     const { cycleId } = await params;
+    const runSniff = req.nextUrl.searchParams.get('sniff') === '1';
     const briefs = await db
       .select()
       .from(creativeBriefs)
@@ -34,13 +35,14 @@ export async function GET(
       .where(sql`${creativeBriefs.cycleId} < ${cycleId}`);
     const priorNames = priorRows.map(r => r.conceptName);
 
-    const sniffTest = await runSniffTestGate(briefs as any);
-    const gates = {
+    const gates: Record<string, unknown> = {
       brandVoice: runBrandVoiceGate(briefs as any, BANNED_WORDS),
       duplicate: runDuplicateGate(briefs as any, priorNames),
       matrixDiversity: runMatrixDiversityGate(briefs as any),
-      sniffTest,
     };
+    if (runSniff) {
+      gates.sniffTest = await runSniffTestGate(briefs as any);
+    }
 
     const latestRun = await db
       .select()
