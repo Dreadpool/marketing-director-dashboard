@@ -109,6 +109,7 @@ export const creativeBriefs = pgTable("creative_briefs", {
   pushedAt: timestamp("pushed_at"),
   launchedAt: timestamp("launched_at"),
   resolvedAt: timestamp("resolved_at"),
+  rejectedAt: timestamp("rejected_at"),
   spend: numeric("spend"),
   cpa: numeric("cpa"),
   ctr: numeric("ctr"),

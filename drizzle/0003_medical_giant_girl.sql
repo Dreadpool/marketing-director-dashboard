@@ -1,0 +1,1 @@
+ALTER TABLE "creative_briefs" ADD COLUMN "rejected_at" timestamp;
