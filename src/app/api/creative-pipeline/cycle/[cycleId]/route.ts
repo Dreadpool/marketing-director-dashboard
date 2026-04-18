@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { creativeBriefs } from '@/db/schema';
-import { eq, sql } from 'drizzle-orm';
+import { creativeBriefs, creativePipelineRuns } from '@/db/schema';
+import { eq, sql, desc } from 'drizzle-orm';
 import { runBrandVoiceGate } from '@/lib/workflows/creative-pipeline/gates/brand-voice';
 import { runDuplicateGate } from '@/lib/workflows/creative-pipeline/gates/duplicate';
 import { runMatrixDiversityGate } from '@/lib/workflows/creative-pipeline/gates/matrix-diversity';
+import type { InputsLoaded } from '@/lib/workflows/creative-pipeline/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,7 +39,15 @@ export async function GET(
       matrixDiversity: runMatrixDiversityGate(briefs as any),
     };
 
-    return NextResponse.json({ cycleId, briefs, gates });
+    const latestRun = await db
+      .select()
+      .from(creativePipelineRuns)
+      .where(eq(creativePipelineRuns.cycleId, cycleId))
+      .orderBy(desc(creativePipelineRuns.startedAt))
+      .limit(1);
+    const inputs = (latestRun[0]?.inputsLoaded as InputsLoaded | null) ?? null;
+
+    return NextResponse.json({ cycleId, briefs, gates, inputs });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     return NextResponse.json({ error: msg }, { status: 500 });

@@ -3,13 +3,15 @@ import { BriefCard, type Brief } from '@/components/workflows/creative-pipeline/
 import { MatrixCoverage } from '@/components/workflows/creative-pipeline/matrix-coverage';
 import { GateStatus } from '@/components/workflows/creative-pipeline/gate-status';
 import { HypothesisTrail } from '@/components/workflows/creative-pipeline/hypothesis-trail';
-import type { GateReport } from '@/lib/workflows/creative-pipeline/types';
+import { InputsLoadedPanel } from '@/components/workflows/creative-pipeline/inputs-loaded';
+import type { GateReport, InputsLoaded } from '@/lib/workflows/creative-pipeline/types';
 
 export const dynamic = 'force-dynamic';
 
 async function loadCycle(cycleId: string): Promise<{
   briefs: Brief[];
   gates: GateReport;
+  inputs: InputsLoaded | null;
 } | null> {
   const h = await headers();
   const host = h.get('host');
@@ -43,7 +45,8 @@ export default async function CyclePage({
         <p className="text-sm text-slate-400 mt-1">{data.briefs.length} briefs</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
+        <InputsLoadedPanel inputs={data.inputs} />
         <MatrixCoverage briefs={data.briefs} />
         <GateStatus gates={data.gates} />
       </div>
