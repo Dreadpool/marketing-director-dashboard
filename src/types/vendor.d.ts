@@ -10,6 +10,14 @@ declare module "facebook-nodejs-business-sdk" {
       fields: string[],
       params: Record<string, unknown>,
     ): Promise<AdAccountInsightsCursor>;
+    createAdCreative(
+      fields: string[],
+      params: Record<string, unknown>,
+    ): Promise<{ id: string; [key: string]: unknown }>;
+    createAd(
+      fields: string[],
+      params: Record<string, unknown>,
+    ): Promise<{ id: string; [key: string]: unknown }>;
   }
 
   interface AdAccountInsightsCursor extends Array<Record<string, unknown>> {
@@ -17,9 +25,19 @@ declare module "facebook-nodejs-business-sdk" {
     next(): Promise<AdAccountInsightsCursor>;
   }
 
+  export class Ad {
+    constructor(id: string);
+    read(fields: string[]): Promise<Record<string, unknown>>;
+    getInsights(
+      fields: string[],
+      params: Record<string, unknown>,
+    ): Promise<Array<Record<string, unknown>>>;
+  }
+
   const _default: {
     FacebookAdsApi: typeof FacebookAdsApi;
     AdAccount: typeof AdAccount;
+    Ad: typeof Ad;
   };
   export default _default;
 }

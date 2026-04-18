@@ -15,6 +15,20 @@
       "when": 1775023356489,
       "tag": "0001_lying_saracen",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1776481389681,
+      "tag": "0002_stormy_johnny_blaze",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1776548266391,
+      "tag": "0003_medical_giant_girl",
+      "breakpoints": true
     }
   ]
 }
