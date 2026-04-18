@@ -1,6 +1,12 @@
 // Shared types for the creative pipeline workflow.
 
-export type BriefStatus = 'proposed' | 'pushed' | 'live' | 'resolved' | 'killed';
+export type BriefStatus =
+  | 'proposed'
+  | 'accepted'
+  | 'rejected-at-review'
+  | 'live'
+  | 'resolved'
+  | 'killed';
 export type BriefAngle = 'price' | 'convenience' | 'social-proof' | 'vs-driving';
 export type BriefFunnelStage = 'prospecting' | 'retargeting' | 'awareness';
 export type BriefDecision = 'winner' | 'average' | 'killed';
