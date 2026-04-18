@@ -4,6 +4,8 @@ import { MatrixCoverage } from '@/components/workflows/creative-pipeline/matrix-
 import { GateStatus } from '@/components/workflows/creative-pipeline/gate-status';
 import { HypothesisTrail } from '@/components/workflows/creative-pipeline/hypothesis-trail';
 import { InputsLoadedPanel } from '@/components/workflows/creative-pipeline/inputs-loaded';
+import { PushOutcomePanel } from '@/components/workflows/creative-pipeline/push-outcome';
+import { MetricHistory } from '@/components/workflows/creative-pipeline/metric-history';
 import type { GateReport, InputsLoaded } from '@/lib/workflows/creative-pipeline/types';
 
 export const dynamic = 'force-dynamic';
@@ -49,6 +51,11 @@ export default async function CyclePage({
         <InputsLoadedPanel inputs={data.inputs} />
         <MatrixCoverage briefs={data.briefs} />
         <GateStatus gates={data.gates} />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
+        <PushOutcomePanel briefs={data.briefs} />
+        <MetricHistory />
       </div>
 
       <HypothesisTrail briefs={data.briefs} />
