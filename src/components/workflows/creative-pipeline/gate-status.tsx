@@ -2,7 +2,7 @@ import type { GateReport } from '@/lib/workflows/creative-pipeline/types';
 
 export function GateStatus({ gates }: { gates: GateReport }) {
   const entries = [
-    { key: 'brand-voice', result: gates.brandVoice },
+    ...(gates.brandVoice ? [{ key: 'brand-voice', result: gates.brandVoice }] : []),
     { key: 'duplicate', result: gates.duplicate },
     { key: 'matrix-diversity', result: gates.matrixDiversity },
     ...(gates.sniffTest ? [{ key: 'sniff-test', result: gates.sniffTest }] : []),
