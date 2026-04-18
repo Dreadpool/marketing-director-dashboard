@@ -10,23 +10,31 @@ export function MatrixCoverage({ briefs }: { briefs: { matrixCell: string }[] })
   return (
     <div className="border border-slate-800 rounded-lg p-5 bg-slate-900/30">
       <div className="text-xs text-slate-500 uppercase mb-3">Matrix coverage</div>
-      <div className="grid grid-cols-5 gap-2 text-xs">
+      <div
+        className="grid gap-2 text-xs"
+        style={{ gridTemplateColumns: 'auto repeat(4, minmax(0, 1fr))' }}
+      >
         <div />
         {ANGLES.map(a => (
-          <div key={a} className="text-slate-500 text-center pb-1 font-semibold">
+          <div
+            key={a}
+            className="text-slate-500 text-center pb-1 font-semibold break-words leading-tight px-1"
+          >
             {a}
           </div>
         ))}
         {STAGES.map(s => (
           <div key={s} className="contents">
-            <div className="text-slate-500 font-semibold py-2">{s}</div>
+            <div className="text-slate-500 font-semibold py-2 pr-3 whitespace-nowrap">
+              {s}
+            </div>
             {ANGLES.map(a => {
               const cell = `${a}×${s}`;
               const count = counts.get(cell) || 0;
               return (
                 <div
                   key={cell}
-                  className={`p-2 rounded border text-center ${
+                  className={`p-2 rounded border text-center min-w-0 ${
                     count === 0
                       ? 'border-slate-800 text-slate-700'
                       : count === 1
