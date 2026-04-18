@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { creativeBriefs, creativePipelineRuns } from '@/db/schema';
 import { eq, sql, desc } from 'drizzle-orm';
-import { runBrandVoiceGate } from '@/lib/workflows/creative-pipeline/gates/brand-voice';
+import { join } from 'path';
+import { runBrandVoiceGate, parseBannedPhrases } from '@/lib/workflows/creative-pipeline/gates/brand-voice';
 import { runDuplicateGate } from '@/lib/workflows/creative-pipeline/gates/duplicate';
 import { runMatrixDiversityGate } from '@/lib/workflows/creative-pipeline/gates/matrix-diversity';
 import { runSniffTestGate } from '@/lib/workflows/creative-pipeline/gates/sniff-test';
@@ -10,7 +11,10 @@ import type { InputsLoaded } from '@/lib/workflows/creative-pipeline/types';
 
 export const dynamic = 'force-dynamic';
 
-const BANNED_WORDS = ['discover', 'experience', 'journey', 'elevate', 'unlock', 'unleash'];
+const BRANDSCRIPT_PATH = join(
+  process.env.HOME || '/Users/brady',
+  'workspace/sle/context/brand-voice/sle-brandscript.md'
+);
 
 export async function GET(
   req: NextRequest,
@@ -35,8 +39,9 @@ export async function GET(
       .where(sql`${creativeBriefs.cycleId} < ${cycleId}`);
     const priorNames = priorRows.map(r => r.conceptName);
 
+    const bannedPhrases = parseBannedPhrases(BRANDSCRIPT_PATH);
     const gates: Record<string, unknown> = {
-      brandVoice: runBrandVoiceGate(briefs as any, BANNED_WORDS),
+      brandVoice: runBrandVoiceGate(briefs as any, bannedPhrases),
       duplicate: runDuplicateGate(briefs as any, priorNames),
       matrixDiversity: runMatrixDiversityGate(briefs as any),
     };
