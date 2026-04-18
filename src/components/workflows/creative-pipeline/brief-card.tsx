@@ -89,10 +89,11 @@ async function pushToMeta(briefId: string) {
 function statusColor(status: string): string {
   switch (status) {
     case 'proposed': return 'bg-slate-800 text-slate-400';
-    case 'pushed': return 'bg-blue-900/50 text-blue-300';
+    case 'accepted': return 'bg-blue-900/50 text-blue-300';
     case 'live': return 'bg-emerald-900/50 text-emerald-300';
     case 'resolved': return 'bg-violet-900/50 text-violet-300';
     case 'killed': return 'bg-red-900/50 text-red-300';
+    case 'rejected-at-review': return 'bg-red-900/50 text-red-300';
     default: return 'bg-slate-800 text-slate-400';
   }
 }

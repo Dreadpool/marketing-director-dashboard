@@ -3,7 +3,8 @@ import type { Brief } from './brief-card';
 export function PushOutcomePanel({ briefs }: { briefs: Brief[] }) {
   const counts = {
     proposed: briefs.filter(b => b.status === 'proposed').length,
-    pushed: briefs.filter(b => b.status === 'pushed').length,
+    rejected: briefs.filter(b => b.status === 'rejected-at-review').length,
+    accepted: briefs.filter(b => b.status === 'accepted').length,
     live: briefs.filter(b => b.status === 'live').length,
     resolved: briefs.filter(b => b.status === 'resolved').length,
     killed: briefs.filter(b => b.status === 'killed').length,
@@ -11,9 +12,10 @@ export function PushOutcomePanel({ briefs }: { briefs: Brief[] }) {
   return (
     <div className="border border-slate-800 rounded-lg p-5 bg-slate-900/30">
       <div className="text-xs text-slate-500 uppercase mb-3">Push &amp; outcome</div>
-      <div className="grid grid-cols-5 gap-2 text-center text-xs">
+      <div className="grid grid-cols-6 gap-2 text-center text-xs">
         <StatusPill label="proposed" count={counts.proposed} color="slate" />
-        <StatusPill label="pushed" count={counts.pushed} color="blue" />
+        <StatusPill label="rejected" count={counts.rejected} color="red" />
+        <StatusPill label="accepted" count={counts.accepted} color="blue" />
         <StatusPill label="live" count={counts.live} color="emerald" />
         <StatusPill label="resolved" count={counts.resolved} color="violet" />
         <StatusPill label="killed" count={counts.killed} color="red" />

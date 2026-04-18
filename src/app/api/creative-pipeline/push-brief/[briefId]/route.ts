@@ -61,7 +61,7 @@ export async function POST(
     await db
       .update(creativeBriefs)
       .set({
-        status: 'pushed',
+        status: 'accepted',
         metaAdId: ad.id,
         pushedAt: new Date(),
         updatedAt: new Date(),

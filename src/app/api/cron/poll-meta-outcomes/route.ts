@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   const activeBriefs = await db
     .select()
     .from(creativeBriefs)
-    .where(inArray(creativeBriefs.status, ['pushed', 'live']));
+    .where(inArray(creativeBriefs.status, ['accepted', 'live']));
 
   const results: Array<{ briefId: string; outcome: string }> = [];
 
@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
         newStatus = 'killed';
         decision = 'killed';
         killReason = `effective_status=${effStatus}`;
-      } else if (isLive && brief.status === 'pushed') {
+      } else if (isLive && brief.status === 'accepted') {
         newStatus = 'live';
       }
 
