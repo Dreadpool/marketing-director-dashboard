@@ -56,8 +56,7 @@ export interface GateReport {
 
 export interface InputsLoaded {
   programMd: { path: string; bytes: number } | null;
-  creativeResearchMd: { path: string; bytes: number } | null;
   swipeFileMd: { path: string; bytes: number; entries: number } | null;
-  experimentLog: { path: string; totalEntries: number; resolvedEntries: number } | null;
+  resultsLog: { path: string; totalEntries: number; resolvedEntries: number } | null;
   brandVoice: { path: string; bytes: number } | null;
 }

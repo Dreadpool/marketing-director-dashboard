@@ -34,9 +34,8 @@ export function InputsLoadedPanel({ inputs }: { inputs: InputsLoaded | null }) {
   }
   const items = [
     { key: 'program.md', data: inputs.programMd },
-    { key: 'creative-research.md', data: inputs.creativeResearchMd },
-    { key: 'swipe-file.md', data: inputs.swipeFileMd },
-    { key: 'experiment-log.md', data: inputs.experimentLog },
+    { key: 'reference/swipe-file.md', data: inputs.swipeFileMd },
+    { key: 'results.md', data: inputs.resultsLog },
     { key: 'brand-voice/sle-brandscript.md', data: inputs.brandVoice },
   ];
   return (
