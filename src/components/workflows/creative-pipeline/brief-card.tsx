@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 export interface Brief {
   briefId: string;
@@ -19,6 +20,7 @@ export interface Brief {
 }
 
 export function BriefCard({ brief }: { brief: Brief }) {
+  const router = useRouter();
   const [expanded, setExpanded] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
@@ -68,7 +70,7 @@ export function BriefCard({ brief }: { brief: Brief }) {
           {brief.status === 'proposed' && !rejecting && (
             <div className="flex items-center gap-2 mt-3">
               <button
-                onClick={() => pushToMeta(brief.briefId)}
+                onClick={() => pushToMeta(brief.briefId, router)}
                 className="px-3 py-1.5 text-xs bg-yellow-600 hover:bg-yellow-500 rounded text-slate-950 font-medium transition"
               >
                 Accept →
@@ -108,7 +110,7 @@ export function BriefCard({ brief }: { brief: Brief }) {
                 </button>
                 <button
                   disabled={rejectReason.trim().length < 10}
-                  onClick={() => rejectBrief(brief.briefId, rejectReason.trim(), setRejectingError)}
+                  onClick={() => rejectBrief(brief.briefId, rejectReason.trim(), setRejectingError, router)}
                   className="px-3 py-1.5 text-xs bg-red-700 hover:bg-red-600 disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed rounded text-red-100 transition"
                 >
                   Save rejection
@@ -130,12 +132,14 @@ export function BriefCard({ brief }: { brief: Brief }) {
   );
 }
 
-async function pushToMeta(briefId: string) {
+type AppRouter = ReturnType<typeof useRouter>;
+
+async function pushToMeta(briefId: string, router: AppRouter) {
   const res = await fetch(`/api/creative-pipeline/push-brief/${briefId}`, {
     method: 'POST',
   });
   if (res.ok) {
-    window.location.reload();
+    router.refresh();
   } else {
     const err = await res.json().catch(() => ({ error: 'unknown' }));
     alert(`Push failed: ${err.error}`);
@@ -145,7 +149,8 @@ async function pushToMeta(briefId: string) {
 async function rejectBrief(
   briefId: string,
   reason: string,
-  setError: (e: string | null) => void
+  setError: (e: string | null) => void,
+  router: AppRouter
 ) {
   const res = await fetch(`/api/creative-pipeline/reject-brief/${briefId}`, {
     method: 'POST',
@@ -153,7 +158,7 @@ async function rejectBrief(
     body: JSON.stringify({ reason }),
   });
   if (res.ok) {
-    window.location.reload();
+    router.refresh();
     return;
   }
   const err = await res.json().catch(() => ({ error: 'unknown' }));

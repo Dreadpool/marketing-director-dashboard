@@ -19,7 +19,7 @@ function makeReq(body: unknown) {
 }
 
 describe('POST /api/creative-pipeline/reject-brief/[briefId]', () => {
-  it('returns 400 when body is not JSON', async () => {
+  it('returns 400 when body is not valid JSON (falls through to reason validation)', async () => {
     const req = new Request('http://x/api/creative-pipeline/reject-brief/2026-04-c01', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -42,5 +42,16 @@ describe('POST /api/creative-pipeline/reject-brief/[briefId]', () => {
   it('returns 400 when reason is only whitespace', async () => {
     const res = await POST(makeReq({ reason: '              ' }) as any, { params: Promise.resolve({ briefId: '2026-04-c01' }) });
     expect(res.status).toBe(400);
+  });
+
+  it('returns 409 when brief is not in proposed status (db update returns 0 rows)', async () => {
+    // The default mock returns rowCount: 0, matching the real "no proposed row matches" case.
+    const res = await POST(
+      makeReq({ reason: 'already accepted or rejected, no rows match' }) as any,
+      { params: Promise.resolve({ briefId: '2026-04-c01' }) }
+    );
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error).toMatch(/not in proposed/i);
   });
 });

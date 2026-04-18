@@ -11,6 +11,7 @@ export default async function CreativePipelineIndex() {
       cycleId: creativeBriefs.cycleId,
       briefsTotal: sql<number>`count(*)::int`,
       proposed: sql<number>`count(*) filter (where ${creativeBriefs.status} = 'proposed')::int`,
+      rejected: sql<number>`count(*) filter (where ${creativeBriefs.status} = 'rejected-at-review')::int`,
       accepted: sql<number>`count(*) filter (where ${creativeBriefs.status} = 'accepted')::int`,
       live: sql<number>`count(*) filter (where ${creativeBriefs.status} = 'live')::int`,
       resolved: sql<number>`count(*) filter (where ${creativeBriefs.status} = 'resolved')::int`,
@@ -47,6 +48,7 @@ export default async function CreativePipelineIndex() {
               </div>
               <div className="mt-2 flex gap-3 text-xs text-slate-400">
                 <span>proposed: {c.proposed}</span>
+                <span>rejected: {c.rejected}</span>
                 <span>accepted: {c.accepted}</span>
                 <span>live: {c.live}</span>
                 <span>resolved: {c.resolved}</span>
