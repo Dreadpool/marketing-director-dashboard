@@ -7,16 +7,16 @@ interface StageMapping {
 
 export const FUNNEL_STAGE_MAP: Record<BriefFunnelStage, StageMapping> = {
   prospecting: {
-    adSetId: 'REPLACE_WITH_TOF_ADSET_ID',
-    campaignName: 'TOF - Salt Lake City',
+    adSetId: '120235253687880492',
+    campaignName: 'TOF | Salt Lake City (Rexburg)',
   },
   retargeting: {
-    adSetId: 'REPLACE_WITH_MOF_RETARGETING_ADSET_ID',
-    campaignName: 'Middle (A) Retargeting',
+    adSetId: '120230146405980492',
+    campaignName: 'Middle (A) RETARGETING (All Shuttle Fares)',
   },
   awareness: {
-    adSetId: 'REPLACE_WITH_AWARENESS_ADSET_ID',
-    campaignName: 'Creative Testing - Incremental',
+    adSetId: '120247360511970492',
+    campaignName: 'Creative Testing | Incremental (Video Testing | Top Areas)',
   },
 };
 
