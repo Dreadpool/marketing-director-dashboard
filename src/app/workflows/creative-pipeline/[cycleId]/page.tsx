@@ -47,9 +47,12 @@ export default async function CyclePage({
         <p className="text-sm text-slate-400 mt-1">{data.briefs.length} briefs</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
-        <InputsLoadedPanel inputs={data.inputs} />
+      <div className="mb-4">
         <MatrixCoverage briefs={data.briefs} />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
+        <InputsLoadedPanel inputs={data.inputs} />
         <GateStatus gates={data.gates} />
       </div>
 

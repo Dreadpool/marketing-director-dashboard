@@ -1,13 +1,13 @@
 const ANGLES: Array<{ key: string; label: string; full: string }> = [
-  { key: 'price', label: 'Price', full: 'price' },
-  { key: 'convenience', label: 'Conv.', full: 'convenience' },
-  { key: 'social-proof', label: 'Social', full: 'social-proof' },
-  { key: 'vs-driving', label: 'Driving', full: 'vs-driving' },
+  { key: 'price', label: 'price', full: 'price' },
+  { key: 'convenience', label: 'convenience', full: 'convenience' },
+  { key: 'social-proof', label: 'social-proof', full: 'social-proof' },
+  { key: 'vs-driving', label: 'vs-driving', full: 'vs-driving' },
 ];
 const STAGES: Array<{ key: string; label: string }> = [
-  { key: 'prospecting', label: 'Prospect' },
-  { key: 'retargeting', label: 'Retarget' },
-  { key: 'awareness', label: 'Awareness' },
+  { key: 'prospecting', label: 'prospecting' },
+  { key: 'retargeting', label: 'retargeting' },
+  { key: 'awareness', label: 'awareness' },
 ];
 
 export function MatrixCoverage({ briefs }: { briefs: { matrixCell: string }[] }) {
