@@ -142,7 +142,7 @@ export default function DashboardPage() {
               Route Details ({report.routes.length} routes)
             </summary>
             <div className="p-0">
-              <RouteTable routes={report.routes} />
+              <RouteTable routes={report.routes} yoy={report.summary.yoy} />
             </div>
           </details>
         </div>

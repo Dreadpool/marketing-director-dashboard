@@ -1,27 +1,29 @@
 "use client";
 
 import React, { useState } from "react";
-import type { RouteWithYoy } from "@/lib/types/mmc-report";
+import type { RouteWithYoy, YoySummary } from "@/lib/types/mmc-report";
+import {
+  formatAvgTicket,
+  formatCount,
+  formatCurrencyCompact,
+  formatCurrencyFull,
+  formatPct,
+} from "@/lib/format";
 
-function fmt(n: number): string {
-  return `$${n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-}
-
-function fmtAvg(n: number): string {
-  return `$${n.toFixed(2)}`;
-}
-
-function fmtDelta(d: { delta_abs: number; delta_pct: number } | null): {
+function fmtDelta(
+  d: { delta_abs: number; delta_pct: number } | null,
+  isCurrency: boolean = true,
+): {
   text: string;
   className: string;
 } {
-  if (!d) return { text: "N/A", className: "text-muted-foreground" };
-  const sign = d.delta_abs >= 0 ? "+" : "-";
-  const absVal = Math.abs(d.delta_abs);
-  const abs = absVal >= 1000
-    ? `${sign}$${(absVal / 1000).toFixed(1)}K`
-    : `${sign}$${absVal.toFixed(0)}`;
-  const pct = `(${d.delta_pct > 0 ? "+" : ""}${d.delta_pct.toFixed(0)}%)`;
+  if (!d || !Number.isFinite(d.delta_abs) || !Number.isFinite(d.delta_pct)) {
+    return { text: "N/A", className: "text-muted-foreground" };
+  }
+  const abs = isCurrency
+    ? formatCurrencyCompact(d.delta_abs, { signed: true })
+    : formatCount(d.delta_abs, { signed: true });
+  const pct = formatPct(d.delta_pct, { signed: true });
   return {
     text: `${abs} ${pct}`,
     className: d.delta_abs >= 0 ? "text-growth" : "text-decline",
@@ -63,10 +65,10 @@ function ExpandedDetail({ route }: { route: RouteWithYoy }) {
                   />
                   {ch.label}
                 </div>
-                <div className="font-mono text-foreground">{fmt(ch.revenue)}</div>
-                <div className="font-mono text-foreground">{ch.passengers.toLocaleString()}</div>
+                <div className="font-mono text-foreground">{formatCurrencyFull(ch.revenue)}</div>
+                <div className="font-mono text-foreground">{formatCount(ch.passengers)}</div>
                 <div className="font-mono text-foreground">
-                  {ch.passengers > 0 ? fmtAvg(ch.revenue / ch.passengers) : "-"}
+                  {ch.passengers > 0 ? formatAvgTicket(ch.revenue / ch.passengers) : "—"}
                 </div>
               </React.Fragment>
             ))}
@@ -77,7 +79,7 @@ function ExpandedDetail({ route }: { route: RouteWithYoy }) {
   );
 }
 
-export default function RouteTable({ routes }: { routes: RouteWithYoy[] }) {
+export default function RouteTable({ routes, yoy }: { routes: RouteWithYoy[]; yoy?: YoySummary }) {
   const [sortKey, setSortKey] = useState<SortKey>("revenue");
   const [sortAsc, setSortAsc] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -97,15 +99,21 @@ export default function RouteTable({ routes }: { routes: RouteWithYoy[] }) {
   }
 
   const sorted = [...routes].sort((a, b) => {
-    let av: number, bv: number;
+    if (sortKey === "name") {
+      return sortAsc ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
+    }
+    let av: number | null, bv: number | null;
     switch (sortKey) {
-      case "name": return sortAsc ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
       case "revenue": av = a.revenue; bv = b.revenue; break;
-      case "yoy_revenue": av = a.yoy_revenue?.delta_pct ?? -999; bv = b.yoy_revenue?.delta_pct ?? -999; break;
+      case "yoy_revenue": av = a.yoy_revenue?.delta_pct ?? null; bv = b.yoy_revenue?.delta_pct ?? null; break;
       case "passengers": av = a.passengers; bv = b.passengers; break;
-      case "yoy_passengers": av = a.yoy_passengers?.delta_pct ?? -999; bv = b.yoy_passengers?.delta_pct ?? -999; break;
+      case "yoy_passengers": av = a.yoy_passengers?.delta_pct ?? null; bv = b.yoy_passengers?.delta_pct ?? null; break;
       default: av = 0; bv = 0;
     }
+    // Always sort nulls to the end, regardless of direction.
+    if (av === null && bv === null) return 0;
+    if (av === null) return 1;
+    if (bv === null) return -1;
     return sortAsc ? av - bv : bv - av;
   });
 
@@ -141,7 +149,7 @@ export default function RouteTable({ routes }: { routes: RouteWithYoy[] }) {
             const total = r.sle_revenue + interlineRevenue;
             const slePct = total > 0 ? (r.sle_revenue / total) * 100 : 100;
             const revDelta = fmtDelta(r.yoy_revenue);
-            const paxDelta = fmtDelta(r.yoy_passengers);
+            const paxDelta = fmtDelta(r.yoy_passengers, false);
             const avgTicket = r.passengers > 0 ? r.revenue / r.passengers : 0;
             const isExpanded = expanded.has(r.name);
 
@@ -157,7 +165,7 @@ export default function RouteTable({ routes }: { routes: RouteWithYoy[] }) {
                     </span>
                     {r.name}
                   </td>
-                  <td className="px-2 py-2 font-mono text-foreground">{fmt(r.revenue)}</td>
+                  <td className="px-2 py-2 font-mono text-foreground">{formatCurrencyFull(r.revenue)}</td>
                   <td className="px-2 py-2">
                     <div className="h-[7px] rounded-full bg-border overflow-hidden flex">
                       <div className="bg-sle-blue" style={{ width: `${slePct}%` }} />
@@ -168,13 +176,13 @@ export default function RouteTable({ routes }: { routes: RouteWithYoy[] }) {
                     {revDelta.text}
                   </td>
                   <td className="px-2 py-2 font-mono text-foreground">
-                    {r.passengers.toLocaleString()}
+                    {formatCount(r.passengers)}
                   </td>
                   <td className={`px-2 py-2 font-mono font-semibold ${paxDelta.className}`}>
                     {paxDelta.text}
                   </td>
                   <td className="px-2 py-2 font-mono text-foreground">
-                    {fmtAvg(avgTicket)}
+                    {formatAvgTicket(avgTicket)}
                   </td>
                 </tr>
                 {isExpanded && <ExpandedDetail route={r} />}
@@ -185,18 +193,32 @@ export default function RouteTable({ routes }: { routes: RouteWithYoy[] }) {
         <tfoot>
           <tr className="border-t-2 border-border font-bold">
             <td className="px-2 py-2 text-foreground">Totals</td>
-            <td className="px-2 py-2 font-mono text-foreground">{fmt(totals.revenue)}</td>
+            <td className="px-2 py-2 font-mono text-foreground">{formatCurrencyFull(totals.revenue)}</td>
             <td className="px-2 py-2">
               <div className="h-[7px] rounded-full bg-border overflow-hidden flex">
                 <div className="bg-sle-blue" style={{ width: `${totals.revenue > 0 ? (totals.sle_revenue / totals.revenue) * 100 : 100}%` }} />
                 <div className="bg-interline-amber" style={{ width: `${totals.revenue > 0 ? (totals.interline_revenue / totals.revenue) * 100 : 0}%` }} />
               </div>
             </td>
-            <td className="px-2 py-2" />
-            <td className="px-2 py-2 font-mono text-foreground">{totals.passengers.toLocaleString()}</td>
-            <td className="px-2 py-2" />
+            {(() => {
+              const totalRevDelta = fmtDelta(yoy?.total_revenue ?? null);
+              return (
+                <td className={`px-2 py-2 font-mono font-semibold ${totalRevDelta.className}`}>
+                  {totalRevDelta.text}
+                </td>
+              );
+            })()}
+            <td className="px-2 py-2 font-mono text-foreground">{formatCount(totals.passengers)}</td>
+            {(() => {
+              const totalPaxDelta = fmtDelta(yoy?.total_passengers ?? null, false);
+              return (
+                <td className={`px-2 py-2 font-mono font-semibold ${totalPaxDelta.className}`}>
+                  {totalPaxDelta.text}
+                </td>
+              );
+            })()}
             <td className="px-2 py-2 font-mono text-foreground">
-              {totals.passengers > 0 ? fmtAvg(totals.revenue / totals.passengers) : "-"}
+              {totals.passengers > 0 ? formatAvgTicket(totals.revenue / totals.passengers) : "—"}
             </td>
           </tr>
         </tfoot>
