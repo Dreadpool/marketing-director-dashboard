@@ -93,7 +93,7 @@ export async function getCustomerSegmentation(
         MIN(f.first_order_date) AS first_order_date
       FROM \`${PROJECT_ID}.${DATASET}.vw_sle_active_orders\` o
       LEFT JOIN \`${PROJECT_ID}.${DATASET}.customer_first_order\` f
-        ON LOWER(TRIM(o.purchaser_email)) = f.pk_email
+        ON LOWER(TRIM(o.purchaser_email)) = LOWER(TRIM(f.customer_account_holder_email))
       WHERE DATE(o.purchase_date) >= @start_date
         AND DATE(o.purchase_date) < @end_date
       GROUP BY email
