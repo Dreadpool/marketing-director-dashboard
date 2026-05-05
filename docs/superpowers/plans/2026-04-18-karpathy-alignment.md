@@ -16,7 +16,7 @@
 
 **Files:**
 - Modify: `~/workspace/sle/products/creative-pipeline/program.md:1-20`
-- Read-only reference: `~/workspace/personal/knowledge-base/wiki/concepts/meta-creative-pipeline.md` (source content)
+- Read-only reference: `~/workspace/references/knowledge-base/wiki/concepts/meta-creative-pipeline.md` (source content)
 
 - [ ] **Step 1: Insert preamble as the first section of program.md**
 
@@ -1399,7 +1399,7 @@ lsof -ti:3000 | xargs kill 2>/dev/null || true
 ### Task 20: Update the 15-step visualizer
 
 **Files:**
-- Modify: `~/workspace/personal/share-artifacts/sle-creative-autoresearch.html`
+- Modify: `~/workspace/references/share-artifacts/sle-creative-autoresearch.html`
 
 - [ ] **Step 1: Update file-path references in the visualizer content**
 
@@ -1411,7 +1411,7 @@ Open the HTML file and find the STEPS data array. Update every mention of:
 Quickest approach:
 
 ```bash
-cd ~/workspace/personal/share-artifacts
+cd ~/workspace/references/share-artifacts
 sed -i '' 's|evaluate\.ts|prepare.ts|g; s|experiment-log\.md|results.md|g; s|export-log-outcomes\.ts|export-results.ts|g' sle-creative-autoresearch.html
 ```
 
@@ -1437,7 +1437,7 @@ Place it before the existing "Each brief block contains:" paragraph.
 - [ ] **Step 3: Smoke test by re-opening**
 
 ```bash
-open ~/workspace/personal/share-artifacts/sle-creative-autoresearch.html
+open ~/workspace/references/share-artifacts/sle-creative-autoresearch.html
 ```
 
 Expected: page loads, step 7 shows the new Karpathy callout, no broken references.
@@ -1445,7 +1445,7 @@ Expected: page loads, step 7 shows the new Karpathy callout, no broken reference
 - [ ] **Step 4: Commit**
 
 ```bash
-cd ~/workspace/personal/share-artifacts
+cd ~/workspace/references/share-artifacts
 git add sle-creative-autoresearch.html 2>/dev/null || true
 # (share-artifacts may or may not be a git repo — skip commit if not)
 ```

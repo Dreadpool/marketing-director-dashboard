@@ -24,7 +24,7 @@ Align the creative pipeline more closely with Karpathy's `autoresearch` repo str
 
 1. `reference/creative-research.md` (328 lines) → new section **"Creative priors"** at the bottom of program.md. Visual mechanics, F-pattern, layout archetypes, the 11-point sniff test checklist — all content preserved verbatim.
 2. `~/workspace/sle/context/ad-copy/meta-ads-top-performers.md` (125 lines) → new section **"Historical SLE ads (what's worked)"** below creative priors. Top 15 by spend, ad copy variants, campaign structure.
-3. `~/workspace/personal/knowledge-base/output/lessons/meta-creative-pipeline-intuition.html` → distilled to prose (~40 lines) as preamble section **"Why this loop exists"** at the top of program.md. HTML → prose because raw HTML has render artifacts; prose preserves the intuition.
+3. `~/workspace/references/knowledge-base/output/lessons/meta-creative-pipeline-intuition.html` → distilled to prose (~40 lines) as preamble section **"Why this loop exists"** at the top of program.md. HTML → prose because raw HTML has render artifacts; prose preserves the intuition.
 
 **Resulting program.md structure:**
 
@@ -101,7 +101,7 @@ From 9 active sources down to 6.
 - `run-cycle.sh` — `npx tsx export-log-outcomes.ts` → `npx tsx export-results.ts`
 - `package.json` scripts — `"export-log"` script renames to `"export-results"` pointing at new file; `"evaluate"` script points at `prepare.ts`
 - Dashboard-side: `src/lib/workflows/creative-pipeline/compute-score.ts` inline comment references `evaluate.ts` → `prepare.ts`
-- The 15-step visualizer at `~/workspace/personal/share-artifacts/sle-creative-autoresearch.html`:
+- The 15-step visualizer at `~/workspace/references/share-artifacts/sle-creative-autoresearch.html`:
   - Update code references (`evaluate.ts` → `prepare.ts`, `experiment-log.md` → `results.md`)
   - Add a callout explaining `briefs/` is our `train.py` analog and why (parallel hypotheses per cycle vs serial model iteration)
 

@@ -10,7 +10,7 @@
 
 **Design spec:** `docs/superpowers/specs/2026-04-17-creative-pipeline-autoresearch-design.md`
 
-**Bootstrap content lives at:** `~/workspace/personal/knowledge-base/output/creative-pipeline-bootstrap/` (contains `creative-research.md`, `creative-research-images/`, `swipe-file.md`, `swipe-file/`). This content moves into the new creative-pipeline repo as part of Phase 1.
+**Bootstrap content lives at:** `~/workspace/references/knowledge-base/output/creative-pipeline-bootstrap/` (contains `creative-research.md`, `creative-research-images/`, `swipe-file.md`, `swipe-file/`). This content moves into the new creative-pipeline repo as part of Phase 1.
 
 ---
 
@@ -360,19 +360,19 @@ git commit -m "docs: add program.md v0 — the rules of the game"
 ### Task 3: Copy bootstrap content (creative-research, swipe-file)
 
 **Files:**
-- Copy: `~/workspace/personal/knowledge-base/output/creative-pipeline-bootstrap/creative-research.md` → repo root
-- Copy: `~/workspace/personal/knowledge-base/output/creative-pipeline-bootstrap/creative-research-images/` → repo root
-- Copy: `~/workspace/personal/knowledge-base/output/creative-pipeline-bootstrap/swipe-file.md` → repo root
-- Copy: `~/workspace/personal/knowledge-base/output/creative-pipeline-bootstrap/swipe-file/` → repo root
+- Copy: `~/workspace/references/knowledge-base/output/creative-pipeline-bootstrap/creative-research.md` → repo root
+- Copy: `~/workspace/references/knowledge-base/output/creative-pipeline-bootstrap/creative-research-images/` → repo root
+- Copy: `~/workspace/references/knowledge-base/output/creative-pipeline-bootstrap/swipe-file.md` → repo root
+- Copy: `~/workspace/references/knowledge-base/output/creative-pipeline-bootstrap/swipe-file/` → repo root
 
 - [ ] **Step 1: Copy files**
 
 ```bash
 cd ~/workspace/sle/products/creative-pipeline
-cp ~/workspace/personal/knowledge-base/output/creative-pipeline-bootstrap/creative-research.md .
-cp ~/workspace/personal/knowledge-base/output/creative-pipeline-bootstrap/swipe-file.md .
-cp -r ~/workspace/personal/knowledge-base/output/creative-pipeline-bootstrap/creative-research-images .
-cp -r ~/workspace/personal/knowledge-base/output/creative-pipeline-bootstrap/swipe-file .
+cp ~/workspace/references/knowledge-base/output/creative-pipeline-bootstrap/creative-research.md .
+cp ~/workspace/references/knowledge-base/output/creative-pipeline-bootstrap/swipe-file.md .
+cp -r ~/workspace/references/knowledge-base/output/creative-pipeline-bootstrap/creative-research-images .
+cp -r ~/workspace/references/knowledge-base/output/creative-pipeline-bootstrap/swipe-file .
 ```
 
 - [ ] **Step 2: Fix the path reference in creative-research.md header**
