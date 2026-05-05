@@ -8,7 +8,7 @@
 
 **Tech Stack:** `googleapis` (v171.4.0, already installed), Google Search Console API v1 (`searchconsole.searchanalytics.query`), same service account credential pattern as Google Sheets.
 
-**Spec:** `docs/superpowers/specs/2026-04-05-seo-quick-wins-design.md`
+**Spec:** `docs/specs/2026-04-05-seo-quick-wins-design.md`
 
 ---
 

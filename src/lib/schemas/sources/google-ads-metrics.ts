@@ -1,7 +1,7 @@
 /**
  * GoogleAdsMetrics: Return type of the Google Ads Analysis fetch executor.
  * Decision framework: Vallaeys (Stars/Zombies/Bleeders) + Geddes (QS) + Impression Share.
- * Spec: docs/superpowers/specs/2026-03-31-google-ads-decision-framework.md
+ * Spec: docs/specs/2026-03-31-google-ads-decision-framework.md
  */
 
 export type GoogleAdsPeriod = {

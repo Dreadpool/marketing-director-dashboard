@@ -429,7 +429,7 @@ grep -rn "evaluate\.ts\|experiment-log\.md\|export-log-outcomes" src/ docs/
 
 For each hit: if it's a code-level rename needed (inline docstring, JSDoc), update to match the new names. Skip references in historic spec docs (those should reflect history as-of-then).
 
-Note: `docs/superpowers/specs/2026-04-17-creative-pipeline-autoresearch-design.md` and `docs/superpowers/plans/2026-04-17-creative-pipeline-autoresearch.md` should NOT be edited — they are historical records.
+Note: `docs/specs/2026-04-17-creative-pipeline-autoresearch-design.md` and `docs/plans/2026-04-17-creative-pipeline-autoresearch.md` should NOT be edited — they are historical records.
 
 - [ ] **Step 3: Commit**
 
@@ -1528,8 +1528,8 @@ If anything unstaged, commit it with a clear message. Otherwise no action.
 - `sle-creative-autoresearch.html` — path refs + briefs/train.py callout
 
 **docs:**
-- `docs/superpowers/specs/2026-04-18-karpathy-alignment-design.md` — already written
-- `docs/superpowers/plans/2026-04-18-karpathy-alignment.md` — this file
+- `docs/specs/2026-04-18-karpathy-alignment-design.md` — already written
+- `docs/plans/2026-04-18-karpathy-alignment.md` — this file
 
 ---
 

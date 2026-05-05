@@ -8,7 +8,7 @@
 
 **Tech Stack:** React, TypeScript, Tailwind CSS, inline SVG for sparklines.
 
-**Spec:** `docs/superpowers/specs/2026-04-16-ads-in-set-section-design.md`
+**Spec:** `docs/specs/2026-04-16-ads-in-set-section-design.md`
 **Mockup:** `.superpowers/brainstorm/27188-1776393237/content/ads-in-set.html`
 
 ---

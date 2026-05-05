@@ -8,7 +8,7 @@
 
 **Tech Stack:** Next.js 15 (App Router), TypeScript, Tailwind CSS v4, shadcn/ui, Drizzle ORM (Neon Postgres), Anthropic SDK (Haiku 4.5), Framer Motion
 
-**Spec:** `docs/superpowers/specs/2026-03-30-meta-ads-guided-evaluation-design.md`
+**Spec:** `docs/specs/2026-03-30-meta-ads-guided-evaluation-design.md`
 
 **Verification:** `npm run build` + `npm run lint` + visual testing in browser.
 

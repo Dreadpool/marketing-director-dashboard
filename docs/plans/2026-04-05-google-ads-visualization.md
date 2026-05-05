@@ -8,7 +8,7 @@
 
 **Tech Stack:** React, TypeScript, Tailwind CSS v4, shadcn/ui (Badge, Tooltip), lucide-react icons, Vitest
 
-**Design Spec:** `docs/superpowers/specs/2026-04-05-google-ads-visualization-design.md`
+**Design Spec:** `docs/specs/2026-04-05-google-ads-visualization-design.md`
 
 ---
 

@@ -30,7 +30,7 @@ Three signals from a clean `npm run build` of `marketing-director-dashboard` on 
 
 - This plan does **not** add new tests for the customer-interview feature. The feature is live in prod; backfilling test coverage is separate work.
 - This plan does **not** upgrade `drizzle-kit` or `next` to chase the `url.parse` deprecation. Fix lives upstream.
-- This plan does **not** touch the unrelated dirty files (`CLAUDE.md`, `docs/superpowers/plans/2026-04-17-creative-pipeline-autoresearch.md`, `docs/superpowers/plans/2026-04-18-karpathy-alignment.md`, `docs/superpowers/specs/2026-04-18-karpathy-alignment-design.md`, `package.json`, `package-lock.json`, `src/lib/workflows.ts`, `findings.md`). Those are separate in-flight work and should be reviewed and committed by their author.
+- This plan does **not** touch the unrelated dirty files (`CLAUDE.md`, `docs/plans/2026-04-17-creative-pipeline-autoresearch.md`, `docs/plans/2026-04-18-karpathy-alignment.md`, `docs/specs/2026-04-18-karpathy-alignment-design.md`, `package.json`, `package-lock.json`, `src/lib/workflows.ts`, `findings.md`). Those are separate in-flight work and should be reviewed and committed by their author.
 - This plan does **not** rework the customer-segmentation query semantics (e.g., switching from email-based identity to user IDs). Fix the join only.
 
 ---
@@ -137,7 +137,7 @@ Three signals from a clean `npm run build` of `marketing-director-dashboard` on 
 - Add (untracked): all files under `src/app/api/interview/`, `src/app/api/interviews/`, `src/app/interview/`, `src/app/workflows/customer-interviews/`
 - Add (untracked): `src/lib/auth/interview-api-auth.ts`, `src/lib/email/` (entire dir), `src/lib/interviewer/` (entire dir), `src/lib/services/bigquery-interview-segment.ts`, `src/lib/services/interview-campaign-service.ts`
 - Modify (already dirty): `src/db/schema.ts`, `drizzle/meta/_journal.json`
-- **Do not stage:** `CLAUDE.md`, `docs/superpowers/plans/2026-04-17-creative-pipeline-autoresearch.md`, `docs/superpowers/plans/2026-04-18-karpathy-alignment.md`, `docs/superpowers/specs/2026-04-18-karpathy-alignment-design.md`, `package.json`, `package-lock.json`, `src/lib/workflows.ts`, `findings.md` — these are unrelated in-flight work and belong in their own commits.
+- **Do not stage:** `CLAUDE.md`, `docs/plans/2026-04-17-creative-pipeline-autoresearch.md`, `docs/plans/2026-04-18-karpathy-alignment.md`, `docs/specs/2026-04-18-karpathy-alignment-design.md`, `package.json`, `package-lock.json`, `src/lib/workflows.ts`, `findings.md` — these are unrelated in-flight work and belong in their own commits.
 
 **Approach:**
 - Inspect each modified file's diff before staging to confirm it belongs to the customer-interview feature and not to one of the unrelated workstreams. `package.json` and `package-lock.json` are the highest-risk: they may include deps that the interview feature actually needs (e.g., `nodemailer` for SMTP). Diff the package files and decide per-line; if the dep is consumed by interview code, include the package file in this commit.

@@ -8,7 +8,7 @@
 
 **Tech Stack:** React, TypeScript, Recharts, Tailwind CSS, existing `AdSetDailyTrendResponse` data from the adset-daily API endpoint.
 
-**Spec:** `docs/superpowers/specs/2026-04-15-adset-analyze-panel-design.md`
+**Spec:** `docs/specs/2026-04-15-adset-analyze-panel-design.md`
 **Mockup:** `.superpowers/brainstorm/67993-1776305591/content/analyze-panel.html`
 
 ---

@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript, Next.js 15, Drizzle ORM + Neon Postgres, facebook-nodejs-business-sdk, Vercel cron, Claude Code (agent runs locally), Tailwind + shadcn/ui.
 
-**Design spec:** `docs/superpowers/specs/2026-04-17-creative-pipeline-autoresearch-design.md`
+**Design spec:** `docs/specs/2026-04-17-creative-pipeline-autoresearch-design.md`
 
 **Bootstrap content lives at:** `~/workspace/references/knowledge-base/output/creative-pipeline-bootstrap/` (contains `creative-research.md`, `creative-research-images/`, `swipe-file.md`, `swipe-file/`). This content moves into the new creative-pipeline repo as part of Phase 1.
 
@@ -3290,7 +3290,7 @@ Both are deliberate and documented. No "TBD" / "TODO" buried in task code.
 
 ## Execution Handoff
 
-Plan complete and saved to `docs/superpowers/plans/2026-04-17-creative-pipeline-autoresearch.md`. Two execution options:
+Plan complete and saved to `docs/plans/2026-04-17-creative-pipeline-autoresearch.md`. Two execution options:
 
 **1. Subagent-Driven (recommended)** — I dispatch a fresh subagent per task, review between tasks, fast iteration. Good for the 26-task plan; each subagent gets clean context so we don't hit image-size or context-carryover issues.
 
