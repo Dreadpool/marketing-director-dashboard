@@ -298,20 +298,16 @@ main().catch(console.error);
 - **Findings:** `./findings.md` — durable knowledge, decisions, pending items. Read this first when resuming session-spanning work.
 - **Scratch:** none configured — create one when needed.
 
-## Superpowers Development Workflow
+## Development Workflow
 
 Any feature or non-trivial change follows this sequence. No skipping steps.
 
 ### Workflow Sequence
 
-1. **Brainstorm** → invoke `superpowers:brainstorming`
-2. **Write spec** → brainstorming skill handles this (saves to `docs/superpowers/specs/`)
-3. **Write plan** → invoke `superpowers:writing-plans`
-4. **Implement** → invoke `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans`
-5. **Verify** → invoke `superpowers:verification-before-completion` (see project verification table below)
-6. **Finish** → invoke `superpowers:finishing-a-development-branch`
-
-For bugs, use `superpowers:systematic-debugging` instead of brainstorming.
+1. **Brainstorm** → `/ce-brainstorm` (writes to `docs/brainstorms/`)
+2. **Plan** → `/ce-plan` (writes to `docs/plans/`)
+3. **Implement** → `/ce-work`
+4. **Debug** → `/ce-debug` for bugs (instead of brainstorming)
 
 ### Project Verification Table
 
