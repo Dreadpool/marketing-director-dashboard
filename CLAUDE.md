@@ -40,6 +40,15 @@ Built first for Salt Lake Express (SLE) marketing operations. Designed to suppor
 - `GOOGLE_ADS_CUSTOMER_ID` -- Google Ads client account ID (default: `7716669181`)
 - `POSTGRES_URL` -- Neon Postgres connection string
 - `XAI_API_KEY` -- xAI API key (Grok 4.1 Fast Reasoning for workflow steps)
+- `ANTHROPIC_API_KEY` -- Anthropic API key (Claude Sonnet 4.6 powers the customer-facing AI interviewer at `/interview/[token]`)
+- `HUBSPOT_SMTP_USER` -- HubSpot SMTP API username for transactional email (interview invites, thank-yous, CSR notifications). Generated from Marketing → Email → Transactional → SMTP API.
+- `HUBSPOT_SMTP_PASSWORD` -- HubSpot SMTP API password (shown only once at token creation)
+- `HUBSPOT_SMTP_HOST` -- SMTP host (default `smtp.hubapi.com`; use `smtp-eu1.hubapi.com` for EU)
+- `HUBSPOT_SMTP_PORT` -- SMTP port (default `587` STARTTLS)
+- `SMTP_FROM_INTERVIEWS` -- From address for interview emails (default `Brady Price <brady.price@saltlakeexpress.com>`)
+- `RESERVATIONS_EMAIL` -- Inbox to notify on completed interview for loyalty point credits (default `reservations@saltlakeexpress.com`)
+- `MD_DASHBOARD_API_KEY` -- Bearer token shared with the customer-interview Claude Code plugin. Plugin sends `Authorization: Bearer $MD_DASHBOARD_API_KEY` to `/api/interviews/*`
+- `NEXT_PUBLIC_BASE_URL` -- Public origin used to build interview links sent in invite emails (e.g. `https://marketing-director-dashboard.vercel.app`)
 
 ## Roadmap
 
@@ -76,6 +85,7 @@ Built first for Salt Lake Express (SLE) marketing operations. Designed to suppor
 - [x] Ad Health Classification System (2026-04-09): encodes ad management expertise so a non-expert can evaluate the agency. Phase 1: per-ad and per-ad-set health verdicts (healthy/learning/watch/underperforming/kill) with prescribed actions, computed in pure classifier module `src/lib/workflows/classifiers/meta-ads-health.ts` using monthly aggregates. Thresholds from AdManage.ai Poisson kill framework (3x target CPA = $27 statistical floor), Meta creative fatigue research, and SLE unit economics. Colored badges render in CampaignTable at both ad and ad set levels with tooltips showing reason + prescribed action. Phase 2: on-demand daily trend fetching via new `/api/workflows/meta-ads-analysis/adset-daily` route and `getAdSetDailyInsights()` service function (time_increment=1, still 1 API call). New classifier `meta-ads-trends.ts` distinguishes "born bad" (never had a 3+ day performing period) from "dying" (was performing, now fatiguing). Analyze button on expanded ad set rows loads trends, shows rising/falling/flat arrows on CPA and CTR, upgrades HealthBadge with revised_health. Phase 3: step4-creative-health activated in guided evaluation with aggregated ad health summary feeding AI prompt for targeted action items. D1 frequency check reframed as data collection only (frequency alone is not a verdict, requires compound signal via D5). 100 tests, 8 commits.
 - [x] Campaign table MoM inline deltas (2026-04-09): Stage column removed (Brady already knows funnel stages). Health badges moved to name cells. Prior month campaigns + ad sets fetched in parallel (+2 API calls). Percent change computed for spend (neutral/muted), CPA (inverse: rising=red), ROAS (default: rising=green), purchases (default). Changes < 5% shown as flat. No frequency delta. No ad-level deltas. MomDelta type on MetaAdsCampaignRow and MetaAdsAdSetRow.
 - [x] Creative thumbnails + lightbox (2026-04-14): `getAdCreatives()` fetches ad creative image URLs via AdAccount.getAds() filtered by insight ad IDs (not currently active ads, which differ from historical). Prefers `image_url` (full res) over `thumbnail_url` (64x64). 40x40 thumbnail in ad name cell, click opens Dialog lightbox with full-size image + "View in Ads Manager" link. Shared `extractPurchases`/`extractRevenue` consolidated to `src/lib/schemas/transformers/meta-ads-actions.ts`. Build hash shown in sidebar via VERCEL_GIT_COMMIT_SHA forwarded through next.config.ts.
+- [x] Customer Interview workflow (2026-04-24): JTBD switch interview pipeline. Plugin at `~/workspace/sle/products/customer-interview-plugin/` (two skills: `/plan-customer-interviews` + `/analyze-customer-interviews`). Dashboard hosts the customer-facing AI interviewer at `/interview/[token]` (Claude Sonnet 4.6 server-side, system-prompt-driven, sentinel-based completion detection). Resend handles invite + thank-you + CSR loyalty-point notification emails. New tables: `interview_campaigns`, `interview_responses`, `interview_artifacts`. New routes: `/api/interviews/explore` (BQ segment preview), `/api/interviews/campaigns` (create + list), `/api/interviews/campaigns/[id]` (detail), `/api/interviews/campaigns/[id]/artifacts` (analysis upload), `/api/interview/[token]/message` (chat turn + completion + email triggers). New UI at `/workflows/customer-interviews` (campaigns list with progress bars + ready-for-analysis copy-paste command) and `/workflows/customer-interviews/[id]` (campaign detail + responses table + uploaded artifacts). Plugin↔dashboard auth via `MD_DASHBOARD_API_KEY` bearer.
 
 ### In Progress
 
@@ -95,7 +105,6 @@ Built first for Salt Lake Express (SLE) marketing operations. Designed to suppor
 - [ ] Post-Event Review loop: After an event date passes (or its promo code expires), surface a review prompt on the dashboard. User adds post-event notes and optionally links a promo code to trigger Promo Code Analysis for that event. Notes and promo run link stored on the calendar event via extendedProperties. Next year's Event Planning workflow reads this history to show "Last year's Spring Fling: 45 orders from SPRING25, notes: BYU flyers worked, skip USU." Calendar is the source of truth for events, no separate events table needed.
 - [ ] Budget Spend Analysis workflow: Pull previous month's spend from QuickBooks GL data in BigQuery (`quickbooks_gl.gl_transactions`), break down by channel/category, compare against budget targets, flag overspend/underspend. Monthly cadence.
 - [ ] Fix QuickBooks GL ad spend pipeline (currently broken, needs debugging)
-- [ ] Customer Interview workflow: structured interview process, question templates, note capture, theme extraction across interviews, actionable insights summary
 - [ ] Promo Code Analysis Phase 2: Automated analysis triggered by promo expiration dates, FTP fetch, route results to james.glass@saltlakeexpress.com
 - [x] Meta Ads Dashboard: Expandable campaigns → ad sets (2026-03-31)
 - [x] Meta Ads Dashboard: Expandable ad sets → ads with fatigue signals (2026-03-31)
@@ -279,6 +288,11 @@ async function main() {
 main().catch(console.error);
 "
 ```
+
+## Working notes
+
+- **Findings:** `./findings.md` — durable knowledge, decisions, pending items. Read this first when resuming session-spanning work.
+- **Scratch:** none configured — create one when needed.
 
 ## Superpowers Development Workflow
 

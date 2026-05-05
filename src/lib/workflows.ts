@@ -262,6 +262,36 @@ export const workflows: Workflow[] = [
       },
     ],
   },
+  {
+    slug: "customer-interviews",
+    title: "Customer Interviews",
+    description:
+      "Run JTBD switch interviews against a customer segment. Plan with /plan-customer-interviews in Claude Code, dashboard handles delivery and AI-driven conversations, analyze with /analyze-customer-interviews when threshold hits.",
+    icon: "megaphone",
+    status: "active",
+    cadence: { frequency: "on-demand", dueRule: { type: "on-demand" } },
+    dataSources: ["bigquery"],
+    steps: [
+      {
+        id: "plan",
+        label: "Plan",
+        description: "Pick segment, draft questions, set reward + threshold (in Claude Code)",
+        type: "view",
+      },
+      {
+        id: "collect",
+        label: "Collect",
+        description: "Customers complete the AI-driven interview",
+        type: "view",
+      },
+      {
+        id: "analyze",
+        label: "Analyze",
+        description: "Forces coding + timeline + codes (in Claude Code)",
+        type: "view",
+      },
+    ],
+  },
 ];
 
 export function getWorkflowBySlug(slug: string): Workflow | undefined {

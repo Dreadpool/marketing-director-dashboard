@@ -150,3 +150,57 @@ export const creativePipelineRuns = pgTable("creative_pipeline_runs", {
   metrics: jsonb("metrics"),
   status: text("status").notNull(),
 });
+
+// Customer Interview campaigns.
+// One row per interview campaign. Created by the customer-interview plugin
+// (Claude Code) via POST /api/interviews/campaigns. State machine:
+// draft -> sending -> collecting -> ready -> analyzed -> archived.
+export const interviewCampaigns = pgTable("interview_campaigns", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  segmentDescription: text("segment_description").notNull(),
+  segmentCriteria: jsonb("segment_criteria").notNull(),
+  questionsGuide: jsonb("questions_guide").notNull(),
+  rewardLoyaltyPoints: integer("reward_loyalty_points").notNull(),
+  responseThreshold: integer("response_threshold").notNull(),
+  state: varchar("state", { length: 20 }).notNull().default("draft"),
+  invitesSent: integer("invites_sent").notNull().default(0),
+  responsesCompleted: integer("responses_completed").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  sentAt: timestamp("sent_at"),
+  readyAt: timestamp("ready_at"),
+  analyzedAt: timestamp("analyzed_at"),
+});
+
+// Per-customer interview rows. Created at campaign send time, one per
+// customer in the segment. Token is the customer's unique URL slug.
+export const interviewResponses = pgTable("interview_responses", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  campaignId: uuid("campaign_id")
+    .notNull()
+    .references(() => interviewCampaigns.id),
+  token: varchar("token", { length: 40 }).notNull().unique(),
+  customerId: text("customer_id").notNull(),
+  customerEmail: text("customer_email").notNull(),
+  customerName: text("customer_name"),
+  customerProfile: jsonb("customer_profile"),
+  status: varchar("status", { length: 20 }).notNull().default("invited"),
+  transcript: jsonb("transcript"),
+  invitedAt: timestamp("invited_at").notNull().defaultNow(),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+});
+
+// Analysis artifact uploaded by /analyze-customer-interviews when the
+// human-clustered themes are done. Brief in markdown, full HTML lesson-style
+// artifact, plus reliability notes from postflight checks.
+export const interviewArtifacts = pgTable("interview_artifacts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  campaignId: uuid("campaign_id")
+    .notNull()
+    .references(() => interviewCampaigns.id),
+  title: text("title").notNull(),
+  briefMarkdown: text("brief_markdown").notNull(),
+  artifactHtml: text("artifact_html").notNull(),
+  reliabilityNotes: jsonb("reliability_notes"),
+  uploadedAt: timestamp("uploaded_at").notNull().defaultNow(),
+});
