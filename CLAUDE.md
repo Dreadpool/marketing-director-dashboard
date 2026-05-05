@@ -136,6 +136,10 @@ Built first for Salt Lake Express (SLE) marketing operations. Designed to suppor
 - 2026-03-30: Period-matched scheduling replaces timestamp-based isDue. A run satisfies the period it was run FOR, not when it was run. Per-workflow due dates (1st, 3rd, 10th, 1st Monday). Cadence config in code, not DB. Full spec in `docs/superpowers/specs/2026-03-30-workflow-cadence-scheduling-design.md`.
 - 2026-04-14: **GOTCHA: `periodMetrics` cache.** The workflow engine caches fetch step output in the `period_metrics` DB table (`engine.ts` line ~271). When `fetch-meta-ads.ts` (or any executor) changes, the cache serves STALE data. You must clear the cache after executor changes: `DELETE FROM period_metrics WHERE workflow_slug = 'meta-ads-analysis';`. A future fix: add a cache version key, or a "Force Refresh" checkbox on the Run Analysis button.
 
+## Known Build Warnings
+
+- **`[DEP0169] DeprecationWarning: url.parse()`** -- emitted on every `npm run build`. Comes from transitive dev dependencies, not application code: `drizzle-kit/{utils,api}.js` and `next/dist/experimental/testing/server/config-testing-utils.js`. Not runtime, no app-side fix. Tracked here so future builds don't re-investigate. Will resolve when those packages move to the WHATWG `URL` constructor; revisit if/when `next` > 16.2.1 or `drizzle-kit` > 0.31.10 ship the migration.
+
 ## Structure
 
 - `src/app/` -- App Router pages and API routes
