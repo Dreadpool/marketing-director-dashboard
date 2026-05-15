@@ -1,7 +1,7 @@
 # Workflow Engine - References
 
 ## Monthly Analytics Review (existing workflow)
-- **Location**: `~/workspace/sle/Monthly Analytics Review/`
+- **Location**: `~/workspace/sle/analytics/monthly-review/`
 - **CLAUDE.md**: Complete workflow orchestration with 12 Python scripts
 - **Calculation frameworks**: Revenue breakdown (CC + cash + credits), customer segmentation (new vs returning), CAC formula, payback ratio
 - **Thresholds**: CAC <= $50 excellent, <= $100 good, > $100 high. Payback >= 3.0x positive, LTV:CAC >= 5:1 excellent.

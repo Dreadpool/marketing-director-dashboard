@@ -6,7 +6,7 @@
 - `~/Downloads/cardpointe reports-1 year of revenue and refunds/MMC4062_Corporate_Account_Settlement (10).xlsx` - Corporate billing (separate concern)
 
 ## Existing Code
-- `~/workspace/sle/Monthly Analytics Review/scripts/backfill_cardpointe.py` - Existing API-based backfill (uses MERGE pattern)
+- `~/workspace/sle/analytics/monthly-review/scripts/backfill_cardpointe.py` - Existing API-based backfill (uses MERGE pattern)
 - `src/lib/services/bigquery-sales.ts` - BigQuery sales service with `getCardPointeSettlements()`
 - `src/lib/workflows/executors/fetch-monthly-analytics.ts` - Monthly analytics executor (hardcodes YoY to 0)
 - `src/lib/schemas/sources/monthly-analytics.ts` - `MasterMetricsComparison` type (already has YoY fields)

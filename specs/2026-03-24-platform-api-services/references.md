@@ -11,5 +11,5 @@
 - Google Ads Developer Token: `RWQw6bx6QLX5u2B4kML71g`
 
 ## Related Projects
-- Google Ads API config: `~/workspace/sle/google-ads-api/`
+- Google Ads API config: `~/workspace/sle/marketing/google-ads-api/`
 - Meta Ads MCP server config: see MCP server settings

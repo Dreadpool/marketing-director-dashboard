@@ -131,8 +131,8 @@ workflow_step_prompts
 - `src/app/calendar/page.tsx` — Calendar/planning view
 
 **Reference (read-only):**
-- `~/workspace/sle/Monthly Analytics Review/CLAUDE.md` — Calculation instructions, frameworks
-- `~/workspace/sle/Monthly Analytics Review/scripts/` — Calculation patterns
+- `~/workspace/sle/analytics/monthly-review/CLAUDE.md` — Calculation instructions, frameworks
+- `~/workspace/sle/analytics/monthly-review/scripts/` — Calculation patterns
 
 ---
 
