@@ -2,7 +2,9 @@
 
 "use client";
 
+import type { ReactNode } from "react";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { MetricLabel } from "@/components/workflows/metric-label";
 
 const usd2 = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -42,7 +44,7 @@ export function D1FrequencyViz({ data }: { data: Record<string, unknown> }) {
             <thead>
               <tr className="border-b border-border text-left text-[11px] uppercase tracking-wider text-muted-foreground">
                 <th className="pb-2 pr-4">Campaign</th>
-                <th className="pb-2 pr-3 text-right">7-Day Freq</th>
+                <th className="pb-2 pr-3 text-right">7-Day <MetricLabel name="Frequency" display="Freq" /></th>
                 <th className="pb-2 pr-3 text-right">Impressions</th>
                 <th className="pb-2 text-right">Reach</th>
               </tr>
@@ -116,8 +118,8 @@ export function D2CpmTrendViz({ data }: { data: Record<string, unknown> }) {
           <thead>
             <tr className="border-b border-border text-left text-[11px] uppercase tracking-wider text-muted-foreground">
               <th className="pb-2 pr-4">Campaign</th>
-              <th className="pb-2 pr-3 text-right">Current CPM</th>
-              <th className="pb-2 pr-3 text-right">Prior CPM</th>
+              <th className="pb-2 pr-3 text-right">Current <MetricLabel name="CPM" /></th>
+              <th className="pb-2 pr-3 text-right">Prior <MetricLabel name="CPM" /></th>
               <th className="pb-2 text-right">Change</th>
             </tr>
           </thead>
@@ -196,8 +198,8 @@ export function D3CtrTrendViz({ data }: { data: Record<string, unknown> }) {
           <thead>
             <tr className="border-b border-border text-left text-[11px] uppercase tracking-wider text-muted-foreground">
               <th className="pb-2 pr-4">Campaign</th>
-              <th className="pb-2 pr-3 text-right">Current CTR</th>
-              <th className="pb-2 pr-3 text-right">Prior CTR</th>
+              <th className="pb-2 pr-3 text-right">Current <MetricLabel name="CTR" /></th>
+              <th className="pb-2 pr-3 text-right">Prior <MetricLabel name="CTR" /></th>
               <th className="pb-2 text-right">Change</th>
             </tr>
           </thead>
@@ -305,7 +307,7 @@ export function D4ConversionRateViz({
                 <th className="pb-2 pr-4">Campaign</th>
                 <th className="pb-2 pr-3 text-right">Clicks</th>
                 <th className="pb-2 pr-3 text-right">Purchases</th>
-                <th className="pb-2 text-right">CVR</th>
+                <th className="pb-2 text-right"><MetricLabel name="CVR" /></th>
               </tr>
             </thead>
             <tbody>
@@ -362,15 +364,23 @@ export function D5PatternMatchViz({
   const d = data as { signals: PatternSignals };
   const s = d.signals;
 
-  const signals = [
+  const signals: {
+    key: string;
+    label: ReactNode;
+    value: string;
+    flagged: boolean;
+    direction: string;
+  }[] = [
     {
-      label: "7-Day Frequency",
+      key: "frequency",
+      label: <>7-Day <MetricLabel name="Frequency" /></>,
       value: s.frequency_7d.toFixed(1),
       flagged: s.frequency_flagged,
       direction: s.frequency_flagged ? "high" : "normal",
     },
     {
-      label: "CPM Change",
+      key: "cpm-change",
+      label: <><MetricLabel name="CPM" /> Change</>,
       value:
         s.cpm_change_pct !== null
           ? `${(s.cpm_change_pct * 100).toFixed(1)}%`
@@ -379,7 +389,8 @@ export function D5PatternMatchViz({
       direction: s.cpm_flagged ? "up" : "stable",
     },
     {
-      label: "CTR Change",
+      key: "ctr-change",
+      label: <><MetricLabel name="CTR" /> Change</>,
       value:
         s.ctr_change_pct !== null
           ? `${(s.ctr_change_pct * 100).toFixed(1)}%`
@@ -388,19 +399,22 @@ export function D5PatternMatchViz({
       direction: s.ctr_flagged ? "down" : "stable",
     },
     {
-      label: "Conversion Rate",
+      key: "conversion-rate",
+      label: <MetricLabel name="CVR" display="Conversion Rate" />,
       value: pct(s.conversion_rate),
       flagged: false,
       direction: "info",
     },
     {
-      label: "Prospecting CPA",
+      key: "prospecting-cpa",
+      label: <>Prospecting <MetricLabel name="CPA" /></>,
       value: s.prospecting_cpa > 0 ? usd2.format(s.prospecting_cpa) : "N/A",
       flagged: s.prospecting_cpa > 9,
       direction: s.prospecting_cpa > 9 ? "high" : "normal",
     },
     {
-      label: "Retargeting CPA",
+      key: "retargeting-cpa",
+      label: <>Retargeting <MetricLabel name="CPA" /></>,
       value: s.retargeting_cpa > 0 ? usd2.format(s.retargeting_cpa) : "N/A",
       flagged: s.retargeting_cpa > s.prospecting_cpa && s.retargeting_cpa > 0,
       direction:
@@ -418,7 +432,7 @@ export function D5PatternMatchViz({
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {signals.map((sig) => (
           <div
-            key={sig.label}
+            key={sig.key}
             className={`rounded-md border px-3 py-2 ${sig.flagged ? "border-red-500/20 bg-red-500/5" : "border-border bg-muted/30"}`}
           >
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground">

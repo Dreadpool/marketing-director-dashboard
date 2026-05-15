@@ -23,6 +23,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { AdSetAnalyzePanel } from "@/components/workflows/adset-analyze-panel";
+import { MetricLabel } from "@/components/workflows/metric-label";
 import { cpaColor, roasColor } from "@/lib/utils/meta-ads-formatting";
 import type {
   MetaAdsMetrics,
@@ -570,10 +571,10 @@ function CampaignTable({
           <tr className="border-b border-border text-left text-[11px] uppercase tracking-wider text-muted-foreground">
             <th className="pb-2 pr-4">Campaign</th>
             <th className="pb-2 pr-3 text-right">Spend</th>
-            <th className="pb-2 pr-3 text-right">CPA</th>
-            <th className="pb-2 pr-3 text-right">ROAS</th>
+            <th className="pb-2 pr-3 text-right"><MetricLabel name="CPA" /></th>
+            <th className="pb-2 pr-3 text-right"><MetricLabel name="ROAS" /></th>
             <th className="pb-2 pr-3 text-right">Purchases</th>
-            <th className="pb-2 text-right">Freq</th>
+            <th className="pb-2 text-right"><MetricLabel name="Frequency" display="Freq" /></th>
           </tr>
         </thead>
         <tbody>
@@ -777,7 +778,7 @@ function CampaignTable({
                                 </td>
                                 <td className="py-1.5 pr-3 text-right tabular-nums text-muted-foreground/60">
                                   {ad.clicks > 0 ? (
-                                    <span><span className="text-[10px] text-muted-foreground/40">CVR </span>{pct((ad.purchases / ad.clicks) * 100)}</span>
+                                    <span><MetricLabel name="CVR" className="text-[10px] text-muted-foreground/40 mr-1" />{pct((ad.purchases / ad.clicks) * 100)}</span>
                                   ) : "—"}
                                 </td>
                                 <td className="py-1.5 pr-3 text-right tabular-nums text-muted-foreground/60">
@@ -791,7 +792,7 @@ function CampaignTable({
                                           direction={adTrend.trend.ctr_direction}
                                         />
                                       )}
-                                      <span className="text-[10px] text-muted-foreground/40">CTR </span>
+                                      <MetricLabel name="CTR" className="text-[10px] text-muted-foreground/40 mr-1" />
                                       {pct((ad.clicks / ad.impressions) * 100)}
                                     </span>
                                   ) : (
@@ -857,8 +858,8 @@ function HiringTable({ campaigns }: { campaigns: MetaAdsCampaignRow[] }) {
             <th className="pb-2 pr-3 text-right">Spend</th>
             <th className="pb-2 pr-3 text-right">Impressions</th>
             <th className="pb-2 pr-3 text-right">Clicks</th>
-            <th className="pb-2 pr-3 text-right">CTR</th>
-            <th className="pb-2 text-right">Freq</th>
+            <th className="pb-2 pr-3 text-right"><MetricLabel name="CTR" /></th>
+            <th className="pb-2 text-right"><MetricLabel name="Frequency" display="Freq" /></th>
           </tr>
         </thead>
         <tbody>
@@ -940,10 +941,10 @@ function AdTable({ ads }: { ads: MetaAdsAdRow[] }) {
           <tr className="border-b border-border text-left text-[11px] uppercase tracking-wider text-muted-foreground">
             <th className="pb-2 pr-4">Ad</th>
             <th className="pb-2 pr-3 text-right">Spend</th>
-            <th className="pb-2 pr-3 text-right">CPA</th>
-            <th className="pb-2 pr-3 text-right">ROAS</th>
-            <th className="pb-2 pr-3 text-right">Hook</th>
-            <th className="pb-2 text-right">Hold</th>
+            <th className="pb-2 pr-3 text-right"><MetricLabel name="CPA" /></th>
+            <th className="pb-2 pr-3 text-right"><MetricLabel name="ROAS" /></th>
+            <th className="pb-2 pr-3 text-right"><MetricLabel name="HookRate" display="Hook" /></th>
+            <th className="pb-2 text-right"><MetricLabel name="HoldRate" display="Hold" /></th>
           </tr>
         </thead>
         <tbody>
@@ -1027,7 +1028,7 @@ function BreakdownTable({ rows }: { rows: MetaAdsBreakdownRow[] }) {
             <th className="pb-2 pr-4">Segment</th>
             <th className="pb-2 pr-3 text-right">Spend</th>
             <th className="pb-2 pr-3 text-right">Purchases</th>
-            <th className="pb-2 pr-3 text-right">CPA</th>
+            <th className="pb-2 pr-3 text-right"><MetricLabel name="CPA" /></th>
             <th className="pb-2 text-right">Efficiency</th>
           </tr>
         </thead>
