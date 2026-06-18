@@ -25,7 +25,7 @@ async function getAccessToken(): Promise<string> {
 }
 
 /** Execute a GAQL query via the Google Ads REST API. */
-async function gaqlQuery(query: string): Promise<Record<string, unknown>[]> {
+export async function gaqlQuery(query: string): Promise<Record<string, unknown>[]> {
   const token = await getAccessToken();
 
   const resp = await fetch(

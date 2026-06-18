@@ -177,6 +177,59 @@ async function _getMonthlyInsights(
   return rows;
 }
 
+/** Fetch campaign-level insights for an arbitrary date range */
+export async function getInsightsForDateRange(
+  range: DateRange,
+): Promise<MetaAdsInsightRow[]> {
+  return withRetry(() => _getInsightsForDateRange(range), "campaigns-range");
+}
+
+async function _getInsightsForDateRange(
+  range: DateRange,
+): Promise<MetaAdsInsightRow[]> {
+  const account = getAdAccount();
+
+  const cursor = await account.getInsights(CAMPAIGN_FIELDS, {
+    time_range: { since: range.start, until: range.end },
+    level: "campaign",
+    action_attribution_windows: ["28d_click"],
+  });
+
+  const rows: MetaAdsInsightRow[] = [];
+
+  for (;;) {
+    for (const raw of cursor) {
+      const row = raw as Record<string, unknown>;
+      rows.push({
+        campaign_id: String(row.campaign_id ?? ""),
+        campaign_name: String(row.campaign_name ?? ""),
+        objective: String(row.objective ?? ""),
+        status: String(row.status ?? ""),
+        spend: String(row.spend ?? "0"),
+        impressions: String(row.impressions ?? "0"),
+        clicks: String(row.clicks ?? "0"),
+        reach: String(row.reach ?? "0"),
+        frequency: String(row.frequency ?? "0"),
+        cpm: String(row.cpm ?? "0"),
+        ctr: String(row.ctr ?? "0"),
+        actions: (row.actions as MetaAdsInsightRow["actions"]) ?? [],
+        action_values:
+          (row.action_values as MetaAdsInsightRow["action_values"]) ?? [],
+        date_start: range.start,
+        date_stop: range.end,
+      });
+    }
+
+    if (cursor.hasNext()) {
+      await cursor.next();
+    } else {
+      break;
+    }
+  }
+
+  return rows;
+}
+
 /** Fetch ad-level insights with video metrics for a month */
 export async function getAdInsights(
   period: MonthPeriod,
@@ -226,6 +279,57 @@ async function _getAdInsights(
           (row.video_thruplay_watched_actions as MetaAdsInsightRow["video_thruplay_watched_actions"]) ?? [],
         date_start: start,
         date_stop: end,
+      });
+    }
+
+    if (cursor.hasNext()) {
+      await cursor.next();
+    } else {
+      break;
+    }
+  }
+
+  return rows;
+}
+
+/** Fetch ad-level insights for an arbitrary date range */
+export async function getAdInsightsForDateRange(
+  range: DateRange,
+): Promise<MetaAdsInsightRow[]> {
+  return withRetry(() => _getAdInsightsForDateRange(range), "ads-range");
+}
+
+async function _getAdInsightsForDateRange(
+  range: DateRange,
+): Promise<MetaAdsInsightRow[]> {
+  const account = getAdAccount();
+
+  const cursor = await account.getInsights(AD_FIELDS, {
+    time_range: { since: range.start, until: range.end },
+    level: "ad",
+    action_attribution_windows: ["28d_click"],
+  });
+
+  const rows: MetaAdsInsightRow[] = [];
+
+  for (;;) {
+    for (const raw of cursor) {
+      const row = raw as Record<string, unknown>;
+      rows.push({
+        campaign_id: String(row.campaign_id ?? ""),
+        campaign_name: String(row.campaign_name ?? ""),
+        adset_id: String(row.adset_id ?? ""),
+        ad_id: String(row.ad_id ?? ""),
+        ad_name: String(row.ad_name ?? ""),
+        adset_name: String(row.adset_name ?? ""),
+        spend: String(row.spend ?? "0"),
+        impressions: String(row.impressions ?? "0"),
+        clicks: String(row.clicks ?? "0"),
+        actions: (row.actions as MetaAdsInsightRow["actions"]) ?? [],
+        action_values:
+          (row.action_values as MetaAdsInsightRow["action_values"]) ?? [],
+        date_start: range.start,
+        date_stop: range.end,
       });
     }
 
@@ -353,6 +457,57 @@ async function _getAdSetInsights(
           (row.action_values as MetaAdsInsightRow["action_values"]) ?? [],
         date_start: start,
         date_stop: end,
+      });
+    }
+
+    if (cursor.hasNext()) {
+      await cursor.next();
+    } else {
+      break;
+    }
+  }
+
+  return rows;
+}
+
+/** Fetch ad-set-level insights for an arbitrary date range */
+export async function getAdSetInsightsForDateRange(
+  range: DateRange,
+): Promise<MetaAdsInsightRow[]> {
+  return withRetry(() => _getAdSetInsightsForDateRange(range), "adsets-range");
+}
+
+async function _getAdSetInsightsForDateRange(
+  range: DateRange,
+): Promise<MetaAdsInsightRow[]> {
+  const account = getAdAccount();
+
+  const cursor = await account.getInsights(ADSET_FIELDS, {
+    time_range: { since: range.start, until: range.end },
+    level: "adset",
+    action_attribution_windows: ["28d_click"],
+  });
+
+  const rows: MetaAdsInsightRow[] = [];
+
+  for (;;) {
+    for (const raw of cursor) {
+      const row = raw as Record<string, unknown>;
+      rows.push({
+        campaign_id: String(row.campaign_id ?? ""),
+        campaign_name: String(row.campaign_name ?? ""),
+        adset_id: String(row.adset_id ?? ""),
+        adset_name: String(row.adset_name ?? ""),
+        spend: String(row.spend ?? "0"),
+        impressions: String(row.impressions ?? "0"),
+        clicks: String(row.clicks ?? "0"),
+        reach: String(row.reach ?? "0"),
+        frequency: String(row.frequency ?? "0"),
+        actions: (row.actions as MetaAdsInsightRow["actions"]) ?? [],
+        action_values:
+          (row.action_values as MetaAdsInsightRow["action_values"]) ?? [],
+        date_start: range.start,
+        date_stop: range.end,
       });
     }
 
@@ -502,6 +657,121 @@ async function _getAdCreatives(
   }
 
   return result;
+}
+
+export type MetaAdInventoryRow = {
+  campaign_id: string;
+  campaign_name: string;
+  campaign_status: string;
+  campaign_effective_status: string;
+  adset_id: string;
+  adset_name: string;
+  adset_status: string;
+  adset_effective_status: string;
+  ad_id: string;
+  ad_name: string;
+  ad_status: string;
+  ad_effective_status: string;
+  destination_url: string | null;
+  creative_text: string;
+};
+
+function readSdkData(value: unknown): Record<string, unknown> {
+  if (value == null) return {};
+  const maybeData = value as { _data?: Record<string, unknown> };
+  return maybeData?._data ?? (value as Record<string, unknown>);
+}
+
+function collectCreativeText(value: unknown): string[] {
+  if (value == null) return [];
+  if (typeof value === "string") return [value];
+  if (typeof value === "number" || typeof value === "boolean") return [String(value)];
+  if (Array.isArray(value)) return value.flatMap(collectCreativeText);
+  if (typeof value === "object") {
+    return Object.values(readSdkData(value)).flatMap(collectCreativeText);
+  }
+  return [];
+}
+
+function extractCreativeDestination(creative: Record<string, unknown>): string | null {
+  const direct = creative.link_url ?? creative.object_url;
+  if (typeof direct === "string" && direct.length > 0) return direct;
+
+  const objectStorySpec = readSdkData(creative.object_story_spec);
+  const linkData = readSdkData(objectStorySpec.link_data);
+  const videoData = readSdkData(objectStorySpec.video_data);
+  const templateData = readSdkData(objectStorySpec.template_data);
+  const linkCta = readSdkData(linkData.call_to_action);
+  const linkCtaValue = readSdkData(linkCta.value);
+  const videoCta = readSdkData(videoData.call_to_action);
+  const videoCtaValue = readSdkData(videoCta.value);
+
+  const nested = linkData.link ?? linkCtaValue.link
+    ?? videoCtaValue.link
+    ?? templateData.link;
+  return typeof nested === "string" && nested.length > 0 ? nested : null;
+}
+
+/** Fetch current campaign/ad set/ad inventory for hiring-ad status checks. */
+export async function getAdInventory(): Promise<MetaAdInventoryRow[]> {
+  return withRetry(() => _getAdInventory(), "ad-inventory");
+}
+
+async function _getAdInventory(): Promise<MetaAdInventoryRow[]> {
+  const account = getAdAccount();
+
+  // getAds exists on AdAccount at runtime but lacks complete TypeScript declarations.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cursor = await (account as any).getAds(
+    [
+      "id",
+      "name",
+      "status",
+      "effective_status",
+      "campaign_id",
+      "adset_id",
+      "campaign{name,status,effective_status}",
+      "adset{name,status,effective_status}",
+      "creative{link_url,object_url,title,body}",
+    ],
+    { limit: 200 },
+  );
+
+  const rows: MetaAdInventoryRow[] = [];
+
+  for (;;) {
+    for (const raw of cursor) {
+      const ad = readSdkData(raw);
+      const campaign = readSdkData(ad.campaign);
+      const adset = readSdkData(ad.adset);
+      const creative = readSdkData(ad.creative);
+
+      rows.push({
+        campaign_id: String(ad.campaign_id ?? campaign.id ?? ""),
+        campaign_name: String(campaign.name ?? ""),
+        campaign_status: String(campaign.status ?? ""),
+        campaign_effective_status: String(campaign.effective_status ?? ""),
+        adset_id: String(ad.adset_id ?? adset.id ?? ""),
+        adset_name: String(adset.name ?? ""),
+        adset_status: String(adset.status ?? ""),
+        adset_effective_status: String(adset.effective_status ?? ""),
+        ad_id: String(ad.id ?? ""),
+        ad_name: String(ad.name ?? ""),
+        ad_status: String(ad.status ?? ""),
+        ad_effective_status: String(ad.effective_status ?? ""),
+        destination_url: extractCreativeDestination(creative),
+        creative_text: collectCreativeText(creative).join(" "),
+      });
+    }
+
+    if (cursor.hasNext()) {
+      await cursor.next();
+    } else {
+      break;
+    }
+  }
+
+  return rows;
 }
 
 /**
