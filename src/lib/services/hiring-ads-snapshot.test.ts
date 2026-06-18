@@ -50,4 +50,13 @@ describe("hiring ads snapshot rendering", () => {
     expect(html).not.toContain("$457.91");
     expect(html).not.toContain("3,052");
   });
+
+  it("renders email as a Gmail-safe HTML fragment", () => {
+    const html = renderHiringAdsEmail(typeOnlyPreviewSnapshot(new Date("2026-06-18T12:00:00.000Z")));
+
+    expect(html).not.toContain("<style");
+    expect(html).not.toContain("<html");
+    expect(html).not.toContain("<body");
+    expect(html).toContain("style=");
+  });
 });

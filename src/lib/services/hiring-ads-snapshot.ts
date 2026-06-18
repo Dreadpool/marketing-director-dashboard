@@ -770,50 +770,62 @@ function renderRows(rows: HiringPlatformRow[]): string {
   `).join("");
 }
 
+function emailStatusStyle(status: HiringStatus): string {
+  if (status === "Active") return "background:#dcfce7;color:#166534;";
+  if (status === "Inactive") return "background:#f4f4f5;color:#52525b;";
+  return "background:#fef3c7;color:#92400e;";
+}
+
+function renderEmailRows(rows: HiringPlatformRow[]): string {
+  const cell = "padding:11px 10px;border-bottom:1px solid #e5e7eb;vertical-align:top;font-size:13px;line-height:1.35;color:#27272a;";
+  const rightCell = `${cell}text-align:right;white-space:nowrap;`;
+  return rows.map((row) => `
+    <tr>
+      <td style="${cell}font-weight:700;">${escapeHtml(row.market)}</td>
+      <td style="${cell}">${escapeHtml(row.platform)}</td>
+      <td style="${cell}"><span style="display:inline-block;padding:4px 9px;border-radius:999px;font-size:12px;font-weight:700;${emailStatusStyle(row.status)}">${escapeHtml(row.status)}</span></td>
+      <td style="${rightCell}">${escapeHtml(usd(row.spend))}</td>
+      <td style="${rightCell}">${escapeHtml(integer(row.impressions))}</td>
+      <td style="${rightCell}">${escapeHtml(integer(row.clicks))}</td>
+      <td style="${cell}">${escapeHtml(row.hiringConversionRate)}</td>
+      <td style="${cell}">${escapeHtml(row.notes)}</td>
+    </tr>
+  `).join("");
+}
+
 export function renderHiringAdsEmail(snapshot: HiringAdSnapshot, aiSummaryHtml?: string): string {
   const lead = snapshot.actionSummary[0] ?? "Hiring ads snapshot generated.";
+  const safeReportUrl = safeUrl(snapshot.reportUrl);
   const fullReportLine = snapshot.reportUrl
-    ? `<p style="margin-top:16px;"><a class="link" href="${escapeHtml(safeUrl(snapshot.reportUrl) ?? "#")}">Open full report</a></p>`
-    : `<p class="note">The full HTML report is attached.</p>`;
+    ? `<p style="margin:16px 0 0 0;font-size:14px;line-height:1.45;color:#3f3f46;"><a href="${escapeHtml(safeReportUrl ?? "#")}" style="color:#1e6fad;font-weight:700;text-decoration:none;">Open full report</a></p>`
+    : `<div style="margin-top:14px;padding:12px;background:#fafafa;border:1px solid #e4e4e7;color:#52525b;font-size:13px;line-height:1.45;">The full HTML report is attached.</div>`;
+  const muted = "color:#52525b;font-size:14px;line-height:1.45;";
+  const label = "color:#71717a;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;";
+  const tableHead = "padding:9px 10px;border-bottom:1px solid #d4d4d8;color:#71717a;font-size:11px;font-weight:700;letter-spacing:.7px;text-align:left;text-transform:uppercase;";
+  const tableHeadRight = `${tableHead}text-align:right;`;
 
   return `
-    <style>
-      body{font-family:Arial,Helvetica,sans-serif;color:#18181b}
-      p{color:#3f3f46;font-size:15px;line-height:1.5}
-      .eyebrow{color:#a16207;font-size:12px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase}
-      h1{font-size:24px;line-height:1.2;margin:8px 0 6px}
-      .summary{width:100%;border-collapse:collapse;margin-top:18px}
-      .summary td{width:33.333%;padding:14px;border:1px solid #e4e4e7;vertical-align:top}
-      .label{color:#71717a;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase}
-      .value{margin-top:6px;color:#18181b;font-size:20px;font-weight:700}
-      table.report{width:100%;margin-top:14px;border-collapse:collapse;font-size:14px}
-      table.report th{padding:10px;border-bottom:1px solid #d4d4d8;color:#71717a;font-size:11px;letter-spacing:1px;text-align:left;text-transform:uppercase}
-      table.report td{padding:12px 10px;border-bottom:1px solid #ececef;vertical-align:top}
-      .right{text-align:right}
-      .pill{display:inline-block;padding:4px 9px;border-radius:999px;font-size:12px;font-weight:700}
-      .active{background:#dcfce7;color:#166534}.inactive{background:#f4f4f5;color:#52525b}.review{background:#fef3c7;color:#92400e}
-      .note{margin-top:14px;padding:12px;background:#fafafa;border:1px solid #e4e4e7;color:#52525b;font-size:13px}
-      .link{color:#0f766e;font-weight:700;text-decoration:none}
-    </style>
-    <div class="eyebrow">Salt Lake Express</div>
-    <h1>Weekly Hiring Ads Snapshot</h1>
-    <p>Report period: ${escapeHtml(snapshot.reportPeriodLabel)}. Generated ${escapeHtml(snapshot.generatedAt)}.</p>
-    <p><strong>${escapeHtml(lead)}</strong></p>
-    ${aiSummaryHtml ? `<div class="note">${aiSummaryHtml}</div>` : ""}
-    <table class="summary" role="presentation">
+    <div style="font-family:Arial,Helvetica,sans-serif;color:#18181b;max-width:960px;">
+    <div style="color:#1e6fad;font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;">Salt Lake Express</div>
+    <h1 style="margin:8px 0 6px 0;font-size:24px;line-height:1.2;color:#18181b;">Weekly Hiring Ads Snapshot</h1>
+    <p style="margin:0 0 12px 0;${muted}">Report period: ${escapeHtml(snapshot.reportPeriodLabel)}. Generated ${escapeHtml(snapshot.generatedAt)}.</p>
+    <p style="margin:0 0 14px 0;color:#18181b;font-size:15px;line-height:1.45;"><strong>${escapeHtml(lead)}</strong></p>
+    ${aiSummaryHtml ? `<div style="margin:14px 0;padding:12px 14px;background:#f3f7fb;border-left:3px solid #1e6fad;color:#3f3f46;font-size:13px;line-height:1.45;">${aiSummaryHtml}</div>` : ""}
+    <table role="presentation" style="width:100%;border-collapse:collapse;margin-top:16px;">
       <tr>
-        <td><div class="label">Active markets</div><div class="value">${escapeHtml(activeMarketDisplay(snapshot))}</div></td>
-        <td><div class="label">Period spend</div><div class="value">${escapeHtml(periodSpendDisplay(snapshot))}</div></td>
-        <td><div class="label">Hiring conversion rate</div><div class="value">Not tracked</div></td>
+        <td style="width:33.333%;padding:13px;border:1px solid #e4e4e7;vertical-align:top;"><div style="${label}">Active markets</div><div style="margin-top:6px;color:#18181b;font-size:20px;font-weight:700;">${escapeHtml(activeMarketDisplay(snapshot))}</div></td>
+        <td style="width:33.333%;padding:13px;border:1px solid #e4e4e7;vertical-align:top;"><div style="${label}">Period spend</div><div style="margin-top:6px;color:#18181b;font-size:20px;font-weight:700;">${escapeHtml(periodSpendDisplay(snapshot))}</div></td>
+        <td style="width:33.333%;padding:13px;border:1px solid #e4e4e7;vertical-align:top;"><div style="${label}">Hiring conversion rate</div><div style="margin-top:6px;color:#18181b;font-size:20px;font-weight:700;">Not tracked</div></td>
       </tr>
     </table>
-    <table class="report">
-      <thead><tr><th>Market</th><th>Platform</th><th>Status</th><th class="right">Spend</th><th class="right">Shown</th><th class="right">Clicks</th><th>Tracking</th><th>Note</th></tr></thead>
-      <tbody>${renderRows(snapshot.rows)}</tbody>
+    <table style="width:100%;margin-top:14px;border-collapse:collapse;">
+      <thead><tr><th style="${tableHead}">Market</th><th style="${tableHead}">Platform</th><th style="${tableHead}">Status</th><th style="${tableHeadRight}">Spend</th><th style="${tableHeadRight}">Shown</th><th style="${tableHeadRight}">Clicks</th><th style="${tableHead}">Tracking</th><th style="${tableHead}">Note</th></tr></thead>
+      <tbody>${renderEmailRows(snapshot.rows)}</tbody>
     </table>
-    ${snapshot.unmappedHiringAds.length > 0 ? `<p class="note">${escapeHtml(snapshot.unmappedHiringAds.length)} unmapped hiring ad${snapshot.unmappedHiringAds.length === 1 ? "" : "s"} need market review. See the full report.</p>` : ""}
-    <p class="note">Hiring conversion rate is shown only when completed hiring applications are connected to the ad platform. Clicks to IntelliApp alone do not prove applications.</p>
+    ${snapshot.unmappedHiringAds.length > 0 ? `<div style="margin-top:14px;padding:12px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-size:13px;line-height:1.45;">${escapeHtml(snapshot.unmappedHiringAds.length)} unmapped hiring ad${snapshot.unmappedHiringAds.length === 1 ? "" : "s"} need market review. See the full report.</div>` : ""}
+    <div style="margin-top:14px;padding:12px;background:#fafafa;border:1px solid #e4e4e7;color:#52525b;font-size:13px;line-height:1.45;">Hiring conversion rate is not available yet because completed hiring applications are not tied back cleanly from Tenstreet/IntelliApp into the ad platforms. Drew is working with Tenstreet to get that sorted out.</div>
     ${fullReportLine}
+    </div>
   `;
 }
 
