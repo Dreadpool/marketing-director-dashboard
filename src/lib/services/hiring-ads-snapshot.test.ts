@@ -84,4 +84,27 @@ describe("hiring ads snapshot rendering", () => {
     expect(eml).toContain("Content-Type: text/html; charset=UTF-8");
     expect(eml).toContain("Content-Disposition: attachment; filename=\"full-report.html\"");
   });
+
+  it("links to the full report when reportUrl is available", () => {
+    const snapshot = {
+      ...typeOnlyPreviewSnapshot(new Date("2026-06-18T12:00:00.000Z")),
+      reportUrl: "https://share-artifacts.vercel.app/sle-hiring-ads/example/",
+    };
+    const html = renderHiringAdsEmail(snapshot);
+    const text = renderHiringAdsText(snapshot);
+    const eml = renderHiringAdsEml({
+      from: "Brady Price <brady.price@saltlakeexpress.com>",
+      to: "Greg Hendricks <greg.hendricks@saltlakeexpress.com>",
+      cc: "Brady Price <brady.price@saltlakeexpress.com>",
+      subject: "Weekly hiring ads snapshot",
+      text,
+      html,
+    });
+
+    expect(html).toContain("Open full report");
+    expect(html).toContain(snapshot.reportUrl);
+    expect(text).toContain(`Open full report: ${snapshot.reportUrl}`);
+    expect(eml).toContain("Content-Type: multipart/alternative");
+    expect(eml).not.toContain("Content-Disposition: attachment");
+  });
 });

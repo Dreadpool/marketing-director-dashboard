@@ -860,7 +860,7 @@ export function renderHiringAdsText(snapshot: HiringAdSnapshot): string {
   }
 
   lines.push("Hiring conversion rate is not available yet because completed hiring applications are not tied back cleanly from Tenstreet/IntelliApp into the ad platforms. Drew is working with Tenstreet to get that sorted out.");
-  lines.push("The full HTML report is attached.");
+  lines.push(snapshot.reportUrl ? `Open full report: ${snapshot.reportUrl}` : "The full HTML report is attached.");
 
   return lines.join("\n");
 }

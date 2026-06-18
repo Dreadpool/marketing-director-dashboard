@@ -1,4 +1,5 @@
 import { execFile, spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { constants as fsConstants } from "node:fs";
 import {
   access,
@@ -25,6 +26,9 @@ const DEFAULT_AUTOMATION_HOME = path.join(
 const REPO_DIR = "/Users/brady/workspace/sle/products/marketing-director-dashboard";
 const CODEX_BIN = "/Users/brady/.npm-global/bin/codex";
 const GWS_SLE = "/Users/brady/.agents/skills/gws/scripts/gws-sle";
+const VERCEL_BIN = "/Users/brady/.npm-global/bin/vercel";
+const SHARE_ARTIFACTS_DIR = "/Users/brady/workspace/references/share-artifacts";
+const SHARE_ARTIFACTS_BASE_URL = "https://share-artifacts.vercel.app";
 const FROM = "Brady Price <brady.price@saltlakeexpress.com>";
 const TO = "Greg Hendricks <greg.hendricks@saltlakeexpress.com>";
 const CC = [
@@ -128,6 +132,27 @@ function cleanProcessEnv(): NodeJS.ProcessEnv {
     PATH: "/Users/brady/.npm-global/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
     TZ: "America/Denver",
   };
+}
+
+function createReportPublication(periodKey: string): { filePath: string; url: string } {
+  const slug = `${periodKey}-${randomBytes(6).toString("hex")}`;
+  const relativePath = path.join("sle-hiring-ads", slug, "index.html");
+  return {
+    filePath: path.join(SHARE_ARTIFACTS_DIR, relativePath),
+    url: `${SHARE_ARTIFACTS_BASE_URL}/sle-hiring-ads/${slug}/`,
+  };
+}
+
+async function publishFullReport(html: string, publication: { filePath: string; url: string }): Promise<string> {
+  await mkdir(path.dirname(publication.filePath), { recursive: true });
+  await writeFile(publication.filePath, html, "utf8");
+  await execFileAsync(VERCEL_BIN, ["deploy", "--prod", "--yes", "--scope", "dreadpools-projects"], {
+    cwd: SHARE_ARTIFACTS_DIR,
+    env: cleanProcessEnv(),
+    timeout: 300000,
+    maxBuffer: 1024 * 1024 * 4,
+  });
+  return publication.url;
 }
 
 function firstMessageId(value: unknown): string | null {
@@ -427,7 +452,10 @@ async function run(options: CliOptions): Promise<void> {
     const runDir = path.join(options.automationHome, "outputs", schedule.periodKey);
     await mkdir(runDir, { recursive: true, mode: 0o700 });
 
-    const snapshot = await collectHiringAdSnapshot();
+    const publication = createReportPublication(schedule.periodKey);
+    const snapshot = await collectHiringAdSnapshot({
+      reportUrl: options.dryRun ? null : publication.url,
+    });
     const dataPath = path.join(runDir, "report-data.json");
     await writePrivateJson(dataPath, snapshot);
 
@@ -442,6 +470,9 @@ async function run(options: CliOptions): Promise<void> {
 
     const aiSummaryHtml = summaryItemsToHtml(codexItems, escapeHtml);
     const fullReportHtml = renderHiringAdsFullReport(snapshot, aiSummaryHtml);
+    if (!options.dryRun) {
+      await publishFullReport(fullReportHtml, publication);
+    }
     const emailHtml = renderHiringAdsEmail(snapshot);
     const emailText = renderHiringAdsText(snapshot);
     const subject = `Weekly hiring ads snapshot - ${snapshot.reportPeriodLabel}`;
@@ -459,11 +490,13 @@ async function run(options: CliOptions): Promise<void> {
       subject,
       text: emailText,
       html: emailHtml,
-      attachment: {
-        filename: "full-report.html",
-        contentType: "text/html; charset=UTF-8",
-        base64: Buffer.from(fullReportHtml, "utf8").toString("base64"),
-      },
+      attachment: snapshot.reportUrl
+        ? undefined
+        : {
+          filename: "full-report.html",
+          contentType: "text/html; charset=UTF-8",
+          base64: Buffer.from(fullReportHtml, "utf8").toString("base64"),
+        },
     });
     await writePrivateText(emlPath, rawEmail);
 
