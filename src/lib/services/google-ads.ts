@@ -5,7 +5,7 @@ import type { GoogleAdsCampaignRow } from "@/lib/schemas/sources/google-ads";
 const DEVELOPER_TOKEN = process.env.GOOGLE_ADS_DEVELOPER_TOKEN ?? "";
 const LOGIN_CUSTOMER_ID = process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID ?? "4381990003";
 const CUSTOMER_ID = process.env.GOOGLE_ADS_CUSTOMER_ID ?? "7716669181";
-const API_VERSION = "v20";
+const API_VERSION = "v24";
 
 export type ConnectionStatus = {
   ok: boolean;
@@ -24,7 +24,7 @@ async function getAccessToken(): Promise<string> {
   return token;
 }
 
-/** Execute a GAQL query via the Google Ads REST API (v20) */
+/** Execute a GAQL query via the Google Ads REST API. */
 async function gaqlQuery(query: string): Promise<Record<string, unknown>[]> {
   const token = await getAccessToken();
 
