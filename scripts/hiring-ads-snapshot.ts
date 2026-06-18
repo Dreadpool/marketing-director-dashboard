@@ -168,42 +168,32 @@ async function searchSentMail(subject: string): Promise<string | null> {
 }
 
 async function sendEmail(args: {
-  subject: string;
-  html: string;
-  fullReportPath: string;
+  rawMessage: string;
   dryRun: boolean;
 }): Promise<{ sent: boolean; messageId: string | null; draft: boolean; error?: string }> {
-  const baseArgs = [
+  const raw = Buffer.from(args.rawMessage, "utf8")
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+  const sendArgs = [
     "gmail",
-    "+send",
-    "--to",
-    TO,
-    "--cc",
-    CC,
-    "--subject",
-    args.subject,
-    "--body",
-    args.html,
-    "--html",
-    "--attach",
-    path.basename(args.fullReportPath),
+    "users",
+    "messages",
+    "send",
+    "--params",
+    JSON.stringify({ userId: "me" }),
+    "--json",
+    JSON.stringify({ raw }),
   ];
-  const emailCwd = path.dirname(args.fullReportPath);
 
   if (args.dryRun) {
-    await execFileAsync(GWS_SLE, [...baseArgs, "--dry-run"], {
-      env: cleanProcessEnv(),
-      cwd: emailCwd,
-      timeout: 60000,
-      maxBuffer: 1024 * 1024,
-    });
     return { sent: false, messageId: null, draft: false };
   }
 
   try {
-    const { stdout } = await execFileAsync(GWS_SLE, baseArgs, {
+    const { stdout } = await execFileAsync(GWS_SLE, sendArgs, {
       env: cleanProcessEnv(),
-      cwd: emailCwd,
       timeout: 120000,
       maxBuffer: 1024 * 1024,
     });
@@ -216,9 +206,17 @@ async function sendEmail(args: {
     return { sent: true, messageId, draft: false };
   } catch (sendErr) {
     try {
-      const { stdout } = await execFileAsync(GWS_SLE, [...baseArgs, "--draft"], {
+      const { stdout } = await execFileAsync(GWS_SLE, [
+        "gmail",
+        "users",
+        "drafts",
+        "create",
+        "--params",
+        JSON.stringify({ userId: "me" }),
+        "--json",
+        JSON.stringify({ message: { raw } }),
+      ], {
         env: cleanProcessEnv(),
-        cwd: emailCwd,
         timeout: 120000,
         maxBuffer: 1024 * 1024,
       });
@@ -404,6 +402,7 @@ async function run(options: CliOptions): Promise<void> {
     renderHiringAdsEmail,
     renderHiringAdsEml,
     renderHiringAdsFullReport,
+    renderHiringAdsText,
     shouldRunWeeklySnapshot,
   } = await import("../src/lib/services/hiring-ads-snapshot");
 
@@ -444,19 +443,29 @@ async function run(options: CliOptions): Promise<void> {
     const aiSummaryHtml = summaryItemsToHtml(codexItems, escapeHtml);
     const fullReportHtml = renderHiringAdsFullReport(snapshot, aiSummaryHtml);
     const emailHtml = renderHiringAdsEmail(snapshot);
+    const emailText = renderHiringAdsText(snapshot);
     const subject = `Weekly hiring ads snapshot - ${snapshot.reportPeriodLabel}`;
     const fullReportPath = path.join(runDir, "full-report.html");
     const emailPath = path.join(runDir, "email.html");
+    const emailTextPath = path.join(runDir, "email.txt");
     const emlPath = path.join(runDir, "email.eml");
     await writePrivateText(fullReportPath, fullReportHtml);
     await writePrivateText(emailPath, emailHtml);
-    await writePrivateText(emlPath, renderHiringAdsEml({
+    await writePrivateText(emailTextPath, emailText);
+    const rawEmail = renderHiringAdsEml({
       from: FROM,
       to: TO,
       cc: CC,
       subject,
+      text: emailText,
       html: emailHtml,
-    }));
+      attachment: {
+        filename: "full-report.html",
+        contentType: "text/html; charset=UTF-8",
+        base64: Buffer.from(fullReportHtml, "utf8").toString("base64"),
+      },
+    });
+    await writePrivateText(emlPath, rawEmail);
 
     const sentId = options.force ? null : await searchSentMail(subject).catch(() => null);
     if (sentId) {
@@ -472,9 +481,7 @@ async function run(options: CliOptions): Promise<void> {
     }
 
     const sendResult = await sendEmail({
-      subject,
-      html: emailHtml,
-      fullReportPath,
+      rawMessage: rawEmail,
       dryRun: options.dryRun,
     });
 

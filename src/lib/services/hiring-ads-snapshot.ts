@@ -829,6 +829,42 @@ export function renderHiringAdsEmail(snapshot: HiringAdSnapshot, aiSummaryHtml?:
   `;
 }
 
+export function renderHiringAdsText(snapshot: HiringAdSnapshot): string {
+  const lines = [
+    "Weekly Hiring Ads Snapshot",
+    `Report period: ${snapshot.reportPeriodLabel}`,
+    "",
+    snapshot.actionSummary[0] ?? "Hiring ads snapshot generated.",
+    "",
+    `Active markets: ${activeMarketDisplay(snapshot)}`,
+    `Period spend: ${periodSpendDisplay(snapshot)}`,
+    "Hiring conversion rate: Not tracked",
+    "",
+    "Market | Platform | Status | Spend | Shown | Clicks | Tracking | Note",
+    ...snapshot.rows.map((row) => [
+      row.market,
+      row.platform,
+      row.status,
+      usd(row.spend),
+      integer(row.impressions),
+      integer(row.clicks),
+      row.hiringConversionRate,
+      row.notes,
+    ].join(" | ")),
+    "",
+  ];
+
+  if (snapshot.unmappedHiringAds.length > 0) {
+    lines.push(`${snapshot.unmappedHiringAds.length} unmapped hiring ad${snapshot.unmappedHiringAds.length === 1 ? "" : "s"} need market review. See the full report.`);
+    lines.push("");
+  }
+
+  lines.push("Hiring conversion rate is not available yet because completed hiring applications are not tied back cleanly from Tenstreet/IntelliApp into the ad platforms. Drew is working with Tenstreet to get that sorted out.");
+  lines.push("The full HTML report is attached.");
+
+  return lines.join("\n");
+}
+
 function renderSourceFetches(snapshot: HiringAdSnapshot): string {
   return snapshot.sourceFetches.map((fetch) => `
     <tr>
@@ -960,16 +996,62 @@ export function renderHiringAdsEml(args: {
   to: string;
   cc: string;
   subject: string;
+  text: string;
   html: string;
+  attachment?: {
+    filename: string;
+    contentType: string;
+    base64: string;
+  };
 }): string {
-  return [
+  const alternativeBoundary = "sle-hiring-ads-alt";
+  const mixedBoundary = "sle-hiring-ads-mixed";
+  const wrapBase64 = (value: string) => value.replace(/(.{76})/g, "$1\r\n");
+  const alternativePart = [
+    `--${alternativeBoundary}`,
+    "Content-Type: text/plain; charset=UTF-8",
+    "Content-Transfer-Encoding: 8bit",
+    "",
+    args.text,
+    `--${alternativeBoundary}`,
+    "Content-Type: text/html; charset=UTF-8",
+    "Content-Transfer-Encoding: 8bit",
+    "",
+    args.html,
+    `--${alternativeBoundary}--`,
+  ].join("\r\n");
+
+  const headers = [
     `From: ${args.from}`,
     `To: ${args.to}`,
     `Cc: ${args.cc}`,
     `Subject: ${args.subject}`,
     "MIME-Version: 1.0",
-    "Content-Type: text/html; charset=UTF-8",
+  ];
+
+  if (!args.attachment) {
+    return [
+      ...headers,
+      `Content-Type: multipart/alternative; boundary="${alternativeBoundary}"`,
+      "",
+      alternativePart,
+    ].join("\r\n");
+  }
+
+  return [
+    ...headers,
+    `Content-Type: multipart/mixed; boundary="${mixedBoundary}"`,
     "",
-    args.html,
-  ].join("\n");
+    `--${mixedBoundary}`,
+    `Content-Type: multipart/alternative; boundary="${alternativeBoundary}"`,
+    "",
+    alternativePart,
+    `--${mixedBoundary}`,
+    `Content-Type: ${args.attachment.contentType}; name="${args.attachment.filename}"`,
+    `Content-Disposition: attachment; filename="${args.attachment.filename}"`,
+    "Content-Transfer-Encoding: base64",
+    "",
+    wrapBase64(args.attachment.base64),
+    `--${mixedBoundary}--`,
+  ].join("\r\n");
 }
