@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  __hiringAdsSnapshotTest,
   escapeHtml,
   getPreviousMondaySunday,
   renderHiringAdsEmail,
@@ -34,6 +35,13 @@ describe("hiring ads snapshot scheduling", () => {
 
     expect(due.shouldRun).toBe(false);
     expect(due.reason).toContain("already sent");
+  });
+
+  it("still runs after the Monday 9 AM window if the period has not been sent", () => {
+    const late = shouldRunWeeklySnapshot({}, { now: new Date("2026-06-17T15:00:00.000Z") });
+
+    expect(late.shouldRun).toBe(true);
+    expect(late.periodKey).toBe("2026-06-08_to_2026-06-14");
   });
 });
 
@@ -106,5 +114,79 @@ describe("hiring ads snapshot rendering", () => {
     expect(text).toContain(`Open full report: ${snapshot.reportUrl}`);
     expect(eml).toContain("Content-Type: multipart/alternative");
     expect(eml).not.toContain("Content-Disposition: attachment");
+  });
+
+  it("shows unknown mapped spend and clicks when a platform fetch fails", () => {
+    const snapshot = {
+      ...typeOnlyPreviewSnapshot(new Date("2026-06-18T12:00:00.000Z")),
+      sourceFetches: [
+        {
+          source: "Google Ads" as const,
+          status: "error" as const,
+          fetchedAt: "2026-06-18T12:00:00.000Z",
+          message: "API unavailable",
+        },
+      ],
+      rows: [
+        {
+          market: "Omak, WA",
+          platform: "Google Ads" as const,
+          status: "Needs review" as const,
+          reason: "fetch_failed" as const,
+          spend: null,
+          impressions: null,
+          clicks: null,
+          hiringConversionRate: "Unknown" as const,
+          notes: "Google Ads fetch failed: API unavailable",
+          sourceIds: [],
+        },
+      ],
+    };
+
+    const text = renderHiringAdsText(snapshot);
+
+    expect(text).toContain("Mapped spend: Unknown");
+    expect(text).toContain("Mapped clicks: Unknown");
+    expect(text).not.toContain("Mapped spend: $0");
+  });
+
+  it("keeps confidently detected hiring markets outside the requested list", () => {
+    const rows = __hiringAdsSnapshotTest.aggregateRows([
+      {
+        platform: "Google Ads",
+        market: "Boise, ID",
+        name: "Boise Driver Hiring",
+        entityStatus: "ENABLED",
+        eligible: true,
+        spend: 12.34,
+        impressions: 456,
+        clicks: 7,
+        destinationUrl: "https://example.com/apply",
+        sourceId: "ad:boise",
+        notes: ["Matched by ad text."],
+      },
+    ], [
+      {
+        source: "Google Ads",
+        status: "ok",
+        fetchedAt: "2026-06-18T12:00:00.000Z",
+      },
+      {
+        source: "Meta Ads",
+        status: "ok",
+        fetchedAt: "2026-06-18T12:00:00.000Z",
+      },
+    ]);
+
+    expect(rows.some((row) => row.market === "Boise, ID" && row.platform === "Google Ads" && row.status === "Active")).toBe(true);
+    expect(rows.some((row) => row.market === "Boise, ID" && row.platform === "Meta Ads" && row.status === "Inactive")).toBe(true);
+  });
+
+  it("detects known hiring-market city names without state abbreviations", () => {
+    expect(__hiringAdsSnapshotTest.detectMarket("Hiring Campaign / Great Falls Drivers")).toBe("Great Falls, MT");
+    expect(__hiringAdsSnapshotTest.detectMarket("SLE-Hiring-SLC / Salt Lake City - M")).toBe("Salt Lake City, UT");
+    expect(__hiringAdsSnapshotTest.detectMarket("Drivers Wanted Rexburg Aug Sep Oct")).toBe("Rexburg, ID");
+    expect(__hiringAdsSnapshotTest.detectMarket("Salt Lake Express is hiring drivers")).toBe(null);
+    expect(__hiringAdsSnapshotTest.detectMarket("All Hiring ID drivers")).toBe(null);
   });
 });

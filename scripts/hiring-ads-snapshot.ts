@@ -7,6 +7,7 @@ import {
   mkdir,
   readFile,
   rm,
+  stat,
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
@@ -36,6 +37,7 @@ const CC = [
   "Brady Price <brady.price@saltlakeexpress.com>",
   "Drew Stone <drew@growmyads.com>",
 ].join(", ");
+const LOCK_STALE_MS = 6 * 60 * 60 * 1000;
 
 type CliOptions = {
   automationHome: string;
@@ -50,6 +52,10 @@ type State = {
   lastSentMessageId?: string;
   lastSuccessAt?: string;
   lastSubject?: string;
+  lastDraftPeriodKey?: string;
+  lastDraftMessageId?: string;
+  lastDraftAt?: string;
+  lastDraftSubject?: string;
 };
 
 function parseArgs(): { command: string; options: CliOptions } {
@@ -114,8 +120,18 @@ async function withLock<T>(automationHome: string, fn: () => Promise<T>): Promis
   try {
     await mkdir(lockDir, { mode: 0o700 });
   } catch {
-    throw new Error(`Another ${AUTOMATION_ID} run appears to be active`);
+    const lockStat = await stat(lockDir).catch(() => null);
+    const lockAgeMs = lockStat ? Date.now() - lockStat.mtimeMs : 0;
+    if (!lockStat || lockAgeMs < LOCK_STALE_MS) {
+      throw new Error(`Another ${AUTOMATION_ID} run appears to be active`);
+    }
+    await rm(lockDir, { recursive: true, force: true });
+    await mkdir(lockDir, { mode: 0o700 });
   }
+  await writePrivateJson(path.join(lockDir, "metadata.json"), {
+    pid: process.pid,
+    startedAt: new Date().toISOString(),
+  });
 
   try {
     return await fn();
@@ -195,6 +211,7 @@ async function searchSentMail(subject: string): Promise<string | null> {
 async function sendEmail(args: {
   rawMessage: string;
   dryRun: boolean;
+  allowDraftFallback: boolean;
 }): Promise<{ sent: boolean; messageId: string | null; draft: boolean; error?: string }> {
   const raw = Buffer.from(args.rawMessage, "utf8")
     .toString("base64")
@@ -230,6 +247,15 @@ async function sendEmail(args: {
     }
     return { sent: true, messageId, draft: false };
   } catch (sendErr) {
+    if (!args.allowDraftFallback) {
+      return {
+        sent: false,
+        messageId: null,
+        draft: false,
+        error: `send failed: ${String(sendErr).slice(0, 300)}; draft already exists for this report period`,
+      };
+    }
+
     try {
       const { stdout } = await execFileAsync(GWS_SLE, [
         "gmail",
@@ -516,9 +542,10 @@ async function run(options: CliOptions): Promise<void> {
     const sendResult = await sendEmail({
       rawMessage: rawEmail,
       dryRun: options.dryRun,
+      allowDraftFallback: refreshedState.lastDraftPeriodKey !== schedule.periodKey,
     });
 
-    if (sendResult.sent || sendResult.draft || options.dryRun) {
+    if (sendResult.sent || options.dryRun) {
       await writePrivateJson(statePath, {
         ...refreshedState,
         lastSuccessPeriodKey: options.dryRun ? refreshedState.lastSuccessPeriodKey : schedule.periodKey,
@@ -533,6 +560,19 @@ async function run(options: CliOptions): Promise<void> {
         runDir,
       }));
       return;
+    }
+
+    if (sendResult.draft) {
+      await writePrivateJson(statePath, {
+        ...refreshedState,
+        lastDraftPeriodKey: schedule.periodKey,
+        lastDraftMessageId: sendResult.messageId ?? refreshedState.lastDraftMessageId,
+        lastDraftAt: new Date().toISOString(),
+        lastDraftSubject: subject,
+      });
+      await notify("Hiring ads report drafted, not sent", `A Gmail draft was created for ${subject}. The hourly runner will retry sending.`);
+      await writePrivateText(path.join(runDir, "send-error.txt"), sendResult.error ?? "Email send failed; draft created.");
+      throw new Error(`Email not sent. Gmail draft created and local files saved at ${runDir}`);
     }
 
     await notify("Hiring ads report not sent", `Saved unsent email files at ${runDir}`);

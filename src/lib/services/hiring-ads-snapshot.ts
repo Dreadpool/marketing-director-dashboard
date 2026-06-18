@@ -36,7 +36,7 @@ export type HiringPlatformRow = {
   spend: number | null;
   impressions: number | null;
   clicks: number | null;
-  hiringConversionRate: "Not tracked" | "No clicks" | "Unknown";
+  hiringConversionRate: "Not tracked" | "Unknown";
   notes: string;
   sourceIds: string[];
 };
@@ -102,6 +102,7 @@ const HIRING_TERMS = [
   "recruit",
   "recruiting",
 ];
+const NON_MARKET_CITY_WORDS = new Set([...HIRING_TERMS, "all", "sle", "nws"]);
 
 const KNOWN_MARKETS: Array<{ label: string; patterns: RegExp[] }> = [
   {
@@ -115,6 +116,34 @@ const KNOWN_MARKETS: Array<{ label: string; patterns: RegExp[] }> = [
   {
     label: "Pocatello, ID",
     patterns: [/\bpocatello\b/i],
+  },
+  {
+    label: "Great Falls, MT",
+    patterns: [/\bgreat\s+falls\b/i],
+  },
+  {
+    label: "Spokane, WA",
+    patterns: [/\bspokane\b/i],
+  },
+  {
+    label: "Salt Lake City, UT",
+    patterns: [/\bsalt\s+lake\s+city\b/i, /\bslc\b/i, /\bdrivers?\s+(?:wanted|needed)?\s*salt\s+lake\b/i],
+  },
+  {
+    label: "Vernal, UT",
+    patterns: [/\bvernal\b/i],
+  },
+  {
+    label: "Logan, UT",
+    patterns: [/\blogan\b/i],
+  },
+  {
+    label: "Rexburg, ID",
+    patterns: [/\brexburg\b/i],
+  },
+  {
+    label: "Boise, ID",
+    patterns: [/\bboise\b/i],
   },
 ];
 
@@ -235,7 +264,10 @@ function detectMarket(text: string): string | null {
   }
 
   const explicitCityState = text.match(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?),?\s+(UT|ID|WA|NV|AZ|CO|MT|WY|OR|CA)\b/);
-  if (explicitCityState) return `${explicitCityState[1]}, ${explicitCityState[2]}`;
+  const cityWords = explicitCityState?.[1].toLowerCase().split(/\s+/) ?? [];
+  if (explicitCityState && !cityWords.some((word) => NON_MARKET_CITY_WORDS.has(word))) {
+    return `${explicitCityState[1]}, ${explicitCityState[2]}`;
+  }
   return null;
 }
 
@@ -521,8 +553,13 @@ async function fetchMetaRecords(period: DateRange): Promise<{
 
 function aggregateRows(records: RawHiringRecord[], fetches: HiringSourceFetch[]): HiringPlatformRow[] {
   const rows: HiringPlatformRow[] = [];
+  const detectedMarkets = records
+    .map((record) => record.market)
+    .filter((market): market is string => market !== null)
+    .filter((market) => !REQUESTED_MARKETS.includes(market));
+  const markets = [...REQUESTED_MARKETS, ...new Set(detectedMarkets)];
 
-  for (const market of REQUESTED_MARKETS) {
+  for (const market of markets) {
     for (const platform of PLATFORMS) {
       const source = fetches.find((fetch) => fetch.source === platform);
       const marketRecords = records.filter((record) => record.platform === platform && record.market === market);
@@ -552,7 +589,7 @@ function aggregateRows(records: RawHiringRecord[], fetches: HiringSourceFetch[])
           spend: 0,
           impressions: 0,
           clicks: 0,
-          hiringConversionRate: "No clicks",
+          hiringConversionRate: "Not tracked",
           notes: `No ${platform} hiring ads matched this market in the report period.`,
           sourceIds: [],
         });
@@ -579,9 +616,10 @@ function aggregateRows(records: RawHiringRecord[], fetches: HiringSourceFetch[])
         spend,
         impressions,
         clicks,
-        hiringConversionRate: clicks > 0 ? "Not tracked" : "No clicks",
+        hiringConversionRate: "Not tracked",
         notes: [...new Set([
           reason === "enabled_no_delivery" ? "Enabled but no spend, impressions, or clicks found for the report period." : null,
+          reason === "inactive_no_delivery" ? "Matched hiring ads exist, but none are eligible to serve now." : null,
           ...marketRecords.flatMap((record) => record.notes),
         ].filter(Boolean))].join(" "),
         sourceIds: marketRecords.map((record) => record.sourceId),
@@ -591,6 +629,11 @@ function aggregateRows(records: RawHiringRecord[], fetches: HiringSourceFetch[])
 
   return rows;
 }
+
+export const __hiringAdsSnapshotTest = {
+  aggregateRows,
+  detectMarket,
+};
 
 function buildUnmapped(records: RawHiringRecord[]): UnmappedHiringAd[] {
   return records
@@ -752,7 +795,7 @@ function activeMarketDisplay(snapshot: HiringAdSnapshot): string {
 
 function periodSpendDisplay(snapshot: HiringAdSnapshot): string {
   if (!hasLiveFetch(snapshot)) return "Pending";
-  return usd(snapshot.rows.reduce((sum, row) => sum + (row.spend ?? 0), 0));
+  return usd(sumNullable(snapshot.rows, (row) => row.spend));
 }
 
 function renderRows(rows: HiringPlatformRow[]): string {
@@ -782,7 +825,11 @@ function sumNullable(rows: HiringPlatformRow[], pick: (row: HiringPlatformRow) =
 
 function totalClicksDisplay(snapshot: HiringAdSnapshot): string {
   if (!hasLiveFetch(snapshot)) return "Pending";
-  return integer(snapshot.rows.reduce((sum, row) => sum + (row.clicks ?? 0), 0));
+  return integer(sumNullable(snapshot.rows, (row) => row.clicks));
+}
+
+function activeUnmappedAds(snapshot: HiringAdSnapshot): UnmappedHiringAd[] {
+  return snapshot.unmappedHiringAds.filter((ad) => ad.status === "Active");
 }
 
 function statusForRows(rows: HiringPlatformRow[]): HiringStatus {
@@ -884,6 +931,7 @@ function renderRequestedMarketRows(snapshot: HiringAdSnapshot): string {
 export function renderHiringAdsEmail(snapshot: HiringAdSnapshot, aiSummaryHtml?: string): string {
   const lead = snapshot.actionSummary[0] ?? "Hiring ads snapshot generated.";
   const safeReportUrl = safeUrl(snapshot.reportUrl);
+  const activeUnmapped = activeUnmappedAds(snapshot);
   const fullReportCta = safeReportUrl
     ? `<a href="${escapeHtml(safeReportUrl)}" style="display:inline-block;padding:12px 18px;background:#1e6fad;color:#ffffff;border-radius:8px;font-size:14px;font-weight:800;text-decoration:none;">Open full report</a>`
     : `<div style="padding:12px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;color:#475569;font-size:13px;line-height:1.45;">The full HTML report is attached in this dry run.</div>`;
@@ -905,8 +953,8 @@ export function renderHiringAdsEmail(snapshot: HiringAdSnapshot, aiSummaryHtml?:
           <table role="presentation" style="width:100%;border-collapse:collapse;margin-top:18px;">
       <tr>
         ${renderEmailMetric("Active markets", activeMarketDisplay(snapshot), "requested markets")}
-        ${renderEmailMetric("Ad spend", periodSpendDisplay(snapshot), "report period")}
-        ${renderEmailMetric("Clicks", totalClicksDisplay(snapshot), "from ad platforms")}
+        ${renderEmailMetric("Mapped spend", periodSpendDisplay(snapshot), "assigned markets")}
+        ${renderEmailMetric("Mapped clicks", totalClicksDisplay(snapshot), "assigned markets")}
       </tr>
           </table>
 
@@ -930,7 +978,8 @@ export function renderHiringAdsEmail(snapshot: HiringAdSnapshot, aiSummaryHtml?:
             </table>
           </div>
 
-          ${snapshot.unmappedHiringAds.length > 0 ? `<div style="margin-top:18px;padding:13px 15px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;color:#475569;font-size:13px;line-height:1.45;"><strong style="color:#334155;">Full report note:</strong> ${escapeHtml(snapshot.unmappedHiringAds.length)} hiring ad${snapshot.unmappedHiringAds.length === 1 ? "" : "s"} could not be assigned to a market. Drew can review those before changing markets.</div>` : ""}
+          ${activeUnmapped.length > 0 ? `<div style="margin-top:18px;padding:13px 15px;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;color:#9a3412;font-size:13px;line-height:1.45;"><strong>${escapeHtml(activeUnmapped.length)} active hiring ad${activeUnmapped.length === 1 ? "" : "s"} ${activeUnmapped.length === 1 ? "needs" : "need"} market review.</strong> The full report lists the ad names before anyone changes markets.</div>` : ""}
+          ${snapshot.unmappedHiringAds.length > activeUnmapped.length ? `<div style="margin-top:10px;padding:13px 15px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;color:#475569;font-size:13px;line-height:1.45;"><strong style="color:#334155;">Full report note:</strong> ${escapeHtml(snapshot.unmappedHiringAds.length)} hiring ad${snapshot.unmappedHiringAds.length === 1 ? "" : "s"} could not be assigned to a market.</div>` : ""}
 
           <div style="margin-top:16px;padding:14px 15px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;color:#475569;font-size:13px;line-height:1.5;">Hiring conversion rate is not available yet because completed applications are not tied back cleanly from Tenstreet/IntelliApp into the ad platforms. Drew is working with Tenstreet on that.</div>
 
@@ -943,6 +992,7 @@ export function renderHiringAdsEmail(snapshot: HiringAdSnapshot, aiSummaryHtml?:
 }
 
 export function renderHiringAdsText(snapshot: HiringAdSnapshot): string {
+  const activeUnmapped = activeUnmappedAds(snapshot);
   const requestedMarketLines = snapshot.requestedMarkets.map((market) => {
     const rows = snapshot.rows.filter((row) => row.market === market);
     const status = statusForRows(rows);
@@ -967,8 +1017,8 @@ export function renderHiringAdsText(snapshot: HiringAdSnapshot): string {
     snapshot.actionSummary[0] ?? "Hiring ads snapshot generated.",
     "",
     `Active markets: ${activeMarketDisplay(snapshot)}`,
-    `Ad spend: ${periodSpendDisplay(snapshot)}`,
-    `Clicks: ${totalClicksDisplay(snapshot)}`,
+    `Mapped spend: ${periodSpendDisplay(snapshot)}`,
+    `Mapped clicks: ${totalClicksDisplay(snapshot)}`,
     "",
     "Active hiring markets:",
     ...activeMarketLines,
@@ -979,6 +1029,9 @@ export function renderHiringAdsText(snapshot: HiringAdSnapshot): string {
   ];
 
   if (snapshot.unmappedHiringAds.length > 0) {
+    if (activeUnmapped.length > 0) {
+      lines.push(`${activeUnmapped.length} active hiring ad${activeUnmapped.length === 1 ? "" : "s"} ${activeUnmapped.length === 1 ? "needs" : "need"} market review in the full report.`);
+    }
     lines.push(`Full report note: ${snapshot.unmappedHiringAds.length} hiring ad${snapshot.unmappedHiringAds.length === 1 ? "" : "s"} could not be assigned to a market.`);
     lines.push("");
   }
@@ -1040,7 +1093,7 @@ export function renderHiringAdsFullReport(snapshot: HiringAdSnapshot, aiSummaryH
         <article class="active-card">
           <div class="card-top"><h3>${escapeHtml(market)}</h3><span class="pill active">Active</span></div>
           <p>${escapeHtml(platforms)} ${rows.length === 1 ? "is" : "are"} showing hiring ads.</p>
-          <div class="metric"><span>Period spend</span><strong>${escapeHtml(usd(spend))}</strong></div>
+          <div class="metric"><span>Mapped spend</span><strong>${escapeHtml(usd(spend))}</strong></div>
         </article>
       `;
     }).join("")
@@ -1076,7 +1129,7 @@ export function renderHiringAdsFullReport(snapshot: HiringAdSnapshot, aiSummaryH
     </div>
     <div class="stats">
       <div class="stat"><span>Active markets</span><strong>${escapeHtml(activeMarketDisplay(snapshot))}</strong></div>
-      <div class="stat"><span>Period spend</span><strong>${escapeHtml(periodSpendDisplay(snapshot))}</strong></div>
+      <div class="stat"><span>Mapped spend</span><strong>${escapeHtml(periodSpendDisplay(snapshot))}</strong></div>
       <div class="stat"><span>Hiring conversion rate</span><strong>Not tracked</strong></div>
     </div>
   </header>
