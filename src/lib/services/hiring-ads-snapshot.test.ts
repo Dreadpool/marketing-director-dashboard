@@ -186,6 +186,8 @@ describe("hiring ads snapshot rendering", () => {
     expect(__hiringAdsSnapshotTest.detectMarket("Hiring Campaign / Great Falls Drivers")).toBe("Great Falls, MT");
     expect(__hiringAdsSnapshotTest.detectMarket("SLE-Hiring-SLC / Salt Lake City - M")).toBe("Salt Lake City, UT");
     expect(__hiringAdsSnapshotTest.detectMarket("Drivers Wanted Rexburg Aug Sep Oct")).toBe("Rexburg, ID");
+    expect(__hiringAdsSnapshotTest.detectMarket("S | Hiring / WA / Drive For Northwest Stagelines")).toBe("Omak, WA");
+    expect(__hiringAdsSnapshotTest.detectMarket("S | Hiring / ID / Drive For Salt Lake Express")).toBe("Pocatello, ID");
     expect(__hiringAdsSnapshotTest.detectMarket("Salt Lake Express is hiring drivers")).toBe(null);
     expect(__hiringAdsSnapshotTest.detectMarket("All Hiring ID drivers")).toBe(null);
   });

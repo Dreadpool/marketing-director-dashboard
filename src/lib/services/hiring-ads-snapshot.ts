@@ -107,7 +107,7 @@ const NON_MARKET_CITY_WORDS = new Set([...HIRING_TERMS, "all", "sle", "nws"]);
 const KNOWN_MARKETS: Array<{ label: string; patterns: RegExp[] }> = [
   {
     label: "Omak, WA",
-    patterns: [/\bomak\b/i],
+    patterns: [/\bomak\b/i, /\bs\s*\|\s*hiring\b[\s\S]*\bwa\b/i],
   },
   {
     label: "St. George, UT",
@@ -115,7 +115,7 @@ const KNOWN_MARKETS: Array<{ label: string; patterns: RegExp[] }> = [
   },
   {
     label: "Pocatello, ID",
-    patterns: [/\bpocatello\b/i],
+    patterns: [/\bpocatello\b/i, /\bs\s*\|\s*hiring\b[\s\S]*\bid\b/i],
   },
   {
     label: "Great Falls, MT",
