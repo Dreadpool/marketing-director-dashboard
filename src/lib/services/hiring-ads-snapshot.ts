@@ -656,9 +656,14 @@ function buildUnmapped(records: RawHiringRecord[]): UnmappedHiringAd[] {
 
 function buildActionSummary(rows: HiringPlatformRow[], unmapped: UnmappedHiringAd[], fetches: HiringSourceFetch[]): string[] {
   const activeMarkets = [...new Set(rows.filter((row) => row.status === "Active").map((row) => row.market))];
+  const reviewMarkets = [...new Set(rows.filter((row) => row.status === "Needs review").map((row) => row.market))];
   const summary: string[] = [];
 
-  if (activeMarkets.length > 0) {
+  if (reviewMarkets.length > 0 && activeMarkets.length > 0) {
+    summary.push(`${formatMarketList(reviewMarkets)} ${reviewMarkets.length === 1 ? "needs" : "need"} review. ${formatMarketList(activeMarkets)} ${activeMarkets.length === 1 ? "has" : "have"} active hiring ads.`);
+  } else if (reviewMarkets.length > 0) {
+    summary.push(`${formatMarketList(reviewMarkets)} ${reviewMarkets.length === 1 ? "needs" : "need"} review. No requested hiring market has confirmed active ad delivery.`);
+  } else if (activeMarkets.length > 0) {
     summary.push(`${activeMarkets.join(", ")} ${activeMarkets.length === 1 ? "has" : "have"} active hiring ads.`);
   } else {
     summary.push("No requested hiring market has confirmed active ad delivery.");
@@ -666,7 +671,7 @@ function buildActionSummary(rows: HiringPlatformRow[], unmapped: UnmappedHiringA
 
   const needsReview = rows.filter((row) => row.status === "Needs review");
   if (needsReview.length > 0) {
-    summary.push(`${needsReview.length} platform row${needsReview.length === 1 ? "" : "s"} need review before Greg treats the report as final.`);
+    summary.push(`${needsReview.length} platform row${needsReview.length === 1 ? "" : "s"} ${needsReview.length === 1 ? "needs" : "need"} review before Greg treats the report as final.`);
   }
 
   if (unmapped.length > 0) {
@@ -786,6 +791,11 @@ function statusClass(status: HiringStatus): string {
   return "review";
 }
 
+function formatMarketList(markets: string[]): string {
+  if (markets.length <= 2) return markets.join(" and ");
+  return `${markets.slice(0, -1).join(", ")}, and ${markets[markets.length - 1]}`;
+}
+
 function hasLiveFetch(snapshot: HiringAdSnapshot): boolean {
   return snapshot.sourceFetches.some((fetch) => fetch.status !== "skipped");
 }
@@ -846,12 +856,6 @@ function visibleEmailMarkets(snapshot: HiringAdSnapshot): string[] {
   ];
 }
 
-function platformStateLabel(row: HiringPlatformRow): string {
-  if (row.status === "Active") return "active";
-  if (row.status === "Inactive") return "inactive";
-  return row.spend === null ? "Unknown" : "needs review";
-}
-
 function renderEmailMetric(labelText: string, value: string, note: string): string {
   return `
     <td style="width:33.333%;padding:0 8px 0 0;vertical-align:top;">
@@ -864,7 +868,25 @@ function renderEmailMetric(labelText: string, value: string, note: string): stri
   `;
 }
 
-function renderEmailActiveMarkets(snapshot: HiringAdSnapshot): string {
+function platformEmailSummary(row: HiringPlatformRow): string {
+  if (row.status === "Active") return `${row.platform}: active`;
+  if (row.status === "Inactive") return `${row.platform}: inactive`;
+  if (row.reason === "enabled_no_delivery") return `${row.platform}: enabled, no delivery`;
+  if (row.reason === "fetch_failed") return `${row.platform}: fetch failed`;
+  return `${row.platform}: needs review`;
+}
+
+function marketCoverageStyle(status: HiringStatus): { background: string; border: string; text: string } {
+  if (status === "Active") {
+    return { background: "#f0fdf4", border: "#bbf7d0", text: "#166534" };
+  }
+  if (status === "Needs review") {
+    return { background: "#fffbeb", border: "#fde68a", text: "#92400e" };
+  }
+  return { background: "#ffffff", border: "#e2e8f0", text: "#475569" };
+}
+
+function renderEmailMarketCoverage(snapshot: HiringAdSnapshot): string {
   if (!hasLiveFetch(snapshot)) {
     return `
       <div style="padding:15px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;color:#475569;font-size:14px;line-height:1.45;">
@@ -873,65 +895,32 @@ function renderEmailActiveMarkets(snapshot: HiringAdSnapshot): string {
     `;
   }
 
-  if (snapshot.activeMarkets.length === 0) {
-    return `
-      <div style="padding:15px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;color:#475569;font-size:14px;line-height:1.45;">
-        No requested hiring markets had confirmed active ad delivery for this report period.
-      </div>
-    `;
-  }
-
-  return snapshot.activeMarkets.map((market) => {
-    const rows = snapshot.rows.filter((row) => row.market === market && row.status === "Active");
-    const platforms = rows.map((row) => row.platform).join(", ");
-    const spend = sumNullable(rows, (row) => row.spend);
-    const impressions = sumNullable(rows, (row) => row.impressions);
-    const clicks = sumNullable(rows, (row) => row.clicks);
-
-    return `
-      <div style="margin-top:10px;padding:16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;">
-        <table role="presentation" style="width:100%;border-collapse:collapse;">
-          <tr>
-            <td style="vertical-align:top;">
-              <div style="color:#0f172a;font-size:20px;line-height:1.2;font-weight:800;">${escapeHtml(market)}</div>
-              <div style="margin-top:5px;color:#166534;font-size:14px;line-height:1.35;">${escapeHtml(platforms)} ${rows.length === 1 ? "is" : "are"} showing hiring ads.</div>
-            </td>
-            <td style="text-align:right;vertical-align:top;">
-              <span style="display:inline-block;padding:5px 10px;background:#dcfce7;color:#166534;border-radius:999px;font-size:12px;font-weight:800;">Active</span>
-            </td>
-          </tr>
-        </table>
-        <table role="presentation" style="width:100%;border-collapse:collapse;margin-top:13px;">
-          <tr>
-            <td style="width:33.333%;padding-right:8px;color:#166534;font-size:12px;line-height:1.35;"><strong style="display:block;color:#0f172a;font-size:15px;">${escapeHtml(usd(spend))}</strong>ad spend</td>
-            <td style="width:33.333%;padding-right:8px;color:#166534;font-size:12px;line-height:1.35;"><strong style="display:block;color:#0f172a;font-size:15px;">${escapeHtml(integer(impressions))}</strong>times shown</td>
-            <td style="width:33.333%;color:#166534;font-size:12px;line-height:1.35;"><strong style="display:block;color:#0f172a;font-size:15px;">${escapeHtml(integer(clicks))}</strong>clicks</td>
-          </tr>
-        </table>
-      </div>
-    `;
-  }).join("");
-}
-
-function renderRequestedMarketRows(snapshot: HiringAdSnapshot): string {
-  const cell = "padding:13px 0;border-top:1px solid #e2e8f0;vertical-align:top;";
-  return visibleEmailMarkets(snapshot).map((market) => {
+  return visibleEmailMarkets(snapshot).map((market, index) => {
     const rows = snapshot.rows.filter((row) => row.market === market);
     const status = statusForRows(rows);
     const spend = sumNullable(rows, (row) => row.spend);
-    const platformSummary = rows
-      .map((row) => `${row.platform}: ${platformStateLabel(row)}`)
-      .join("<br>");
+    const impressions = sumNullable(rows, (row) => row.impressions);
+    const clicks = sumNullable(rows, (row) => row.clicks);
+    const style = marketCoverageStyle(status);
+    const platformSummary = rows.map(platformEmailSummary).join("<br>");
 
     return `
-    <tr>
-      <td style="${cell}padding-right:14px;color:#0f172a;font-size:15px;line-height:1.35;font-weight:800;">${escapeHtml(market)}</td>
-      <td style="${cell}padding-right:14px;">
-        <span style="display:inline-block;padding:5px 10px;border-radius:999px;font-size:12px;font-weight:800;${emailStatusStyle(status)}">${escapeHtml(status)}</span>
-      </td>
-      <td style="${cell}padding-right:14px;color:#475569;font-size:13px;line-height:1.45;">${platformSummary}</td>
-      <td style="${cell}text-align:right;white-space:nowrap;color:#0f172a;font-size:14px;line-height:1.35;font-weight:700;">${escapeHtml(usd(spend))}</td>
-    </tr>
+      <div style="${index === 0 ? "" : "margin-top:10px;"}padding:14px 16px;background:${style.background};border:1px solid ${style.border};border-radius:12px;">
+        <table role="presentation" style="width:100%;border-collapse:collapse;">
+          <tr>
+            <td style="vertical-align:top;padding-right:14px;">
+              <div style="color:#0f172a;font-size:16px;line-height:1.25;font-weight:800;">${escapeHtml(market)}</div>
+              <div style="margin-top:6px;color:${style.text};font-size:13px;line-height:1.45;">${platformSummary}</div>
+            </td>
+            <td style="width:112px;text-align:right;vertical-align:top;white-space:nowrap;">
+              <span style="display:inline-block;padding:5px 10px;border-radius:999px;font-size:12px;font-weight:800;${emailStatusStyle(status)}">${escapeHtml(status)}</span>
+              <div style="margin-top:10px;color:#0f172a;font-size:15px;line-height:1.25;font-weight:800;">${escapeHtml(usd(spend))}</div>
+              <div style="margin-top:3px;color:${style.text};font-size:12px;line-height:1.4;">${escapeHtml(integer(impressions))} shown</div>
+              <div style="color:${style.text};font-size:12px;line-height:1.4;">${escapeHtml(integer(clicks))} clicks</div>
+            </td>
+          </tr>
+        </table>
+      </div>
     `;
   }).join("");
 }
@@ -945,7 +934,6 @@ export function renderHiringAdsEmail(snapshot: HiringAdSnapshot, aiSummaryHtml?:
     : `<div style="padding:12px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;color:#475569;font-size:13px;line-height:1.45;">The full HTML report is attached in this dry run.</div>`;
   const eyebrow = "color:#1e6fad;font-size:11px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;";
   const sectionLabel = "margin:0 0 10px 0;color:#334155;font-size:12px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;";
-  const headerCell = "padding:0 0 8px 0;color:#64748b;font-size:11px;font-weight:800;letter-spacing:.7px;text-align:left;text-transform:uppercase;";
 
   return `
     <div style="font-family:Arial,Helvetica,sans-serif;color:#0f172a;max-width:720px;background:#ffffff;">
@@ -967,23 +955,8 @@ export function renderHiringAdsEmail(snapshot: HiringAdSnapshot, aiSummaryHtml?:
           </table>
 
           <div style="margin-top:24px;">
-            <p style="${sectionLabel}">Active hiring markets</p>
-            ${renderEmailActiveMarkets(snapshot)}
-          </div>
-
-          <div style="margin-top:24px;">
-            <p style="${sectionLabel}">Core and active markets</p>
-            <table role="presentation" style="width:100%;border-collapse:collapse;">
-              <thead>
-                <tr>
-                  <th style="${headerCell}">Market</th>
-                  <th style="${headerCell}">Status</th>
-                  <th style="${headerCell}">Platforms</th>
-                  <th style="${headerCell}text-align:right;">Spend</th>
-                </tr>
-              </thead>
-              <tbody>${renderRequestedMarketRows(snapshot)}</tbody>
-            </table>
+            <p style="${sectionLabel}">Market coverage</p>
+            ${renderEmailMarketCoverage(snapshot)}
           </div>
 
           ${activeUnmapped.length > 0 ? `<div style="margin-top:18px;padding:13px 15px;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;color:#9a3412;font-size:13px;line-height:1.45;"><strong>${escapeHtml(activeUnmapped.length)} active hiring ad${activeUnmapped.length === 1 ? "" : "s"} ${activeUnmapped.length === 1 ? "needs" : "need"} market review.</strong> The full report lists the ad names before anyone changes markets.</div>` : ""}
@@ -1001,23 +974,15 @@ export function renderHiringAdsEmail(snapshot: HiringAdSnapshot, aiSummaryHtml?:
 
 export function renderHiringAdsText(snapshot: HiringAdSnapshot): string {
   const activeUnmapped = activeUnmappedAds(snapshot);
-  const requestedMarketLines = visibleEmailMarkets(snapshot).map((market) => {
+  const marketCoverageLines = visibleEmailMarkets(snapshot).map((market) => {
     const rows = snapshot.rows.filter((row) => row.market === market);
     const status = statusForRows(rows);
-    const platformSummary = rows.map((row) => `${row.platform}: ${platformStateLabel(row)}`).join(", ");
+    const platformSummary = rows.map(platformEmailSummary).join(", ");
     const spend = sumNullable(rows, (row) => row.spend);
-    return `${market}: ${status}. ${platformSummary}. Spend: ${usd(spend)}.`;
+    const impressions = sumNullable(rows, (row) => row.impressions);
+    const clicks = sumNullable(rows, (row) => row.clicks);
+    return `${market}: ${status}. ${platformSummary}. Spend: ${usd(spend)}. Shown: ${integer(impressions)}. Clicks: ${integer(clicks)}.`;
   });
-  const activeMarketLines = snapshot.activeMarkets.length > 0
-    ? snapshot.activeMarkets.map((market) => {
-      const rows = snapshot.rows.filter((row) => row.market === market && row.status === "Active");
-      const platforms = rows.map((row) => row.platform).join(", ");
-      const spend = sumNullable(rows, (row) => row.spend);
-      const impressions = sumNullable(rows, (row) => row.impressions);
-      const clicks = sumNullable(rows, (row) => row.clicks);
-      return `${market}: ${platforms}. Spend: ${usd(spend)}. Shown: ${integer(impressions)}. Clicks: ${integer(clicks)}.`;
-    })
-    : ["No requested hiring markets had confirmed active ad delivery for this report period."];
   const lines = [
     "Weekly Hiring Ads Snapshot",
     `Report period: ${snapshot.reportPeriodLabel}`,
@@ -1028,11 +993,8 @@ export function renderHiringAdsText(snapshot: HiringAdSnapshot): string {
     `Mapped spend: ${periodSpendDisplay(snapshot)}`,
     `Mapped clicks: ${totalClicksDisplay(snapshot)}`,
     "",
-    "Active hiring markets:",
-    ...activeMarketLines,
-    "",
-    "Core and active markets:",
-    ...requestedMarketLines,
+    "Market coverage:",
+    ...marketCoverageLines,
     "",
   ];
 

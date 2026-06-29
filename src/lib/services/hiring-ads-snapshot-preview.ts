@@ -23,7 +23,7 @@ export function typeOnlyPreviewSnapshot(now = new Date()): HiringAdSnapshot {
     activeMarkets: [],
     actionSummary: [
       "Preview only: no live ad-platform data has been fetched.",
-      "The live report will show active hiring markets first and keep requested inactive markets visible.",
+      "The live report will show one market coverage row for each requested or active hiring market.",
       "Hiring conversion rate is not tracked unless completed applications are connected to the ad platform.",
     ],
     rows: requestedMarkets.flatMap((market) => platforms.map((platform) => ({

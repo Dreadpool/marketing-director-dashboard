@@ -56,7 +56,8 @@ describe("hiring ads snapshot rendering", () => {
     const html = renderHiringAdsEmail(typeOnlyPreviewSnapshot(new Date("2026-06-18T12:00:00.000Z")));
 
     expect(html).toContain("Preview only");
-    expect(html).toContain("Unknown");
+    expect(html).toContain("Pending");
+    expect(html).toContain("Live ad-platform data has not been fetched yet.");
     expect(html).not.toContain("$457.91");
     expect(html).not.toContain("3,052");
   });
@@ -68,6 +69,90 @@ describe("hiring ads snapshot rendering", () => {
     expect(html).not.toContain("<html");
     expect(html).not.toContain("<body");
     expect(html).toContain("style=");
+  });
+
+  it("renders one market coverage section instead of duplicating active markets", () => {
+    const snapshot = {
+      ...typeOnlyPreviewSnapshot(new Date("2026-06-18T12:00:00.000Z")),
+      activeMarkets: ["St. George, UT", "Pocatello, ID"],
+      actionSummary: [
+        "Omak, WA needs review. St. George, UT and Pocatello, ID have active hiring ads.",
+      ],
+      sourceFetches: [
+        {
+          source: "Google Ads" as const,
+          status: "ok" as const,
+          fetchedAt: "2026-06-18T12:00:00.000Z",
+        },
+        {
+          source: "Meta Ads" as const,
+          status: "ok" as const,
+          fetchedAt: "2026-06-18T12:00:00.000Z",
+        },
+      ],
+      rows: [
+        {
+          market: "Omak, WA",
+          platform: "Google Ads" as const,
+          status: "Needs review" as const,
+          reason: "enabled_no_delivery" as const,
+          spend: 0,
+          impressions: 0,
+          clicks: 0,
+          hiringConversionRate: "Not tracked" as const,
+          notes: "Enabled but no delivery.",
+          sourceIds: ["ad:omak"],
+        },
+        {
+          market: "Omak, WA",
+          platform: "Meta Ads" as const,
+          status: "Inactive" as const,
+          reason: "inactive_no_delivery" as const,
+          spend: 0,
+          impressions: 0,
+          clicks: 0,
+          hiringConversionRate: "Not tracked" as const,
+          notes: "Inactive.",
+          sourceIds: ["meta:omak"],
+        },
+        {
+          market: "St. George, UT",
+          platform: "Google Ads" as const,
+          status: "Active" as const,
+          reason: "active_delivery" as const,
+          spend: 136.61,
+          impressions: 2136,
+          clicks: 181,
+          hiringConversionRate: "Not tracked" as const,
+          notes: "Active.",
+          sourceIds: ["ad:stg"],
+        },
+        {
+          market: "Pocatello, ID",
+          platform: "Google Ads" as const,
+          status: "Active" as const,
+          reason: "active_delivery" as const,
+          spend: 26.83,
+          impressions: 28,
+          clicks: 3,
+          hiringConversionRate: "Not tracked" as const,
+          notes: "Active.",
+          sourceIds: ["ad:poc"],
+        },
+      ],
+    };
+
+    const html = renderHiringAdsEmail(snapshot);
+    const text = renderHiringAdsText(snapshot);
+
+    expect(html).toContain("Market coverage");
+    expect(html).toContain("Google Ads: enabled, no delivery");
+    expect(html).toContain("2,136 shown");
+    expect(html).not.toContain("Active hiring markets");
+    expect(html).not.toContain("Core and active markets");
+    expect(text).toContain("Market coverage:");
+    expect(text).not.toContain("Active hiring markets:");
+    expect(text).not.toContain("Core and active markets:");
   });
 
   it("renders raw email with plain-text fallback, HTML, and attachment", () => {
