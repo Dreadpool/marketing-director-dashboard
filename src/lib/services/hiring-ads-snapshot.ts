@@ -554,6 +554,7 @@ async function fetchMetaRecords(period: DateRange): Promise<{
 function aggregateRows(records: RawHiringRecord[], fetches: HiringSourceFetch[]): HiringPlatformRow[] {
   const rows: HiringPlatformRow[] = [];
   const detectedMarkets = records
+    .filter((record) => record.eligible && (record.spend > 0 || record.impressions > 0 || record.clicks > 0))
     .map((record) => record.market)
     .filter((market): market is string => market !== null)
     .filter((market) => !REQUESTED_MARKETS.includes(market));
@@ -838,6 +839,13 @@ function statusForRows(rows: HiringPlatformRow[]): HiringStatus {
   return "Inactive";
 }
 
+function visibleEmailMarkets(snapshot: HiringAdSnapshot): string[] {
+  return [
+    ...snapshot.requestedMarkets,
+    ...snapshot.activeMarkets.filter((market) => !snapshot.requestedMarkets.includes(market)),
+  ];
+}
+
 function platformStateLabel(row: HiringPlatformRow): string {
   if (row.status === "Active") return "active";
   if (row.status === "Inactive") return "inactive";
@@ -907,7 +915,7 @@ function renderEmailActiveMarkets(snapshot: HiringAdSnapshot): string {
 
 function renderRequestedMarketRows(snapshot: HiringAdSnapshot): string {
   const cell = "padding:13px 0;border-top:1px solid #e2e8f0;vertical-align:top;";
-  return snapshot.requestedMarkets.map((market) => {
+  return visibleEmailMarkets(snapshot).map((market) => {
     const rows = snapshot.rows.filter((row) => row.market === market);
     const status = statusForRows(rows);
     const spend = sumNullable(rows, (row) => row.spend);
@@ -964,7 +972,7 @@ export function renderHiringAdsEmail(snapshot: HiringAdSnapshot, aiSummaryHtml?:
           </div>
 
           <div style="margin-top:24px;">
-            <p style="${sectionLabel}">Requested markets</p>
+            <p style="${sectionLabel}">Core and active markets</p>
             <table role="presentation" style="width:100%;border-collapse:collapse;">
               <thead>
                 <tr>
@@ -993,7 +1001,7 @@ export function renderHiringAdsEmail(snapshot: HiringAdSnapshot, aiSummaryHtml?:
 
 export function renderHiringAdsText(snapshot: HiringAdSnapshot): string {
   const activeUnmapped = activeUnmappedAds(snapshot);
-  const requestedMarketLines = snapshot.requestedMarkets.map((market) => {
+  const requestedMarketLines = visibleEmailMarkets(snapshot).map((market) => {
     const rows = snapshot.rows.filter((row) => row.market === market);
     const status = statusForRows(rows);
     const platformSummary = rows.map((row) => `${row.platform}: ${platformStateLabel(row)}`).join(", ");
@@ -1023,7 +1031,7 @@ export function renderHiringAdsText(snapshot: HiringAdSnapshot): string {
     "Active hiring markets:",
     ...activeMarketLines,
     "",
-    "Requested markets:",
+    "Core and active markets:",
     ...requestedMarketLines,
     "",
   ];

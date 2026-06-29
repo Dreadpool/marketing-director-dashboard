@@ -150,7 +150,7 @@ describe("hiring ads snapshot rendering", () => {
     expect(text).not.toContain("Mapped spend: $0");
   });
 
-  it("keeps confidently detected hiring markets outside the requested list", () => {
+  it("keeps confidently detected active hiring markets outside the requested list", () => {
     const rows = __hiringAdsSnapshotTest.aggregateRows([
       {
         platform: "Google Ads",
@@ -180,6 +180,40 @@ describe("hiring ads snapshot rendering", () => {
 
     expect(rows.some((row) => row.market === "Boise, ID" && row.platform === "Google Ads" && row.status === "Active")).toBe(true);
     expect(rows.some((row) => row.market === "Boise, ID" && row.platform === "Meta Ads" && row.status === "Inactive")).toBe(true);
+  });
+
+  it("does not add inactive non-requested markets to the weekly report", () => {
+    const rows = __hiringAdsSnapshotTest.aggregateRows([
+      {
+        platform: "Google Ads",
+        market: "Boise, ID",
+        name: "Boise Driver Hiring",
+        entityStatus: "ENABLED",
+        eligible: true,
+        spend: 0,
+        impressions: 0,
+        clicks: 0,
+        destinationUrl: "https://example.com/apply",
+        sourceId: "ad:boise",
+        notes: ["Enabled but no delivery."],
+      },
+    ], [
+      {
+        source: "Google Ads",
+        status: "ok",
+        fetchedAt: "2026-06-18T12:00:00.000Z",
+      },
+      {
+        source: "Meta Ads",
+        status: "ok",
+        fetchedAt: "2026-06-18T12:00:00.000Z",
+      },
+    ]);
+
+    expect(rows.some((row) => row.market === "Boise, ID")).toBe(false);
+    expect(rows.some((row) => row.market === "Omak, WA")).toBe(true);
+    expect(rows.some((row) => row.market === "St. George, UT")).toBe(true);
+    expect(rows.some((row) => row.market === "Pocatello, ID")).toBe(true);
   });
 
   it("detects known hiring-market city names without state abbreviations", () => {
