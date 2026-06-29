@@ -45,6 +45,9 @@ type CliOptions = {
   dryRun: boolean;
   skipCodexSummary: boolean;
   renderPreviewDir: string | null;
+  to: string;
+  cc: string;
+  testRun: boolean;
 };
 
 type State = {
@@ -67,6 +70,9 @@ function parseArgs(): { command: string; options: CliOptions } {
     dryRun: false,
     skipCodexSummary: false,
     renderPreviewDir: null,
+    to: TO,
+    cc: CC,
+    testRun: false,
   };
 
   for (let i = 0; i < args.length; i += 1) {
@@ -81,6 +87,12 @@ function parseArgs(): { command: string; options: CliOptions } {
       options.skipCodexSummary = true;
     } else if (arg === "--preview-dir") {
       options.renderPreviewDir = args[++i];
+    } else if (arg === "--to") {
+      options.to = args[++i];
+    } else if (arg === "--cc") {
+      options.cc = args[++i] ?? "";
+    } else if (arg === "--test-run") {
+      options.testRun = true;
     }
   }
 
@@ -271,13 +283,52 @@ async function sendEmail(args: {
         timeout: 120000,
         maxBuffer: 1024 * 1024,
       });
-      let messageId: string | null = null;
+      let draftId: string | null = null;
       try {
-        messageId = firstMessageId(JSON.parse(stdout));
+        draftId = firstMessageId(JSON.parse(stdout));
       } catch {
-        messageId = null;
+        draftId = null;
       }
-      return { sent: false, messageId, draft: true, error: String(sendErr) };
+
+      if (!draftId) {
+        return {
+          sent: false,
+          messageId: null,
+          draft: true,
+          error: `send failed: ${String(sendErr).slice(0, 300)}; draft created but draft id was not returned`,
+        };
+      }
+
+      try {
+        const { stdout: sendDraftStdout } = await execFileAsync(GWS_SLE, [
+          "gmail",
+          "users",
+          "drafts",
+          "send",
+          "--params",
+          JSON.stringify({ userId: "me" }),
+          "--json",
+          JSON.stringify({ id: draftId }),
+        ], {
+          env: cleanProcessEnv(),
+          timeout: 120000,
+          maxBuffer: 1024 * 1024,
+        });
+        let sentMessageId: string | null = null;
+        try {
+          sentMessageId = firstMessageId(JSON.parse(sendDraftStdout));
+        } catch {
+          sentMessageId = null;
+        }
+        return { sent: true, messageId: sentMessageId, draft: false, error: `raw send failed; draft-send fallback succeeded: ${String(sendErr).slice(0, 180)}` };
+      } catch (draftSendErr) {
+        return {
+          sent: false,
+          messageId: draftId,
+          draft: true,
+          error: `send failed: ${String(sendErr).slice(0, 300)}; draft-send failed: ${String(draftSendErr).slice(0, 300)}`,
+        };
+      }
     } catch (draftErr) {
       return {
         sent: false,
@@ -475,7 +526,11 @@ async function run(options: CliOptions): Promise<void> {
       return;
     }
 
-    const runDir = path.join(options.automationHome, "outputs", schedule.periodKey);
+    const runDir = path.join(
+      options.automationHome,
+      "outputs",
+      options.testRun ? `${schedule.periodKey}-test-${new Date().toISOString().replace(/[:.]/g, "-")}` : schedule.periodKey,
+    );
     await mkdir(runDir, { recursive: true, mode: 0o700 });
 
     const publication = createReportPublication(schedule.periodKey);
@@ -501,7 +556,7 @@ async function run(options: CliOptions): Promise<void> {
     }
     const emailHtml = renderHiringAdsEmail(snapshot);
     const emailText = renderHiringAdsText(snapshot);
-    const subject = `Weekly hiring ads snapshot - ${snapshot.reportPeriodLabel}`;
+    const subject = `${options.testRun ? "[TEST] " : ""}Weekly hiring ads snapshot - ${snapshot.reportPeriodLabel}`;
     const fullReportPath = path.join(runDir, "full-report.html");
     const emailPath = path.join(runDir, "email.html");
     const emailTextPath = path.join(runDir, "email.txt");
@@ -511,8 +566,8 @@ async function run(options: CliOptions): Promise<void> {
     await writePrivateText(emailTextPath, emailText);
     const rawEmail = renderHiringAdsEml({
       from: FROM,
-      to: TO,
-      cc: CC,
+      to: options.to,
+      cc: options.cc,
       subject,
       text: emailText,
       html: emailHtml,
@@ -526,7 +581,7 @@ async function run(options: CliOptions): Promise<void> {
     });
     await writePrivateText(emlPath, rawEmail);
 
-    const sentId = options.force ? null : await searchSentMail(subject).catch(() => null);
+    const sentId = options.force || options.testRun ? null : await searchSentMail(subject).catch(() => null);
     if (sentId) {
       await writePrivateJson(statePath, {
         ...refreshedState,
@@ -546,6 +601,17 @@ async function run(options: CliOptions): Promise<void> {
     });
 
     if (sendResult.sent || options.dryRun) {
+      if (options.testRun) {
+        console.log(JSON.stringify({
+          status: options.dryRun ? "dry-run" : sendResult.sent ? "sent" : "drafted",
+          testRun: true,
+          subject,
+          messageId: sendResult.messageId,
+          recipients: { to: options.to, cc: options.cc },
+          runDir,
+        }));
+        return;
+      }
       await writePrivateJson(statePath, {
         ...refreshedState,
         lastSuccessPeriodKey: options.dryRun ? refreshedState.lastSuccessPeriodKey : schedule.periodKey,
@@ -563,6 +629,18 @@ async function run(options: CliOptions): Promise<void> {
     }
 
     if (sendResult.draft) {
+      if (options.testRun) {
+        await writePrivateText(path.join(runDir, "send-error.txt"), sendResult.error ?? "Email send failed; test draft created.");
+        console.log(JSON.stringify({
+          status: "drafted",
+          testRun: true,
+          subject,
+          messageId: sendResult.messageId,
+          recipients: { to: options.to, cc: options.cc },
+          runDir,
+        }));
+        return;
+      }
       await writePrivateJson(statePath, {
         ...refreshedState,
         lastDraftPeriodKey: schedule.periodKey,

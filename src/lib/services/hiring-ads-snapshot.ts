@@ -1171,7 +1171,7 @@ export function renderHiringAdsFullReport(snapshot: HiringAdSnapshot, aiSummaryH
 export function renderHiringAdsEml(args: {
   from: string;
   to: string;
-  cc: string;
+  cc?: string;
   subject: string;
   text: string;
   html: string;
@@ -1201,7 +1201,7 @@ export function renderHiringAdsEml(args: {
   const headers = [
     `From: ${args.from}`,
     `To: ${args.to}`,
-    `Cc: ${args.cc}`,
+    ...(args.cc?.trim() ? [`Cc: ${args.cc}`] : []),
     `Subject: ${args.subject}`,
     "MIME-Version: 1.0",
   ];
