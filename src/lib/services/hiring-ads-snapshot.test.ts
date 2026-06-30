@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   __hiringAdsSnapshotTest,
   escapeHtml,
+  getMonthToDatePeriod,
   getPreviousMondaySunday,
   renderHiringAdsEmail,
   renderHiringAdsEml,
@@ -17,6 +18,13 @@ describe("hiring ads snapshot scheduling", () => {
 
     expect(schedule.period).toEqual({ start: "2026-06-08", end: "2026-06-14" });
     expect(schedule.periodKey).toBe("2026-06-08_to_2026-06-14");
+  });
+
+  it("uses the Mountain Time calendar month for MTD comparison", () => {
+    const schedule = getMonthToDatePeriod(new Date("2026-06-30T03:00:00.000Z"));
+
+    expect(schedule.period).toEqual({ start: "2026-06-01", end: "2026-06-29" });
+    expect(schedule.label).toBe("Jun 1, 2026 - Jun 29, 2026");
   });
 
   it("waits until Monday 9 AM Mountain Time", () => {
@@ -141,23 +149,74 @@ describe("hiring ads snapshot rendering", () => {
           sourceIds: ["ad:poc"],
         },
       ],
+      mtdRows: [
+        {
+          market: "Omak, WA",
+          platform: "Google Ads" as const,
+          status: "Needs review" as const,
+          reason: "enabled_no_delivery" as const,
+          spend: 0,
+          impressions: 0,
+          clicks: 0,
+          hiringConversionRate: "Not tracked" as const,
+          notes: "Enabled but no delivery.",
+          sourceIds: ["ad:omak"],
+        },
+        {
+          market: "Omak, WA",
+          platform: "Meta Ads" as const,
+          status: "Inactive" as const,
+          reason: "inactive_no_delivery" as const,
+          spend: 0,
+          impressions: 0,
+          clicks: 0,
+          hiringConversionRate: "Not tracked" as const,
+          notes: "Inactive.",
+          sourceIds: ["meta:omak"],
+        },
+        {
+          market: "St. George, UT",
+          platform: "Google Ads" as const,
+          status: "Active" as const,
+          reason: "active_delivery" as const,
+          spend: 136.61,
+          impressions: 2136,
+          clicks: 181,
+          hiringConversionRate: "Not tracked" as const,
+          notes: "Active.",
+          sourceIds: ["ad:stg"],
+        },
+        {
+          market: "Pocatello, ID",
+          platform: "Google Ads" as const,
+          status: "Active" as const,
+          reason: "active_delivery" as const,
+          spend: 26.83,
+          impressions: 28,
+          clicks: 3,
+          hiringConversionRate: "Not tracked" as const,
+          notes: "Active.",
+          sourceIds: ["ad:poc"],
+        },
+      ],
     };
 
     const html = renderHiringAdsEmail(snapshot);
     const text = renderHiringAdsText(snapshot);
 
-    expect(html).toContain("Channel comparison");
-    expect(html).toContain("Delivery status");
-    expect(html).toContain("Google Ads: enabled, no delivery");
-    expect(html).toContain("181 clicks · $0.75 CPC");
-    expect(html).toContain("2,136 shown · $63.96 CPM");
+    expect(html).toContain("Month-to-date channel economics");
+    expect(html).toContain("Weekly delivery health");
+    expect(html).toContain("Review why enabled Google ads did not deliver.");
+    expect(html).toContain("$136.61 | 181 clicks");
+    expect(html).toContain("main efficiency metric for hiring ads");
     expect(html).not.toContain("Active hiring markets");
     expect(html).not.toContain("Core and active markets");
     expect(text).toContain("Weekly Driver Hiring Ads Snapshot");
-    expect(text).toContain("Channel comparison:");
-    expect(text).toContain("Delivery status:");
+    expect(text).toContain("Month-to-date channel economics:");
+    expect(text).toContain("Weekly delivery health:");
     expect(text).toContain("CPC: $0.75");
     expect(text).toContain("CPM: $63.96");
+    expect(text).toContain("Terms: MTD means month to date.");
     expect(text).not.toContain("Active hiring markets:");
     expect(text).not.toContain("Core and active markets:");
   });
@@ -205,14 +264,15 @@ describe("hiring ads snapshot rendering", () => {
     const fullReport = renderHiringAdsFullReport(snapshot);
     const text = renderHiringAdsText(snapshot);
 
-    expect(email).toContain("Channel comparison");
+    expect(email).toContain("Month-to-date channel economics");
     expect(email).toContain("Indeed CPA");
     expect(email).toContain("$14.91");
-    expect(fullReport).toContain("Channel Comparison");
+    expect(fullReport).toContain("Month-To-Date Channel Economics");
     expect(fullReport).toContain("Indeed Current-Month Comparison");
     expect(fullReport).toContain("Northwestern Stagelines");
     expect(fullReport).toContain("$14.91");
-    expect(text).toContain("Channel comparison:");
+    expect(fullReport).toContain("CPA is cost per application");
+    expect(text).toContain("Month-to-date channel economics:");
     expect(text).toContain("Indeed current month spend $372.82");
     expect(text).toContain("CPA $14.91");
   });
@@ -292,8 +352,8 @@ describe("hiring ads snapshot rendering", () => {
 
     const text = renderHiringAdsText(snapshot);
 
-    expect(text).toContain("Google/Meta spend: Unknown");
-    expect(text).toContain("Google/Meta average CPC: Unknown");
+    expect(text).toContain("Google/Meta MTD spend: Unknown");
+    expect(text).toContain("Google/Meta MTD average CPC: Unknown");
     expect(text).not.toContain("Google/Meta spend: $0");
   });
 

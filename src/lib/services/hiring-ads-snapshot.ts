@@ -16,7 +16,8 @@ export const HIRING_REPORT_TIME_ZONE = "America/Denver";
 const execFileAsync = promisify(execFile);
 
 export type HiringPlatform = "Google Ads" | "Meta Ads";
-export type HiringReportSource = HiringPlatform | "Indeed sheet" | "GA4 diagnostics";
+type HiringMtdPlatformSource = "Google Ads MTD" | "Meta Ads MTD";
+export type HiringReportSource = HiringPlatform | HiringMtdPlatformSource | "Indeed sheet" | "GA4 diagnostics";
 export type HiringStatus = "Active" | "Inactive" | "Needs review";
 export type HiringStatusReason =
   | "active_delivery"
@@ -79,11 +80,14 @@ export type HiringAdSnapshot = {
   reportPosition: string;
   reportPeriod: DateRange;
   reportPeriodLabel: string;
+  mtdReportPeriod: DateRange;
+  mtdReportPeriodLabel: string;
   reportDueAfter: string;
   requestedMarkets: string[];
   activeMarkets: string[];
   actionSummary: string[];
   rows: HiringPlatformRow[];
+  mtdRows: HiringPlatformRow[];
   indeedRows: IndeedComparisonRow[];
   unmappedHiringAds: UnmappedHiringAd[];
   sourceFetches: HiringSourceFetch[];
@@ -280,6 +284,23 @@ export function getPreviousMondaySunday(
     period,
     dueAfter,
     periodKey,
+    label: `${formatDateLabel(period.start)} - ${formatDateLabel(period.end)}`,
+  };
+}
+
+export function getMonthToDatePeriod(
+  now = new Date(),
+  timeZone = HIRING_REPORT_TIME_ZONE,
+): { period: DateRange; label: string } {
+  const local = zonedParts(now, timeZone);
+  const month = String(local.month).padStart(2, "0");
+  const day = String(local.day).padStart(2, "0");
+  const period = {
+    start: `${local.year}-${month}-01`,
+    end: `${local.year}-${month}-${day}`,
+  };
+  return {
+    period,
     label: `${formatDateLabel(period.start)} - ${formatDateLabel(period.end)}`,
   };
 }
@@ -1022,15 +1043,20 @@ export async function collectHiringAdSnapshot(
 ): Promise<HiringAdSnapshot> {
   const now = options.now ?? new Date();
   const schedule = getPreviousMondaySunday(now);
-  const [googleResult, metaResult, indeedResult] = await Promise.allSettled([
+  const mtdSchedule = getMonthToDatePeriod(now);
+  const [googleResult, metaResult, googleMtdResult, metaMtdResult, indeedResult] = await Promise.allSettled([
     fetchGoogleRecords(schedule.period),
     fetchMetaRecords(schedule.period),
+    fetchGoogleRecords(mtdSchedule.period),
+    fetchMetaRecords(mtdSchedule.period),
     fetchIndeedRows(),
   ]);
 
   const records: RawHiringRecord[] = [];
+  const mtdRecords: RawHiringRecord[] = [];
   let indeedRows: IndeedComparisonRow[] = [];
   const sourceFetches: HiringSourceFetch[] = [];
+  const mtdFetches: HiringSourceFetch[] = [];
 
   if (googleResult.status === "fulfilled") {
     records.push(...googleResult.value.records);
@@ -1056,6 +1082,44 @@ export async function collectHiringAdSnapshot(
     });
   }
 
+  if (googleMtdResult.status === "fulfilled") {
+    mtdRecords.push(...googleMtdResult.value.records);
+    mtdFetches.push(googleMtdResult.value.fetch);
+    sourceFetches.push({
+      ...googleMtdResult.value.fetch,
+      source: "Google Ads MTD",
+      message: googleMtdResult.value.fetch.message ?? `Month-to-date window: ${mtdSchedule.label}.`,
+    });
+  } else {
+    const fetch: HiringSourceFetch = {
+      source: "Google Ads",
+      status: "error",
+      fetchedAt: new Date().toISOString(),
+      message: truncateMessage(googleMtdResult.reason),
+    };
+    mtdFetches.push(fetch);
+    sourceFetches.push({ ...fetch, source: "Google Ads MTD" });
+  }
+
+  if (metaMtdResult.status === "fulfilled") {
+    mtdRecords.push(...metaMtdResult.value.records);
+    mtdFetches.push(metaMtdResult.value.fetch);
+    sourceFetches.push({
+      ...metaMtdResult.value.fetch,
+      source: "Meta Ads MTD",
+      message: metaMtdResult.value.fetch.message ?? `Month-to-date window: ${mtdSchedule.label}.`,
+    });
+  } else {
+    const fetch: HiringSourceFetch = {
+      source: "Meta Ads",
+      status: "error",
+      fetchedAt: new Date().toISOString(),
+      message: truncateMessage(metaMtdResult.reason),
+    };
+    mtdFetches.push(fetch);
+    sourceFetches.push({ ...fetch, source: "Meta Ads MTD" });
+  }
+
   if (indeedResult.status === "fulfilled") {
     indeedRows = indeedResult.value.rows;
     sourceFetches.push(indeedResult.value.fetch);
@@ -1076,6 +1140,7 @@ export async function collectHiringAdSnapshot(
   });
 
   const rows = aggregateRows(records, sourceFetches);
+  const mtdRows = aggregateRows(mtdRecords, mtdFetches);
   const unmappedHiringAds = buildUnmapped(records);
   const activeMarkets = [...new Set(rows.filter((row) => row.status === "Active").map((row) => row.market))];
 
@@ -1085,11 +1150,14 @@ export async function collectHiringAdSnapshot(
     reportPosition: REPORT_POSITION,
     reportPeriod: schedule.period,
     reportPeriodLabel: schedule.label,
+    mtdReportPeriod: mtdSchedule.period,
+    mtdReportPeriodLabel: mtdSchedule.label,
     reportDueAfter: schedule.dueAfter,
     requestedMarkets: REQUESTED_MARKETS,
     activeMarkets,
     actionSummary: buildActionSummary(rows, unmappedHiringAds, sourceFetches),
     rows,
+    mtdRows,
     indeedRows,
     unmappedHiringAds,
     sourceFetches,
@@ -1150,9 +1218,9 @@ function activeMarketDisplay(snapshot: HiringAdSnapshot): string {
   return hasLiveFetch(snapshot) ? String(snapshot.activeMarkets.length) : "Pending";
 }
 
-function periodSpendDisplay(snapshot: HiringAdSnapshot): string {
+function mtdGoogleMetaSpendDisplay(snapshot: HiringAdSnapshot): string {
   if (!hasLiveFetch(snapshot)) return "Pending";
-  return usd(sumNullable(snapshot.rows, (row) => row.spend));
+  return usd(sumNullable(snapshot.mtdRows, (row) => row.spend));
 }
 
 function renderRows(rows: HiringPlatformRow[]): string {
@@ -1172,8 +1240,8 @@ function renderRows(rows: HiringPlatformRow[]): string {
   `).join("");
 }
 
-function emailStatusStyle(status: HiringStatus): string {
-  if (status === "Active") return "background:#dcfce7;color:#166534;";
+function emailStatusStyle(status: HiringStatus | "Indeed active"): string {
+  if (status === "Active" || status === "Indeed active") return "background:#dcfce7;color:#166534;";
   if (status === "Inactive") return "background:#f4f4f5;color:#52525b;";
   return "background:#fef3c7;color:#92400e;";
 }
@@ -1182,20 +1250,28 @@ function sumNullable(rows: HiringPlatformRow[], pick: (row: HiringPlatformRow) =
   return rows.some((row) => pick(row) === null) ? null : rows.reduce((sum, row) => sum + (pick(row) ?? 0), 0);
 }
 
-function averageCostPerClickDisplay(snapshot: HiringAdSnapshot): string {
+function averageMtdCostPerClickDisplay(snapshot: HiringAdSnapshot): string {
   if (!hasLiveFetch(snapshot)) return "Pending";
   return usd(costPerClick(
-    sumNullable(snapshot.rows, (row) => row.spend),
-    sumNullable(snapshot.rows, (row) => row.clicks),
+    sumNullable(snapshot.mtdRows, (row) => row.spend),
+    sumNullable(snapshot.mtdRows, (row) => row.clicks),
   ));
 }
 
-function averageCpmDisplay(snapshot: HiringAdSnapshot): string {
+function mtdGoogleMetaClicksDisplay(snapshot: HiringAdSnapshot): string {
   if (!hasLiveFetch(snapshot)) return "Pending";
-  return usd(costPerThousandImpressions(
-    sumNullable(snapshot.rows, (row) => row.spend),
-    sumNullable(snapshot.rows, (row) => row.impressions),
-  ));
+  return integer(sumNullable(snapshot.mtdRows, (row) => row.clicks));
+}
+
+function visibleIndeedRows(snapshot: HiringAdSnapshot): IndeedComparisonRow[] {
+  const markets = new Set(comparisonMarkets(snapshot, false));
+  return snapshot.indeedRows.filter((row) => markets.has(row.market));
+}
+
+function mtdIndeedSpendDisplay(snapshot: HiringAdSnapshot): string {
+  const rows = visibleIndeedRows(snapshot);
+  if (rows.length === 0) return "Unknown";
+  return usd(rows.reduce((sum, row) => sum + row.spend, 0));
 }
 
 function activeUnmappedAds(snapshot: HiringAdSnapshot): UnmappedHiringAd[] {
@@ -1222,8 +1298,9 @@ function comparisonMarkets(snapshot: HiringAdSnapshot, includeAllIndeed: boolean
   ].filter((market, index, markets) => markets.indexOf(market) === index);
 }
 
-function googleMetaMarketMetrics(snapshot: HiringAdSnapshot, market: string) {
-  const rows = snapshot.rows.filter((row) => row.market === market);
+function googleMetaMarketMetrics(snapshot: HiringAdSnapshot, market: string, period: "weekly" | "mtd" = "weekly") {
+  const sourceRows = period === "mtd" ? snapshot.mtdRows : snapshot.rows;
+  const rows = sourceRows.filter((row) => row.market === market);
   const spend = sumNullable(rows, (row) => row.spend);
   const impressions = sumNullable(rows, (row) => row.impressions);
   const clicks = sumNullable(rows, (row) => row.clicks);
@@ -1235,6 +1312,14 @@ function googleMetaMarketMetrics(snapshot: HiringAdSnapshot, market: string) {
     cpc: costPerClick(spend, clicks),
     cpm: costPerThousandImpressions(spend, impressions),
   };
+}
+
+function mtdChannelStatus(snapshot: HiringAdSnapshot, market: string): HiringStatus | "Indeed active" {
+  const googleMeta = googleMetaMarketMetrics(snapshot, market, "mtd");
+  const indeed = indeedMarketMetrics(snapshot, market);
+  if (googleMeta.status === "Active") return "Active";
+  if (indeed.status === "Active") return "Indeed active";
+  return googleMeta.status;
 }
 
 function indeedMarketMetrics(snapshot: HiringAdSnapshot, market: string) {
@@ -1270,14 +1355,16 @@ function indeedMarketMetrics(snapshot: HiringAdSnapshot, market: string) {
 }
 
 function indeedApplicationsDisplay(snapshot: HiringAdSnapshot): string {
-  if (snapshot.indeedRows.length === 0) return "Unknown";
-  return integer(snapshot.indeedRows.reduce((sum, row) => sum + row.applications, 0));
+  const rows = visibleIndeedRows(snapshot);
+  if (rows.length === 0) return "Unknown";
+  return integer(rows.reduce((sum, row) => sum + row.applications, 0));
 }
 
 function averageIndeedCpaDisplay(snapshot: HiringAdSnapshot): string {
-  if (snapshot.indeedRows.length === 0) return "Unknown";
-  const spend = snapshot.indeedRows.reduce((sum, row) => sum + row.spend, 0);
-  const applications = snapshot.indeedRows.reduce((sum, row) => sum + row.applications, 0);
+  const rows = visibleIndeedRows(snapshot);
+  if (rows.length === 0) return "Unknown";
+  const spend = rows.reduce((sum, row) => sum + row.spend, 0);
+  const applications = rows.reduce((sum, row) => sum + row.applications, 0);
   return usd(safeDivide(spend, applications));
 }
 
@@ -1301,17 +1388,7 @@ function platformEmailSummary(row: HiringPlatformRow): string {
   return `${row.platform}: needs review`;
 }
 
-function marketCoverageStyle(status: HiringStatus): { background: string; border: string; text: string } {
-  if (status === "Active") {
-    return { background: "#f0fdf4", border: "#bbf7d0", text: "#166534" };
-  }
-  if (status === "Needs review") {
-    return { background: "#fffbeb", border: "#fde68a", text: "#92400e" };
-  }
-  return { background: "#ffffff", border: "#e2e8f0", text: "#475569" };
-}
-
-function renderEmailMarketCoverage(snapshot: HiringAdSnapshot): string {
+function renderEmailWeeklyDeliveryHealth(snapshot: HiringAdSnapshot): string {
   if (!hasLiveFetch(snapshot)) {
     return `
       <div style="padding:15px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;color:#475569;font-size:14px;line-height:1.45;">
@@ -1320,36 +1397,47 @@ function renderEmailMarketCoverage(snapshot: HiringAdSnapshot): string {
     `;
   }
 
-  return visibleEmailMarkets(snapshot).map((market, index) => {
-    const rows = snapshot.rows.filter((row) => row.market === market);
-    const status = statusForRows(rows);
-    const spend = sumNullable(rows, (row) => row.spend);
-    const impressions = sumNullable(rows, (row) => row.impressions);
-    const clicks = sumNullable(rows, (row) => row.clicks);
-    const cpc = costPerClick(spend, clicks);
-    const cpm = costPerThousandImpressions(spend, impressions);
-    const style = marketCoverageStyle(status);
-    const platformSummary = rows.map(platformEmailSummary).join("<br>");
-
-    return `
-      <div style="${index === 0 ? "" : "margin-top:10px;"}padding:14px 16px;background:${style.background};border:1px solid ${style.border};border-radius:12px;">
-        <table role="presentation" style="width:100%;border-collapse:collapse;">
+  return `
+    <table role="presentation" style="width:100%;border-collapse:collapse;">
+      <tr>
+        <td style="padding:0 10px 8px 0;color:#64748b;font-size:11px;line-height:1.25;font-weight:800;letter-spacing:.4px;text-transform:uppercase;">Market</td>
+        <td style="padding:0 10px 8px 0;color:#64748b;font-size:11px;line-height:1.25;font-weight:800;letter-spacing:.4px;text-transform:uppercase;">Google</td>
+        <td style="padding:0 10px 8px 0;color:#64748b;font-size:11px;line-height:1.25;font-weight:800;letter-spacing:.4px;text-transform:uppercase;">Meta</td>
+        <td style="padding:0 0 8px 0;color:#64748b;font-size:11px;line-height:1.25;font-weight:800;letter-spacing:.4px;text-transform:uppercase;">Next read</td>
+      </tr>
+      ${visibleEmailMarkets(snapshot).map((market) => {
+        const google = snapshot.rows.find((row) => row.market === market && row.platform === "Google Ads");
+        const meta = snapshot.rows.find((row) => row.market === market && row.platform === "Meta Ads");
+        const nextRead = market === "Omak, WA"
+          ? "Review why enabled Google ads did not deliver."
+          : market === "St. George, UT"
+            ? "Keep delivery on; fix application attribution next."
+            : "Keep watching; weekly Google sample is small.";
+        return `
           <tr>
-            <td style="vertical-align:top;padding-right:14px;">
-              <div style="color:#0f172a;font-size:16px;line-height:1.25;font-weight:800;">${escapeHtml(market)}</div>
-              <div style="margin-top:6px;color:${style.text};font-size:13px;line-height:1.45;">${platformSummary}</div>
-            </td>
-            <td style="width:112px;text-align:right;vertical-align:top;white-space:nowrap;">
-              <span style="display:inline-block;padding:5px 10px;border-radius:999px;font-size:12px;font-weight:800;${emailStatusStyle(status)}">${escapeHtml(status)}</span>
-              <div style="margin-top:10px;color:#0f172a;font-size:15px;line-height:1.25;font-weight:800;">${escapeHtml(usd(spend))}</div>
-              <div style="margin-top:3px;color:${style.text};font-size:12px;line-height:1.4;">${escapeHtml(integer(clicks))} clicks · ${escapeHtml(usd(cpc))} CPC</div>
-              <div style="color:${style.text};font-size:12px;line-height:1.4;">${escapeHtml(integer(impressions))} shown · ${escapeHtml(usd(cpm))} CPM</div>
-            </td>
+            <td style="width:132px;padding:10px 10px 11px 0;border-top:1px solid #e2e8f0;color:#0f172a;font-size:12px;line-height:1.35;vertical-align:top;"><strong>${escapeHtml(market)}</strong></td>
+            ${renderWeeklyPlatformCell(google)}
+            ${renderWeeklyPlatformCell(meta)}
+            <td style="padding:10px 0 11px 0;border-top:1px solid #e2e8f0;color:#0f172a;font-size:12px;line-height:1.35;vertical-align:top;">${escapeHtml(nextRead)}</td>
           </tr>
-        </table>
-      </div>
-    `;
-  }).join("");
+        `;
+      }).join("")}
+    </table>
+  `;
+}
+
+function renderWeeklyPlatformCell(row: HiringPlatformRow | undefined): string {
+  const status = row?.status ?? "Inactive";
+  return `
+    <td style="width:126px;padding:10px 10px 11px 0;border-top:1px solid #e2e8f0;color:#475569;font-size:12px;line-height:1.35;vertical-align:top;">
+      <span style="display:inline-block;margin-bottom:5px;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:800;${emailStatusStyle(status)}">${escapeHtml(status)}</span><br>
+      <span>${escapeHtml(usd(row?.spend ?? 0))} | ${escapeHtml(integer(row?.clicks ?? 0))} clicks</span>
+    </td>
+  `;
+}
+
+function metricUsd(value: number | null, emptyLabel = "Unknown"): string {
+  return value === null ? emptyLabel : usd(value);
 }
 
 function renderEmailChannelComparison(snapshot: HiringAdSnapshot): string {
@@ -1358,49 +1446,89 @@ function renderEmailChannelComparison(snapshot: HiringAdSnapshot): string {
 
   return `
     <div style="margin-top:24px;">
-      <p style="margin:0 0 10px 0;color:#334155;font-size:12px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;">Channel comparison</p>
+      <table role="presentation" style="width:100%;border-collapse:collapse;margin-bottom:10px;">
+        <tr>
+          <td style="color:#334155;font-size:12px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;">Month-to-date channel economics</td>
+          <td style="text-align:right;color:#64748b;font-size:12px;line-height:1.4;">${escapeHtml(snapshot.mtdReportPeriodLabel)} · requested markets</td>
+        </tr>
+      </table>
       ${markets.map((market, index) => {
-        const googleMeta = googleMetaMarketMetrics(snapshot, market);
+        const googleMeta = googleMetaMarketMetrics(snapshot, market, "mtd");
         const indeed = indeedMarketMetrics(snapshot, market);
-        const indeedStatus = snapshot.indeedRows.some((row) => row.market === market)
-          ? `${indeed.status} · current month`
-          : "No current-month row";
+        const hasIndeedRow = snapshot.indeedRows.some((row) => row.market === market);
+        const noGoogleMetaDelivery = googleMeta.spend === 0 && googleMeta.clicks === 0 && googleMeta.impressions === 0;
+        const status = mtdChannelStatus(snapshot, market);
+        const readout = market === "Omak, WA"
+          ? "Indeed is the only channel producing application data here; Google is enabled but still has no delivery."
+          : market === "St. George, UT"
+            ? "Google is buying cheaper traffic, but Indeed is the only channel with confirmed applications."
+            : "Indeed has the useful application signal; Google has delivery, but the sample is still small.";
         return `
-          <div style="${index === 0 ? "" : "margin-top:10px;"}padding:13px 15px;background:#ffffff;border:1px solid #dbe4ee;border-radius:12px;">
-            <div style="color:#0f172a;font-size:15px;line-height:1.25;font-weight:800;">${escapeHtml(market)}</div>
-            <table role="presentation" style="width:100%;border-collapse:collapse;margin-top:10px;">
+          <div style="${index === 0 ? "" : "margin-top:10px;"}padding:15px;background:#ffffff;border:1px solid #dbe4ee;border-radius:12px;">
+            <table role="presentation" style="width:100%;border-collapse:collapse;margin-bottom:10px;">
               <tr>
-                <td style="width:118px;padding:0 10px 8px 0;color:#475569;font-size:12px;line-height:1.35;font-weight:800;vertical-align:top;">Google/Meta<br><span style="font-weight:400;">weekly</span></td>
-                <td style="padding:0 8px 8px 0;color:#0f172a;font-size:12px;line-height:1.35;vertical-align:top;"><strong>${escapeHtml(usd(googleMeta.spend))}</strong><br><span style="color:#64748b;">spend</span></td>
-                <td style="padding:0 8px 8px 0;color:#0f172a;font-size:12px;line-height:1.35;vertical-align:top;"><strong>${escapeHtml(usd(googleMeta.cpc))}</strong><br><span style="color:#64748b;">CPC</span></td>
-                <td style="padding:0 8px 8px 0;color:#0f172a;font-size:12px;line-height:1.35;vertical-align:top;"><strong>${escapeHtml(usd(googleMeta.cpm))}</strong><br><span style="color:#64748b;">CPM</span></td>
-                <td style="padding:0 0 8px 0;color:#0f172a;font-size:12px;line-height:1.35;vertical-align:top;"><strong>Not tracked</strong><br><span style="color:#64748b;">CPA</span></td>
-              </tr>
-              <tr>
-                <td style="width:118px;padding:8px 10px 0 0;border-top:1px solid #e2e8f0;color:#1e3a8a;font-size:12px;line-height:1.35;font-weight:800;vertical-align:top;">Indeed<br><span style="font-weight:400;">${escapeHtml(indeedStatus)}</span></td>
-                <td style="padding:8px 8px 0 0;border-top:1px solid #e2e8f0;color:#0f172a;font-size:12px;line-height:1.35;vertical-align:top;"><strong>${escapeHtml(usd(indeed.spend))}</strong><br><span style="color:#64748b;">spend</span></td>
-                <td style="padding:8px 8px 0 0;border-top:1px solid #e2e8f0;color:#0f172a;font-size:12px;line-height:1.35;vertical-align:top;"><strong>${escapeHtml(usd(indeed.cpc))}</strong><br><span style="color:#64748b;">CPC</span></td>
-                <td style="padding:8px 8px 0 0;border-top:1px solid #e2e8f0;color:#0f172a;font-size:12px;line-height:1.35;vertical-align:top;"><strong>${escapeHtml(usd(indeed.cpm))}</strong><br><span style="color:#64748b;">CPM</span></td>
-                <td style="padding:8px 0 0 0;border-top:1px solid #e2e8f0;color:#0f172a;font-size:12px;line-height:1.35;vertical-align:top;"><strong>${escapeHtml(usd(indeed.cpa))}</strong><br><span style="color:#64748b;">CPA</span></td>
+                <td style="color:#0f172a;font-size:16px;line-height:1.25;font-weight:800;">${escapeHtml(market)}</td>
+                <td style="text-align:right;"><span style="display:inline-block;padding:6px 11px;border-radius:999px;font-size:12px;font-weight:800;${emailStatusStyle(status)}">${escapeHtml(status)}</span></td>
               </tr>
             </table>
+            <table role="presentation" style="width:100%;border-collapse:collapse;">
+              <tr>
+                <td style="width:19%;padding:0 6px 7px 0;color:#64748b;font-size:11px;line-height:1.25;font-weight:800;letter-spacing:.4px;text-transform:uppercase;">Channel</td>
+                <td style="width:13%;padding:0 6px 7px 0;color:#64748b;font-size:11px;line-height:1.25;font-weight:800;letter-spacing:.4px;text-transform:uppercase;">Spend</td>
+                <td style="width:13%;padding:0 6px 7px 0;color:#64748b;font-size:11px;line-height:1.25;font-weight:800;letter-spacing:.4px;text-transform:uppercase;">Clicks</td>
+                <td style="width:13%;padding:0 6px 7px 0;color:#64748b;font-size:11px;line-height:1.25;font-weight:800;letter-spacing:.4px;text-transform:uppercase;">CPC</td>
+                <td style="width:13%;padding:0 6px 7px 0;color:#64748b;font-size:11px;line-height:1.25;font-weight:800;letter-spacing:.4px;text-transform:uppercase;">CPM</td>
+                <td style="width:13%;padding:0 6px 7px 0;color:#64748b;font-size:11px;line-height:1.25;font-weight:800;letter-spacing:.4px;text-transform:uppercase;">Apps</td>
+                <td style="width:16%;padding:0 8px 7px 8px;background:#eff6ff;border-left:2px solid #1e6fad;color:#1e3a8a;font-size:11px;line-height:1.25;font-weight:800;letter-spacing:.4px;text-transform:uppercase;">CPA</td>
+              </tr>
+              <tr>
+                <td style="padding:9px 6px 9px 0;border-top:1px solid #e2e8f0;color:#0f172a;font-size:12px;line-height:1.35;vertical-align:top;"><strong>Google/Meta Ads</strong><br><span style="color:#64748b;">MTD platform delivery</span></td>
+                <td style="padding:9px 6px 9px 0;border-top:1px solid #e2e8f0;color:#0f172a;font-size:12px;line-height:1.35;vertical-align:top;">${escapeHtml(usd(googleMeta.spend))}</td>
+                <td style="padding:9px 6px 9px 0;border-top:1px solid #e2e8f0;color:#0f172a;font-size:12px;line-height:1.35;vertical-align:top;">${escapeHtml(integer(googleMeta.clicks))}</td>
+                <td style="padding:9px 6px 9px 0;border-top:1px solid #e2e8f0;color:#0f172a;font-size:12px;line-height:1.35;vertical-align:top;">${escapeHtml(metricUsd(googleMeta.cpc, noGoogleMetaDelivery ? "No delivery" : "Unknown"))}</td>
+                <td style="padding:9px 6px 9px 0;border-top:1px solid #e2e8f0;color:#0f172a;font-size:12px;line-height:1.35;vertical-align:top;">${escapeHtml(metricUsd(googleMeta.cpm, noGoogleMetaDelivery ? "No delivery" : "Unknown"))}</td>
+                <td style="padding:9px 6px 9px 0;border-top:1px solid #e2e8f0;color:#475569;font-size:12px;line-height:1.35;vertical-align:top;">Not tracked</td>
+                <td style="padding:9px 8px;border-top:1px solid #bfdbfe;background:#eff6ff;border-left:2px solid #1e6fad;color:#1e3a8a;font-size:12px;line-height:1.35;vertical-align:top;"><strong>Not tracked</strong></td>
+              </tr>
+              <tr>
+                <td style="padding:9px 6px 9px 0;border-top:1px solid #e2e8f0;color:#1e3a8a;font-size:12px;line-height:1.35;vertical-align:top;"><strong>Indeed</strong><br><span style="color:#64748b;">${escapeHtml(hasIndeedRow ? "MTD from Greg's sheet" : "No current-month row")}</span></td>
+                <td style="padding:9px 6px 9px 0;border-top:1px solid #e2e8f0;color:#0f172a;font-size:12px;line-height:1.35;vertical-align:top;">${escapeHtml(usd(indeed.spend))}</td>
+                <td style="padding:9px 6px 9px 0;border-top:1px solid #e2e8f0;color:#0f172a;font-size:12px;line-height:1.35;vertical-align:top;">${escapeHtml(integer(indeed.clicks))}</td>
+                <td style="padding:9px 6px 9px 0;border-top:1px solid #e2e8f0;color:#0f172a;font-size:12px;line-height:1.35;vertical-align:top;">${escapeHtml(usd(indeed.cpc))}</td>
+                <td style="padding:9px 6px 9px 0;border-top:1px solid #e2e8f0;color:#0f172a;font-size:12px;line-height:1.35;vertical-align:top;">${escapeHtml(usd(indeed.cpm))}</td>
+                <td style="padding:9px 6px 9px 0;border-top:1px solid #e2e8f0;color:#0f172a;font-size:12px;line-height:1.35;vertical-align:top;">${escapeHtml(integer(indeed.applications))}</td>
+                <td style="padding:9px 8px;border-top:1px solid #bfdbfe;background:#eff6ff;border-left:2px solid #1e6fad;color:#0f172a;font-size:12px;line-height:1.35;vertical-align:top;"><strong>${escapeHtml(usd(indeed.cpa))}</strong></td>
+              </tr>
+            </table>
+            <div style="margin-top:9px;color:#334155;font-size:13px;line-height:1.45;">${escapeHtml(readout)}</div>
           </div>
         `;
       }).join("")}
-      <div style="margin-top:10px;color:#64748b;font-size:12px;line-height:1.45;">Indeed is from Greg's current-month sheet; Google/Meta is the weekly report window. The full report includes every Indeed market row.</div>
+    </div>
+  `;
+}
+
+function renderEmailGlossary(): string {
+  return `
+    <div style="margin-top:16px;padding:14px 15px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;color:#475569;font-size:12px;line-height:1.5;">
+      <strong style="display:block;margin-bottom:6px;color:#334155;">Terms</strong>
+      <strong>MTD</strong> means month to date. <strong>CPC</strong> is cost per click. <strong>CPM</strong> is cost per 1,000 times shown. <strong>Apps</strong> means completed applications from Greg's Indeed sheet. <strong>CPA</strong> is cost per application, the main efficiency metric for hiring ads.
     </div>
   `;
 }
 
 export function renderHiringAdsEmail(snapshot: HiringAdSnapshot, aiSummaryHtml?: string): string {
-  const lead = snapshot.actionSummary[0] ?? "Hiring ads snapshot generated.";
+  const lead = !hasLiveFetch(snapshot)
+    ? snapshot.actionSummary[0] ?? "Preview only: no live ad-platform data has been fetched."
+    : snapshot.indeedRows.length > 0
+    ? "Indeed is the only channel with application counts right now. Google/Meta CPA stays unknown until Tenstreet/IntelliApp application tracking is connected."
+    : "Google/Meta month-to-date delivery is shown first. CPA stays unknown until completed applications are connected to the ad platforms.";
   const safeReportUrl = safeUrl(snapshot.reportUrl);
   const activeUnmapped = activeUnmappedAds(snapshot);
   const fullReportCta = safeReportUrl
     ? `<a href="${escapeHtml(safeReportUrl)}" style="display:inline-block;padding:12px 18px;background:#1e6fad;color:#ffffff;border-radius:8px;font-size:14px;font-weight:800;text-decoration:none;">Open full report</a>`
     : `<div style="padding:12px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;color:#475569;font-size:13px;line-height:1.45;">The full HTML report is attached in this dry run.</div>`;
   const eyebrow = "color:#1e6fad;font-size:11px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;";
-  const sectionLabel = "margin:0 0 10px 0;color:#334155;font-size:12px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;";
 
   return `
     <div style="font-family:Arial,Helvetica,sans-serif;color:#0f172a;max-width:720px;background:#ffffff;">
@@ -1408,31 +1536,38 @@ export function renderHiringAdsEmail(snapshot: HiringAdSnapshot, aiSummaryHtml?:
         <div style="padding:24px 26px;background:#f6f9fc;border-bottom:1px solid #dbe4ee;">
           <div style="${eyebrow}">Salt Lake Express</div>
           <h1 style="margin:7px 0 6px 0;color:#0f172a;font-size:25px;line-height:1.15;font-weight:800;">Weekly ${escapeHtml(snapshot.reportPosition)} Hiring Ads Snapshot</h1>
-          <div style="color:#64748b;font-size:14px;line-height:1.45;">${escapeHtml(snapshot.reportPeriodLabel)} · Google/Meta weekly delivery</div>
+          <div style="color:#64748b;font-size:14px;line-height:1.45;">Month-to-date channel economics first · weekly delivery health second</div>
         </div>
         <div style="padding:22px 26px 24px 26px;">
           <p style="margin:0;color:#0f172a;font-size:16px;line-height:1.45;font-weight:800;">${escapeHtml(lead)}</p>
           ${aiSummaryHtml ? `<div style="margin-top:14px;padding:13px 15px;background:#f3f7fb;border-left:3px solid #1e6fad;color:#334155;font-size:13px;line-height:1.45;">${aiSummaryHtml}</div>` : ""}
           <table role="presentation" style="width:100%;border-collapse:collapse;margin-top:18px;">
       <tr>
-        ${renderEmailMetric("Active markets", activeMarketDisplay(snapshot), "requested markets")}
-        ${renderEmailMetric("Google/Meta spend", periodSpendDisplay(snapshot), "weekly mapped")}
-        ${renderEmailMetric("Google/Meta CPC", averageCostPerClickDisplay(snapshot), "weekly average")}
-        ${renderEmailMetric("Indeed CPA", averageIndeedCpaDisplay(snapshot), "current month")}
+        ${renderEmailMetric("Google/Meta spend", mtdGoogleMetaSpendDisplay(snapshot), "MTD mapped to core markets")}
+        ${renderEmailMetric("Google/Meta CPC", averageMtdCostPerClickDisplay(snapshot), `${mtdGoogleMetaClicksDisplay(snapshot)} MTD clicks`)}
+        ${renderEmailMetric("Indeed spend", mtdIndeedSpendDisplay(snapshot), "MTD shown markets")}
+        ${renderEmailMetric("Indeed CPA", averageIndeedCpaDisplay(snapshot), `${indeedApplicationsDisplay(snapshot)} applications`)}
       </tr>
           </table>
 
           ${renderEmailChannelComparison(snapshot)}
 
           <div style="margin-top:24px;">
-            <p style="${sectionLabel}">Delivery status</p>
-            ${renderEmailMarketCoverage(snapshot)}
+            <table role="presentation" style="width:100%;border-collapse:collapse;margin-bottom:10px;">
+              <tr>
+                <td style="color:#334155;font-size:12px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;">Weekly delivery health</td>
+                <td style="text-align:right;color:#64748b;font-size:12px;line-height:1.4;">${escapeHtml(snapshot.reportPeriodLabel)} · ad-platform delivery</td>
+              </tr>
+            </table>
+            ${renderEmailWeeklyDeliveryHealth(snapshot)}
           </div>
 
           ${activeUnmapped.length > 0 ? `<div style="margin-top:18px;padding:13px 15px;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;color:#9a3412;font-size:13px;line-height:1.45;"><strong>${escapeHtml(activeUnmapped.length)} active hiring ad${activeUnmapped.length === 1 ? "" : "s"} ${activeUnmapped.length === 1 ? "needs" : "need"} market review.</strong> The full report lists the ad names before anyone changes markets.</div>` : ""}
           ${snapshot.unmappedHiringAds.length > activeUnmapped.length ? `<div style="margin-top:10px;padding:13px 15px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;color:#475569;font-size:13px;line-height:1.45;"><strong style="color:#334155;">Full report note:</strong> ${escapeHtml(snapshot.unmappedHiringAds.length)} hiring ad${snapshot.unmappedHiringAds.length === 1 ? "" : "s"} could not be assigned to a market.</div>` : ""}
 
           <div style="margin-top:16px;padding:14px 15px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;color:#475569;font-size:13px;line-height:1.5;">Hiring conversion rate is not available yet because completed applications are not tied back cleanly from Tenstreet/IntelliApp into the ad platforms. Drew is working with Tenstreet on that.</div>
+
+          ${renderEmailGlossary()}
 
           <div style="margin-top:20px;">${fullReportCta}</div>
           <div style="margin-top:14px;color:#94a3b8;font-size:12px;line-height:1.4;">This snapshot sends every Monday after 9 AM Mountain Time.</div>
@@ -1456,27 +1591,30 @@ export function renderHiringAdsText(snapshot: HiringAdSnapshot): string {
     return `${market}: ${status}. ${platformSummary}. Spend: ${usd(spend)}. Clicks: ${integer(clicks)}. CPC: ${usd(cpc)}. Shown: ${integer(impressions)}. CPM: ${usd(cpm)}.`;
   });
   const comparisonLines = comparisonMarkets(snapshot, false).map((market) => {
-    const googleMeta = googleMetaMarketMetrics(snapshot, market);
+    const googleMeta = googleMetaMarketMetrics(snapshot, market, "mtd");
     const indeed = indeedMarketMetrics(snapshot, market);
     const indeedLabel = snapshot.indeedRows.some((row) => row.market === market) ? "Indeed current month" : "Indeed current month: no row";
-    return `${market}: Google/Meta weekly spend ${usd(googleMeta.spend)}, CPC ${usd(googleMeta.cpc)}, CPM ${usd(googleMeta.cpm)}, CPA Not tracked. ${indeedLabel} spend ${usd(indeed.spend)}, CPC ${usd(indeed.cpc)}, CPM ${usd(indeed.cpm)}, applications ${integer(indeed.applications)}, CPA ${usd(indeed.cpa)}.`;
+    return `${market}: Google/Meta MTD spend ${usd(googleMeta.spend)}, CPC ${metricUsd(googleMeta.cpc, "No delivery")}, CPM ${metricUsd(googleMeta.cpm, "No delivery")}, CPA Not tracked. ${indeedLabel} spend ${usd(indeed.spend)}, CPC ${usd(indeed.cpc)}, CPM ${usd(indeed.cpm)}, applications ${integer(indeed.applications)}, CPA ${usd(indeed.cpa)}.`;
   });
   const lines = [
     `Weekly ${snapshot.reportPosition} Hiring Ads Snapshot`,
-    `Report period: ${snapshot.reportPeriodLabel}`,
-    "Google/Meta weekly delivery. Indeed rows are current-month comparisons from Greg's sheet.",
+    `MTD comparison period: ${snapshot.mtdReportPeriodLabel}`,
+    `Weekly delivery period: ${snapshot.reportPeriodLabel}`,
+    "Month-to-date channel economics first. Weekly Google/Meta delivery health second.",
     "",
-    snapshot.actionSummary[0] ?? "Hiring ads snapshot generated.",
+    snapshot.indeedRows.length > 0
+      ? "Indeed is the only channel with application counts right now. Google/Meta CPA stays unknown until Tenstreet/IntelliApp application tracking is connected."
+      : "Google/Meta MTD economics are shown first. CPA stays unknown until completed applications are connected to the ad platforms.",
     "",
-    `Active markets: ${activeMarketDisplay(snapshot)}`,
-    `Google/Meta spend: ${periodSpendDisplay(snapshot)}`,
-    `Google/Meta average CPC: ${averageCostPerClickDisplay(snapshot)}`,
+    `Google/Meta MTD spend: ${mtdGoogleMetaSpendDisplay(snapshot)}`,
+    `Google/Meta MTD average CPC: ${averageMtdCostPerClickDisplay(snapshot)}`,
+    `Indeed MTD spend: ${mtdIndeedSpendDisplay(snapshot)}`,
     `Indeed CPA: ${averageIndeedCpaDisplay(snapshot)}`,
     "",
-    "Channel comparison:",
+    "Month-to-date channel economics:",
     ...comparisonLines,
     "",
-    "Delivery status:",
+    "Weekly delivery health:",
     ...marketCoverageLines,
     "",
   ];
@@ -1495,6 +1633,7 @@ export function renderHiringAdsText(snapshot: HiringAdSnapshot): string {
   }
 
   lines.push("Cost per application is not available from Google/Meta yet because completed hiring applications are not tied back cleanly from Tenstreet/IntelliApp into the ad platforms. Drew is working with Tenstreet to get that sorted out.");
+  lines.push("Terms: MTD means month to date. CPC is cost per click. CPM is cost per 1,000 times shown. Apps means completed applications from Greg's Indeed sheet. CPA is cost per application.");
   lines.push(snapshot.reportUrl ? `Open full report: ${snapshot.reportUrl}` : "The full HTML report is attached.");
 
   return lines.join("\n");
@@ -1541,24 +1680,25 @@ function renderUnmapped(snapshot: HiringAdSnapshot): string {
 
 function renderChannelComparisonRows(snapshot: HiringAdSnapshot): string {
   return comparisonMarkets(snapshot, true).map((market) => {
-    const googleMeta = googleMetaMarketMetrics(snapshot, market);
+    const googleMeta = googleMetaMarketMetrics(snapshot, market, "mtd");
     const indeed = indeedMarketMetrics(snapshot, market);
     const hasIndeedRow = snapshot.indeedRows.some((row) => row.market === market);
+    const noGoogleMetaDelivery = googleMeta.spend === 0 && googleMeta.clicks === 0 && googleMeta.impressions === 0;
     return `
       <tr>
         <td><strong>${escapeHtml(market)}</strong></td>
         <td><span class="pill ${statusClass(googleMeta.status)}">${escapeHtml(googleMeta.status)}</span></td>
         <td class="right">${escapeHtml(usd(googleMeta.spend))}</td>
         <td class="right">${escapeHtml(integer(googleMeta.clicks))}</td>
-        <td class="right">${escapeHtml(usd(googleMeta.cpc))}</td>
-        <td class="right">${escapeHtml(usd(googleMeta.cpm))}</td>
-        <td>Not tracked</td>
+        <td class="right">${escapeHtml(metricUsd(googleMeta.cpc, noGoogleMetaDelivery ? "No delivery" : "Unknown"))}</td>
+        <td class="right">${escapeHtml(metricUsd(googleMeta.cpm, noGoogleMetaDelivery ? "No delivery" : "Unknown"))}</td>
+        <td class="cpa-cell">Not tracked</td>
         <td><span class="pill ${hasIndeedRow ? statusClass(indeed.status) : "inactive"}">${escapeHtml(hasIndeedRow ? indeed.status : "No row")}</span></td>
         <td class="right">${escapeHtml(usd(indeed.spend))}</td>
         <td class="right">${escapeHtml(integer(indeed.applications))}</td>
         <td class="right">${escapeHtml(usd(indeed.cpc))}</td>
         <td class="right">${escapeHtml(usd(indeed.cpm))}</td>
-        <td class="right">${escapeHtml(usd(indeed.cpa))}</td>
+        <td class="right cpa-cell"><strong>${escapeHtml(usd(indeed.cpa))}</strong></td>
       </tr>
     `;
   }).join("");
@@ -1648,7 +1788,7 @@ export function renderHiringAdsFullReport(snapshot: HiringAdSnapshot, aiSummaryH
     .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;min-width:520px}.stat{border-left:1px solid #27272a;padding-left:18px}.stat span,.metric span{display:block;color:#71717a;font-size:11px;font-weight:700;letter-spacing:1.3px;text-transform:uppercase}.stat strong{display:block;margin-top:6px;font-size:25px}
     section{margin-top:26px}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}.active-card,.empty-card,.panel{border:1px solid #27272a;background:#18181b;padding:18px}.active-card{border-color:rgba(16,185,129,.35);background:rgba(16,185,129,.08)}.card-top{display:flex;justify-content:space-between;gap:12px;align-items:center}.metric{margin-top:16px}.metric strong{display:block;margin-top:4px;color:#fff;font-size:18px}.metric-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
     table{width:100%;border-collapse:collapse;font-size:14px;background:#111113;border:1px solid #27272a}th{padding:11px;border-bottom:1px solid #27272a;color:#71717a;font-size:11px;letter-spacing:1.2px;text-align:left;text-transform:uppercase}td{padding:13px 11px;border-bottom:1px solid #27272a;vertical-align:top}.right{text-align:right}.muted{color:#71717a}
-    .pill{display:inline-block;padding:4px 9px;border-radius:999px;font-size:12px;font-weight:700}.active{background:#064e3b;color:#6ee7b7}.inactive{background:#27272a;color:#d4d4d8}.review{background:#78350f;color:#fde68a}
+    .pill{display:inline-block;padding:4px 9px;border-radius:999px;font-size:12px;font-weight:700}.active{background:#064e3b;color:#6ee7b7}.inactive{background:#27272a;color:#d4d4d8}.review{background:#78350f;color:#fde68a}.cpa-cell{background:rgba(30,111,173,.16);border-left:2px solid #38bdf8;color:#e0f2fe}
     .summary-list{margin:0;padding-left:20px;color:#e4e4e7}.summary-list li{margin:8px 0}.note{padding:14px;background:#111113;border:1px solid #27272a;color:#d4d4d8}.section-note{margin-top:0}
     a{color:#67e8f9}@media(max-width:760px){main{padding:20px}header{display:block}.stats{grid-template-columns:1fr;min-width:0}.stat{border-left:0;border-top:1px solid #27272a;padding:12px 0 0}table{display:block;overflow-x:auto;white-space:nowrap}}
   </style>
@@ -1659,15 +1799,15 @@ export function renderHiringAdsFullReport(snapshot: HiringAdSnapshot, aiSummaryH
     <div>
       <div class="eyebrow">Salt Lake Express</div>
       <h1>${escapeHtml(snapshot.reportPosition)} Hiring Ads Snapshot</h1>
-      <p>Google/Meta weekly delivery for ${escapeHtml(snapshot.reportPeriodLabel)}. Generated ${escapeHtml(snapshot.generatedAt)}. Time zone: ${escapeHtml(snapshot.timeZone)}.</p>
+      <p>Month-to-date channel economics for ${escapeHtml(snapshot.mtdReportPeriodLabel)}. Weekly delivery health for ${escapeHtml(snapshot.reportPeriodLabel)}. Generated ${escapeHtml(snapshot.generatedAt)}.</p>
     </div>
     <div class="stats">
-      <div class="stat"><span>Active markets</span><strong>${escapeHtml(activeMarketDisplay(snapshot))}</strong></div>
-      <div class="stat"><span>Google/Meta spend</span><strong>${escapeHtml(periodSpendDisplay(snapshot))}</strong></div>
-      <div class="stat"><span>Google/Meta CPC</span><strong>${escapeHtml(averageCostPerClickDisplay(snapshot))}</strong></div>
-      <div class="stat"><span>Google/Meta CPM</span><strong>${escapeHtml(averageCpmDisplay(snapshot))}</strong></div>
+      <div class="stat"><span>Google/Meta MTD spend</span><strong>${escapeHtml(mtdGoogleMetaSpendDisplay(snapshot))}</strong></div>
+      <div class="stat"><span>Google/Meta MTD CPC</span><strong>${escapeHtml(averageMtdCostPerClickDisplay(snapshot))}</strong></div>
+      <div class="stat"><span>Indeed MTD spend</span><strong>${escapeHtml(mtdIndeedSpendDisplay(snapshot))}</strong></div>
       <div class="stat"><span>Indeed apps</span><strong>${escapeHtml(indeedApplicationsDisplay(snapshot))}</strong></div>
       <div class="stat"><span>Indeed CPA</span><strong>${escapeHtml(averageIndeedCpaDisplay(snapshot))}</strong></div>
+      <div class="stat"><span>Weekly active markets</span><strong>${escapeHtml(activeMarketDisplay(snapshot))}</strong></div>
     </div>
   </header>
   <section class="panel">
@@ -1676,24 +1816,24 @@ export function renderHiringAdsFullReport(snapshot: HiringAdSnapshot, aiSummaryH
     <ul class="summary-list">${snapshot.actionSummary.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
   </section>
   <section>
-    <h2>Channel Comparison</h2>
-    <p class="section-note">Google/Meta rows use the weekly report window. Indeed rows use Greg's current-month sheet, which includes application counts and cost per application.</p>
+    <h2>Month-To-Date Channel Economics</h2>
+    <p class="section-note">Google/Meta rows use the month-to-date ad-platform window. Indeed rows use Greg's current-month sheet, which includes application counts and cost per application.</p>
     <table>
       <thead>
         <tr>
           <th>Market</th>
           <th>G/M status</th>
-          <th class="right">G/M spend</th>
-          <th class="right">G/M clicks</th>
+          <th class="right">G/M MTD spend</th>
+          <th class="right">G/M MTD clicks</th>
           <th class="right">G/M CPC</th>
           <th class="right">G/M CPM</th>
-          <th>G/M CPA</th>
+          <th class="cpa-cell">G/M CPA</th>
           <th>Indeed status</th>
           <th class="right">Indeed spend</th>
           <th class="right">Apps</th>
           <th class="right">Indeed CPC</th>
           <th class="right">Indeed CPM</th>
-          <th class="right">Indeed CPA</th>
+          <th class="right cpa-cell">Indeed CPA</th>
         </tr>
       </thead>
       <tbody>${renderChannelComparisonRows(snapshot)}</tbody>
@@ -1728,6 +1868,9 @@ export function renderHiringAdsFullReport(snapshot: HiringAdSnapshot, aiSummaryH
   </section>
   <section class="note">
     Cost per application stays "Not tracked" for Google/Meta unless completed applications are connected to Google Ads or Meta Ads. GA4 website sessions are diagnostic only when ads land on external systems.
+  </section>
+  <section class="note">
+    Terms: MTD means month to date. CPC is cost per click. CPM is cost per 1,000 times shown. Apps means completed applications from Greg's Indeed sheet. CPA is cost per application, the main efficiency metric for hiring ads.
   </section>
 </main>
 </body>

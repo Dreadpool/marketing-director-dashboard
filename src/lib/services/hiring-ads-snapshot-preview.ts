@@ -1,4 +1,5 @@
 import {
+  getMonthToDatePeriod,
   getPreviousMondaySunday,
   renderHiringAdsEmail,
   renderHiringAdsFullReport,
@@ -10,8 +11,21 @@ export { renderHiringAdsEmail, renderHiringAdsFullReport };
 
 export function typeOnlyPreviewSnapshot(now = new Date()): HiringAdSnapshot {
   const schedule = getPreviousMondaySunday(now);
+  const mtdSchedule = getMonthToDatePeriod(now);
   const platforms: HiringPlatform[] = ["Google Ads", "Meta Ads"];
   const requestedMarkets = ["Omak, WA", "St. George, UT", "Pocatello, ID"];
+  const previewRows = requestedMarkets.flatMap((market) => platforms.map((platform) => ({
+    market,
+    platform,
+    status: "Needs review" as const,
+    reason: "fetch_failed" as const,
+    spend: null,
+    impressions: null,
+    clicks: null,
+    hiringConversionRate: "Unknown" as const,
+    notes: "Preview row. The Monday runner fills this with live read-only ad data.",
+    sourceIds: [],
+  })));
 
   return {
     generatedAt: now.toISOString(),
@@ -19,6 +33,8 @@ export function typeOnlyPreviewSnapshot(now = new Date()): HiringAdSnapshot {
     reportPosition: "Driver",
     reportPeriod: schedule.period,
     reportPeriodLabel: schedule.label,
+    mtdReportPeriod: mtdSchedule.period,
+    mtdReportPeriodLabel: mtdSchedule.label,
     reportDueAfter: schedule.dueAfter,
     requestedMarkets,
     activeMarkets: [],
@@ -27,18 +43,8 @@ export function typeOnlyPreviewSnapshot(now = new Date()): HiringAdSnapshot {
       "The live report will show one market coverage row for each requested or active hiring market.",
       "Hiring conversion rate is not tracked unless completed applications are connected to the ad platform.",
     ],
-    rows: requestedMarkets.flatMap((market) => platforms.map((platform) => ({
-      market,
-      platform,
-      status: "Needs review" as const,
-      reason: "fetch_failed" as const,
-      spend: null,
-      impressions: null,
-      clicks: null,
-      hiringConversionRate: "Unknown" as const,
-      notes: "Preview row. The Monday runner fills this with live read-only ad data.",
-      sourceIds: [],
-    }))),
+    rows: previewRows,
+    mtdRows: previewRows,
     indeedRows: [],
     unmappedHiringAds: [],
     sourceFetches: [
@@ -50,6 +56,18 @@ export function typeOnlyPreviewSnapshot(now = new Date()): HiringAdSnapshot {
       },
       {
         source: "Meta Ads",
+        status: "skipped",
+        fetchedAt: now.toISOString(),
+        message: "Preview only.",
+      },
+      {
+        source: "Google Ads MTD",
+        status: "skipped",
+        fetchedAt: now.toISOString(),
+        message: "Preview only.",
+      },
+      {
+        source: "Meta Ads MTD",
         status: "skipped",
         fetchedAt: now.toISOString(),
         message: "Preview only.",
