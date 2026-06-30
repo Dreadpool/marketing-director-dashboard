@@ -204,21 +204,34 @@ describe("hiring ads snapshot rendering", () => {
     const html = renderHiringAdsEmail(snapshot);
     const text = renderHiringAdsText(snapshot);
 
-    expect(html).toContain("Month-to-date channel economics");
-    expect(html).toContain("Weekly delivery health");
-    expect(html).toContain("Review why enabled Google ads did not deliver.");
-    expect(html).toContain("$136.61 | 181 clicks");
-    expect(html).toContain("main efficiency metric for hiring ads");
+    expect(html).toContain("Market economics");
+    expect(html).toContain("Weekly Google check");
+    expect(html).toContain("Same metrics per channel");
+    expect(html).toContain("Google MTD");
+    expect(html).toContain("Indeed MTD");
+    expect(html).toContain("Google CPA");
+    expect(html).toContain("Google is enabled but had no weekly delivery.");
+    expect(html).toContain("Spend: <strong>$136.61</strong>");
+    expect(html).toContain("Clicks: 181 · CPC: $0.75");
+    expect(html).toContain("Delivering");
+    expect(html).toContain("Meta is not currently running in these requested markets.");
+    expect(html).toContain("Data limits");
     expect(html).not.toContain("Month-to-date channel economics first");
     expect(html).not.toContain("Indeed active");
+    expect(html).not.toContain("Google/Meta");
+    expect(html).not.toContain("Tiny sample");
+    expect(html).not.toContain("Not tracked");
     expect(html).not.toContain("Active hiring markets");
     expect(html).not.toContain("Core and active markets");
     expect(text).toContain("Weekly Driver Hiring Ads Snapshot");
-    expect(text).toContain("Month-to-date channel economics:");
-    expect(text).toContain("Weekly delivery health:");
-    expect(text).toContain("CPC: $0.75");
-    expect(text).toContain("CPM: $63.96");
-    expect(text).toContain("Terms: MTD means month to date.");
+    expect(text).toContain("Market economics:");
+    expect(text).toContain("Weekly Google check:");
+    expect(text).toContain("Google CPA:");
+    expect(text).toContain("CPC $0.75");
+    expect(text).toContain("Status Delivering");
+    expect(text).toContain("CPA means cost per completed application.");
+    expect(text).not.toContain("Google/Meta");
+    expect(text).not.toContain("Tiny sample");
     expect(text).not.toContain("Active hiring markets:");
     expect(text).not.toContain("Core and active markets:");
   });
@@ -266,17 +279,20 @@ describe("hiring ads snapshot rendering", () => {
     const fullReport = renderHiringAdsFullReport(snapshot);
     const text = renderHiringAdsText(snapshot);
 
-    expect(email).toContain("Month-to-date channel economics");
+    expect(email).toContain("Market economics");
     expect(email).toContain("Indeed CPA");
     expect(email).toContain("$14.91");
+    expect(email).toContain("Google CPA");
+    expect(email).not.toContain("Google/Meta");
     expect(fullReport).toContain("Month-To-Date Channel Economics");
     expect(fullReport).toContain("Indeed Current-Month Comparison");
     expect(fullReport).toContain("Northwestern Stagelines");
     expect(fullReport).toContain("$14.91");
     expect(fullReport).toContain("CPA is cost per application");
-    expect(text).toContain("Month-to-date channel economics:");
-    expect(text).toContain("Indeed current month spend $372.82");
+    expect(text).toContain("Market economics:");
+    expect(text).toContain("Indeed MTD: Spend $372.82");
     expect(text).toContain("CPA $14.91");
+    expect(text).not.toContain("Google/Meta");
   });
 
   it("renders raw email with plain-text fallback, HTML, and attachment", () => {
@@ -354,9 +370,11 @@ describe("hiring ads snapshot rendering", () => {
 
     const text = renderHiringAdsText(snapshot);
 
-    expect(text).toContain("Google/Meta MTD spend: Unknown");
-    expect(text).toContain("Google/Meta MTD average CPC: Unknown");
-    expect(text).not.toContain("Google/Meta spend: $0");
+    expect(text).toContain("Google spend: Unknown");
+    expect(text).toContain("Omak, WA: Spend Unknown, Shown Unknown, Clicks Unknown, CPC Unknown, Status Review.");
+    expect(text).toContain("Google Ads: API unavailable");
+    expect(text).not.toContain("Google spend: $0");
+    expect(text).not.toContain("Google/Meta");
   });
 
   it("keeps confidently detected active hiring markets outside the requested list", () => {
