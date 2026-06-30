@@ -5,6 +5,7 @@ import {
   getPreviousMondaySunday,
   renderHiringAdsEmail,
   renderHiringAdsEml,
+  renderHiringAdsFullReport,
   renderHiringAdsText,
   shouldRunWeeklySnapshot,
 } from "@/lib/services/hiring-ads-snapshot";
@@ -147,12 +148,68 @@ describe("hiring ads snapshot rendering", () => {
 
     expect(html).toContain("Market coverage");
     expect(html).toContain("Google Ads: enabled, no delivery");
-    expect(html).toContain("2,136 shown");
+    expect(html).toContain("181 clicks · $0.75 CPC");
+    expect(html).toContain("2,136 shown · $63.96 CPM");
     expect(html).not.toContain("Active hiring markets");
     expect(html).not.toContain("Core and active markets");
+    expect(text).toContain("Weekly Driver Hiring Ads Snapshot");
     expect(text).toContain("Market coverage:");
+    expect(text).toContain("CPC: $0.75");
+    expect(text).toContain("CPM: $63.96");
     expect(text).not.toContain("Active hiring markets:");
     expect(text).not.toContain("Core and active markets:");
+  });
+
+  it("renders the Indeed comparison where application counts exist", () => {
+    const snapshot = {
+      ...typeOnlyPreviewSnapshot(new Date("2026-06-18T12:00:00.000Z")),
+      sourceFetches: [
+        {
+          source: "Google Ads" as const,
+          status: "ok" as const,
+          fetchedAt: "2026-06-18T12:00:00.000Z",
+        },
+        {
+          source: "Meta Ads" as const,
+          status: "ok" as const,
+          fetchedAt: "2026-06-18T12:00:00.000Z",
+        },
+        {
+          source: "Indeed sheet" as const,
+          status: "ok" as const,
+          fetchedAt: "2026-06-18T12:00:00.000Z",
+        },
+      ],
+      indeedRows: [
+        {
+          market: "Omak, WA",
+          platform: "Indeed" as const,
+          jobType: "Driver",
+          status: "Active" as const,
+          periodLabel: "Current month from Greg's Indeed sheet",
+          spend: 372.82,
+          impressions: 1432,
+          clicks: 129,
+          applyStarts: 28,
+          applications: 25,
+          company: "Northwestern Stagelines",
+          sourceRows: 1,
+          notes: "Indeed current-month totals. This does not use the weekly Google/Meta report window.",
+        },
+      ],
+    };
+
+    const email = renderHiringAdsEmail(snapshot);
+    const fullReport = renderHiringAdsFullReport(snapshot);
+    const text = renderHiringAdsText(snapshot);
+
+    expect(email).toContain("Indeed comparison");
+    expect(email).toContain("$14.91 CPA");
+    expect(fullReport).toContain("Indeed Current-Month Comparison");
+    expect(fullReport).toContain("Northwestern Stagelines");
+    expect(fullReport).toContain("$14.91");
+    expect(text).toContain("Indeed current-month comparison from Greg's sheet:");
+    expect(text).toContain("Applications: 25. CPA: $14.91.");
   });
 
   it("renders raw email with plain-text fallback, HTML, and attachment", () => {
@@ -231,7 +288,7 @@ describe("hiring ads snapshot rendering", () => {
     const text = renderHiringAdsText(snapshot);
 
     expect(text).toContain("Mapped spend: Unknown");
-    expect(text).toContain("Mapped clicks: Unknown");
+    expect(text).toContain("Average CPC: Unknown");
     expect(text).not.toContain("Mapped spend: $0");
   });
 
@@ -309,5 +366,82 @@ describe("hiring ads snapshot rendering", () => {
     expect(__hiringAdsSnapshotTest.detectMarket("S | Hiring / ID / Drive For Salt Lake Express")).toBe("Pocatello, ID");
     expect(__hiringAdsSnapshotTest.detectMarket("Salt Lake Express is hiring drivers")).toBe(null);
     expect(__hiringAdsSnapshotTest.detectMarket("All Hiring ID drivers")).toBe(null);
+  });
+
+  it("keeps the weekly report scoped to driver hiring", () => {
+    expect(__hiringAdsSnapshotTest.hasDriverHiringIntent("All Hiring / Customer Service Jobs")).toBe(false);
+    expect(__hiringAdsSnapshotTest.hasDriverHiringIntent("All Hiring / CDL Driver Jobs")).toBe(true);
+    expect(__hiringAdsSnapshotTest.hasDriverHiringIntent("S | Hiring / WA / Drive For Northwest Stagelines")).toBe(true);
+  });
+
+  it("uses Google ad rows over campaign rows to avoid double-counting mixed-market campaigns", () => {
+    const records = __hiringAdsSnapshotTest.buildGoogleRecords([
+      {
+        campaign: {
+          id: "23506774948",
+          name: "S | Hiring | UT/ID",
+          status: "ENABLED",
+        },
+        metrics: {
+          costMicros: "41670000",
+          impressions: "63",
+          clicks: "8",
+        },
+      },
+    ], [
+      {
+        campaign: {
+          id: "23506774948",
+          name: "S | Hiring | UT/ID",
+          status: "ENABLED",
+        },
+        adGroup: {
+          name: "St. George",
+          status: "ENABLED",
+        },
+        adGroupAd: {
+          status: "ENABLED",
+          ad: { id: "805165305520" },
+        },
+        metrics: {
+          costMicros: "14840000",
+          impressions: "35",
+          clicks: "5",
+        },
+      },
+      {
+        campaign: {
+          id: "23506774948",
+          name: "S | Hiring | UT/ID",
+          status: "ENABLED",
+        },
+        adGroup: {
+          name: "ID",
+          status: "ENABLED",
+        },
+        adGroupAd: {
+          status: "ENABLED",
+          ad: { id: "794502836796" },
+        },
+        metrics: {
+          costMicros: "26830000",
+          impressions: "28",
+          clicks: "3",
+        },
+      },
+    ]);
+
+    expect(records).toHaveLength(2);
+    expect(records.some((record) => record.sourceId === "campaign:23506774948")).toBe(false);
+    expect(records).toContainEqual(expect.objectContaining({
+      market: "St. George, UT",
+      sourceId: "ad:805165305520",
+      spend: 14.84,
+    }));
+    expect(records).toContainEqual(expect.objectContaining({
+      market: "Pocatello, ID",
+      sourceId: "ad:794502836796",
+      spend: 26.83,
+    }));
   });
 });

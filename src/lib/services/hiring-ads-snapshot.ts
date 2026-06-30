@@ -1,3 +1,5 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { gaqlQuery } from "@/lib/services/google-ads";
 import {
   getAdInsightsForDateRange,
@@ -11,7 +13,10 @@ import type { MetaAdsInsightRow } from "@/lib/schemas/sources/meta-ads";
 
 export const HIRING_REPORT_TIME_ZONE = "America/Denver";
 
+const execFileAsync = promisify(execFile);
+
 export type HiringPlatform = "Google Ads" | "Meta Ads";
+export type HiringReportSource = HiringPlatform | "Indeed sheet" | "GA4 diagnostics";
 export type HiringStatus = "Active" | "Inactive" | "Needs review";
 export type HiringStatusReason =
   | "active_delivery"
@@ -22,7 +27,7 @@ export type HiringStatusReason =
   | "missing_conversion_tracking";
 
 export type HiringSourceFetch = {
-  source: HiringPlatform | "GA4 diagnostics";
+  source: HiringReportSource;
   status: "ok" | "warning" | "error" | "skipped";
   fetchedAt: string;
   message?: string;
@@ -52,9 +57,26 @@ export type UnmappedHiringAd = {
   notes: string;
 };
 
+export type IndeedComparisonRow = {
+  market: string;
+  platform: "Indeed";
+  jobType: string;
+  status: HiringStatus;
+  periodLabel: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  applyStarts: number;
+  applications: number;
+  company: string;
+  sourceRows: number;
+  notes: string;
+};
+
 export type HiringAdSnapshot = {
   generatedAt: string;
   timeZone: string;
+  reportPosition: string;
   reportPeriod: DateRange;
   reportPeriodLabel: string;
   reportDueAfter: string;
@@ -62,6 +84,7 @@ export type HiringAdSnapshot = {
   activeMarkets: string[];
   actionSummary: string[];
   rows: HiringPlatformRow[];
+  indeedRows: IndeedComparisonRow[];
   unmappedHiringAds: UnmappedHiringAd[];
   sourceFetches: HiringSourceFetch[];
   reportUrl: string | null;
@@ -86,6 +109,10 @@ type ScheduleState = {
   lastSentMessageId?: string;
 };
 
+const REPORT_POSITION = "Driver";
+const INDEED_HIRING_SPEND_SHEET_ID = "1cQkl_BYydxT-8NOubOITNo9iN8aqiO-bM-vLZrk09fE";
+const INDEED_CURRENT_MONTH_RANGE = "Current Month!A1:AF200";
+const GWS_SLE = "/Users/brady/.agents/skills/gws/scripts/gws-sle";
 const REQUESTED_MARKETS = ["Omak, WA", "St. George, UT", "Pocatello, ID"];
 const PLATFORMS: HiringPlatform[] = ["Google Ads", "Meta Ads"];
 const HIRING_TERMS = [
@@ -103,6 +130,32 @@ const HIRING_TERMS = [
   "recruiting",
 ];
 const NON_MARKET_CITY_WORDS = new Set([...HIRING_TERMS, "all", "sle", "nws"]);
+const DRIVER_TERMS = [
+  "driver",
+  "drivers",
+  "cdl",
+  "shuttle bus",
+  "charter bus",
+  "driverapponline",
+  "intelliapp",
+  "drive for",
+];
+const DRIVER_GENERIC_HIRING_PATTERNS = [
+  /\bs\s*\|\s*hiring\b/i,
+  /\bnws\s*\|\s*hiring\b/i,
+  /\bnws\s+hiring\b/i,
+  /\bhiring\s+lead\s+forms\b/i,
+];
+const NON_DRIVER_HIRING_TERMS = [
+  "technician",
+  "mechanic",
+  "dispatcher",
+  "payroll",
+  "customer service",
+  "csr",
+  "reservation",
+  "reservations",
+];
 
 const KNOWN_MARKETS: Array<{ label: string; patterns: RegExp[] }> = [
   {
@@ -111,7 +164,7 @@ const KNOWN_MARKETS: Array<{ label: string; patterns: RegExp[] }> = [
   },
   {
     label: "St. George, UT",
-    patterns: [/\bst\.?\s*george\b/i, /\bstgeo\b/i],
+    patterns: [/\bst\.?\s*george\b/i, /\bsaint\s+george\b/i, /\bstgeo\b/i],
   },
   {
     label: "Pocatello, ID",
@@ -257,6 +310,15 @@ function hasHiringIntent(text: string): boolean {
   return HIRING_TERMS.some((term) => lower.includes(term));
 }
 
+function hasDriverHiringIntent(text: string): boolean {
+  const lower = text.toLowerCase();
+  const hasDriverTerm = DRIVER_TERMS.some((term) => lower.includes(term));
+  const hasGenericDriverHiringPattern = DRIVER_GENERIC_HIRING_PATTERNS.some((pattern) => pattern.test(lower));
+  const hasNonDriverTerm = NON_DRIVER_HIRING_TERMS.some((term) => lower.includes(term));
+  if (hasNonDriverTerm && !hasDriverTerm) return false;
+  return hasDriverTerm || hasGenericDriverHiringPattern;
+}
+
 function detectMarket(text: string): string | null {
   const lower = text.toLowerCase();
   for (const market of KNOWN_MARKETS) {
@@ -276,8 +338,29 @@ function numberFrom(value: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function moneyFrom(value: unknown): number {
+  if (typeof value === "number") return value;
+  const cleaned = String(value ?? "").replace(/[$,]/g, "").trim();
+  if (!cleaned) return 0;
+  return numberFrom(cleaned);
+}
+
 function microsToUsd(value: unknown): number {
   return numberFrom(value) / 1_000_000;
+}
+
+function safeDivide(numerator: number | null, denominator: number | null): number | null {
+  if (numerator === null || denominator === null || denominator <= 0) return null;
+  return numerator / denominator;
+}
+
+function costPerClick(spend: number | null, clicks: number | null): number | null {
+  return safeDivide(spend, clicks);
+}
+
+function costPerThousandImpressions(spend: number | null, impressions: number | null): number | null {
+  const value = safeDivide(spend, impressions);
+  return value === null ? null : value * 1000;
 }
 
 function statusIsEnabled(status: string | undefined): boolean {
@@ -301,6 +384,77 @@ function collectUnknownText(value: unknown): string[] {
   if (Array.isArray(value)) return value.flatMap(collectUnknownText);
   if (typeof value === "object") return Object.values(value as Record<string, unknown>).flatMap(collectUnknownText);
   return [];
+}
+
+function buildGoogleRecords(
+  campaignRows: Record<string, unknown>[],
+  adRows: Record<string, unknown>[],
+): RawHiringRecord[] {
+  const records: RawHiringRecord[] = [];
+  const campaignsWithMatchedAds = new Set<string>();
+
+  for (const row of adRows) {
+    const campaign = readRecord(row.campaign);
+    const adGroup = readRecord(row.adGroup ?? row.ad_group);
+    const adGroupAd = readRecord(row.adGroupAd ?? row.ad_group_ad);
+    const ad = readRecord(adGroupAd.ad);
+    const metrics = readRecord(row.metrics);
+    const finalUrls = collectUnknownText(ad.finalUrls ?? ad.final_urls);
+    const adText = collectUnknownText(ad.responsiveSearchAd ?? ad.responsive_search_ad);
+    const text = [
+      String(campaign.name ?? ""),
+      String(adGroup.name ?? ""),
+      String(ad.name ?? ""),
+      ...adText,
+      ...finalUrls,
+    ].join(" ");
+    if (!hasHiringIntent(text) || !hasDriverHiringIntent(text)) continue;
+    campaignsWithMatchedAds.add(String(campaign.id ?? ""));
+    records.push({
+      platform: "Google Ads",
+      market: detectMarket(text),
+      name: [campaign.name, adGroup.name, ad.name].filter(Boolean).join(" / "),
+      entityStatus: [
+        `campaign=${String(campaign.status ?? "UNKNOWN")}`,
+        `ad_group=${String(adGroup.status ?? "UNKNOWN")}`,
+        `ad=${String(adGroupAd.status ?? "UNKNOWN")}`,
+      ].join("; "),
+      eligible:
+        statusIsEnabled(String(campaign.status ?? "")) &&
+        statusIsEnabled(String(adGroup.status ?? "")) &&
+        statusIsEnabled(String(adGroupAd.status ?? "")),
+      spend: microsToUsd(metrics.costMicros ?? metrics.cost_micros),
+      impressions: numberFrom(metrics.impressions),
+      clicks: numberFrom(metrics.clicks),
+      destinationUrl: finalUrls[0] ?? null,
+      sourceId: `ad:${String(ad.id ?? "")}`,
+      notes: ["Matched by ad group, ad text, or final URL."],
+    });
+  }
+
+  for (const row of campaignRows) {
+    const campaign = readRecord(row.campaign);
+    const campaignId = String(campaign.id ?? "");
+    if (campaignsWithMatchedAds.has(campaignId)) continue;
+    const metrics = readRecord(row.metrics);
+    const text = lowerJoin([String(campaign.name ?? "")]);
+    if (!hasHiringIntent(text) || !hasDriverHiringIntent(text)) continue;
+    records.push({
+      platform: "Google Ads",
+      market: detectMarket(String(campaign.name ?? "")),
+      name: String(campaign.name ?? "Google Ads campaign"),
+      entityStatus: String(campaign.status ?? "UNKNOWN"),
+      eligible: statusIsEnabled(String(campaign.status ?? "")),
+      spend: microsToUsd(metrics.costMicros ?? metrics.cost_micros),
+      impressions: numberFrom(metrics.impressions),
+      clicks: numberFrom(metrics.clicks),
+      destinationUrl: null,
+      sourceId: `campaign:${campaignId}`,
+      notes: ["Matched by campaign name."],
+    });
+  }
+
+  return records;
 }
 
 async function fetchGoogleRecords(period: DateRange): Promise<{
@@ -354,65 +508,10 @@ async function fetchGoogleRecords(period: DateRange): Promise<{
     gaqlQuery(adQuery),
   ]);
 
-  for (const row of results[0].status === "fulfilled" ? results[0].value : []) {
-    const campaign = readRecord(row.campaign);
-    const metrics = readRecord(row.metrics);
-    const text = lowerJoin([String(campaign.name ?? "")]);
-    if (!hasHiringIntent(text)) continue;
-    records.push({
-      platform: "Google Ads",
-      market: detectMarket(String(campaign.name ?? "")),
-      name: String(campaign.name ?? "Google Ads campaign"),
-      entityStatus: String(campaign.status ?? "UNKNOWN"),
-      eligible: statusIsEnabled(String(campaign.status ?? "")),
-      spend: microsToUsd(metrics.costMicros ?? metrics.cost_micros),
-      impressions: numberFrom(metrics.impressions),
-      clicks: numberFrom(metrics.clicks),
-      destinationUrl: null,
-      sourceId: `campaign:${String(campaign.id ?? "")}`,
-      notes: ["Matched by campaign name."],
-    });
-  }
-
-  if (results[1].status === "fulfilled") {
-    for (const row of results[1].value) {
-      const campaign = readRecord(row.campaign);
-      const adGroup = readRecord(row.adGroup ?? row.ad_group);
-      const adGroupAd = readRecord(row.adGroupAd ?? row.ad_group_ad);
-      const ad = readRecord(adGroupAd.ad);
-      const metrics = readRecord(row.metrics);
-      const finalUrls = collectUnknownText(ad.finalUrls ?? ad.final_urls);
-      const adText = collectUnknownText(ad.responsiveSearchAd ?? ad.responsive_search_ad);
-      const text = [
-        String(campaign.name ?? ""),
-        String(adGroup.name ?? ""),
-        String(ad.name ?? ""),
-        ...adText,
-        ...finalUrls,
-      ].join(" ");
-      if (!hasHiringIntent(text)) continue;
-      records.push({
-        platform: "Google Ads",
-        market: detectMarket(text),
-        name: [campaign.name, adGroup.name, ad.name].filter(Boolean).join(" / "),
-        entityStatus: [
-          `campaign=${String(campaign.status ?? "UNKNOWN")}`,
-          `ad_group=${String(adGroup.status ?? "UNKNOWN")}`,
-          `ad=${String(adGroupAd.status ?? "UNKNOWN")}`,
-        ].join("; "),
-        eligible:
-          statusIsEnabled(String(campaign.status ?? "")) &&
-          statusIsEnabled(String(adGroup.status ?? "")) &&
-          statusIsEnabled(String(adGroupAd.status ?? "")),
-        spend: microsToUsd(metrics.costMicros ?? metrics.cost_micros),
-        impressions: numberFrom(metrics.impressions),
-        clicks: numberFrom(metrics.clicks),
-        destinationUrl: finalUrls[0] ?? null,
-        sourceId: `ad:${String(ad.id ?? "")}`,
-        notes: ["Matched by ad group, ad text, or final URL."],
-      });
-    }
-  }
+  records.push(...buildGoogleRecords(
+    results[0].status === "fulfilled" ? results[0].value : [],
+    results[1].status === "fulfilled" ? results[1].value : [],
+  ));
 
   const failures = results
     .filter((result): result is PromiseRejectedResult => result.status === "rejected")
@@ -478,7 +577,7 @@ async function fetchMetaRecords(period: DateRange): Promise<{
       row.creative_text,
       row.destination_url ?? "",
     ].join(" ");
-    if (!hasHiringIntent(text)) return;
+    if (!hasHiringIntent(text) || !hasDriverHiringIntent(text)) return;
     const metric = metricFromMeta(adMetric.get(row.ad_id) ?? adsetMetric.get(row.adset_id) ?? campaignMetric.get(row.campaign_id));
     const key = `meta:${row.ad_id || row.adset_id || row.campaign_id}`;
     if (seen.has(key)) return;
@@ -515,7 +614,7 @@ async function fetchMetaRecords(period: DateRange): Promise<{
       row.adset_name ?? "",
       row.ad_name ?? "",
     ].join(" ");
-    if (!hasHiringIntent(text)) continue;
+    if (!hasHiringIntent(text) || !hasDriverHiringIntent(text)) continue;
     const id = row.ad_id ?? row.adset_id ?? row.campaign_id;
     const key = `meta:${id}`;
     if (seen.has(key)) continue;
@@ -549,6 +648,153 @@ async function fetchMetaRecords(period: DateRange): Promise<{
       message: failures.length > 0 ? failures.join("; ") : undefined,
     },
   };
+}
+
+function parseGwsJson(stdout: string): unknown {
+  const start = stdout.indexOf("{");
+  if (start < 0) throw new Error("gws did not return JSON");
+  return JSON.parse(stdout.slice(start));
+}
+
+function sheetCell(row: string[], headers: Map<string, number>, name: string): string {
+  const index = headers.get(name.toLowerCase());
+  return index === undefined ? "" : row[index] ?? "";
+}
+
+function cityMarket(city: string, state: string): string | null {
+  const normalizedState = state
+    .replace("Washington State", "WA")
+    .replace("Idaho", "ID")
+    .replace("Utah", "UT");
+  return detectMarket(`${city}, ${normalizedState}`) ?? detectMarket(city);
+}
+
+function aggregateIndeedRows(rows: IndeedComparisonRow[]): IndeedComparisonRow[] {
+  const groups = new Map<string, IndeedComparisonRow[]>();
+  for (const row of rows) {
+    const key = `${row.market}|${row.company}`;
+    groups.set(key, [...(groups.get(key) ?? []), row]);
+  }
+
+  return [...groups.values()].map((group) => {
+    const first = group[0];
+    const spend = group.reduce((sum, row) => sum + row.spend, 0);
+    const impressions = group.reduce((sum, row) => sum + row.impressions, 0);
+    const clicks = group.reduce((sum, row) => sum + row.clicks, 0);
+    const applyStarts = group.reduce((sum, row) => sum + row.applyStarts, 0);
+    const applications = group.reduce((sum, row) => sum + row.applications, 0);
+    const isOpen = group.some((row) => row.status === "Active");
+    const status: HiringStatus = isOpen ? "Active" : "Inactive";
+    return {
+      ...first,
+      status,
+      spend,
+      impressions,
+      clicks,
+      applyStarts,
+      applications,
+      sourceRows: group.length,
+      notes: group.length === 1
+        ? first.notes
+        : `${group.length} ${REPORT_POSITION.toLowerCase()} rows combined from Greg's Indeed current-month sheet.`,
+    };
+  }).sort((a, b) => {
+    const aRequested = REQUESTED_MARKETS.indexOf(a.market);
+    const bRequested = REQUESTED_MARKETS.indexOf(b.market);
+    if (aRequested !== bRequested) return (aRequested < 0 ? 999 : aRequested) - (bRequested < 0 ? 999 : bRequested);
+    return b.spend - a.spend;
+  });
+}
+
+async function fetchIndeedRows(): Promise<{
+  rows: IndeedComparisonRow[];
+  fetch: HiringSourceFetch;
+}> {
+  const fetchedAt = new Date().toISOString();
+  try {
+    const { stdout } = await execFileAsync(GWS_SLE, [
+      "sheets",
+      "spreadsheets",
+      "values",
+      "get",
+      "--params",
+      JSON.stringify({
+        spreadsheetId: INDEED_HIRING_SPEND_SHEET_ID,
+        range: INDEED_CURRENT_MONTH_RANGE,
+      }),
+    ], {
+      env: {
+        ...process.env,
+        HOME: "/Users/brady",
+        PATH: "/Users/brady/.npm-global/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+      },
+      timeout: 60000,
+      maxBuffer: 1024 * 1024 * 3,
+    });
+    const parsed = parseGwsJson(stdout) as { values?: string[][] };
+    const values = parsed.values ?? [];
+    const [headerRow, ...bodyRows] = values;
+    if (!headerRow) {
+      return {
+        rows: [],
+        fetch: {
+          source: "Indeed sheet",
+          status: "warning",
+          fetchedAt,
+          message: "Google Sheet was readable but empty.",
+        },
+      };
+    }
+
+    const headers = new Map(headerRow.map((value, index) => [value.toLowerCase(), index]));
+    const rows = bodyRows.flatMap((row): IndeedComparisonRow[] => {
+      const source = sheetCell(row, headers, "Source");
+      const jobType = sheetCell(row, headers, "Job Type");
+      const job = sheetCell(row, headers, "Job");
+      const city = sheetCell(row, headers, "City");
+      const state = sheetCell(row, headers, "State/Region");
+      const market = cityMarket(city, state);
+      if (source.toLowerCase() !== "indeed") return [];
+      if (!hasDriverHiringIntent(`${jobType} ${job}`)) return [];
+      if (!market) return [];
+
+      return [{
+        market,
+        platform: "Indeed",
+        jobType: jobType || REPORT_POSITION,
+        status: sheetCell(row, headers, "Job status").toLowerCase() === "open" ? "Active" : "Inactive",
+        periodLabel: "Current month from Greg's Indeed sheet",
+        spend: moneyFrom(sheetCell(row, headers, "Spend")),
+        impressions: numberFrom(sheetCell(row, headers, "Impressions")),
+        clicks: numberFrom(sheetCell(row, headers, "Clicks")),
+        applyStarts: numberFrom(sheetCell(row, headers, "Apply starts")),
+        applications: numberFrom(sheetCell(row, headers, "Applies")),
+        company: sheetCell(row, headers, "Company name") || "Unknown",
+        sourceRows: 1,
+        notes: "Indeed current-month totals. This does not use the weekly Google/Meta report window.",
+      }];
+    });
+
+    return {
+      rows: aggregateIndeedRows(rows),
+      fetch: {
+        source: "Indeed sheet",
+        status: "ok",
+        fetchedAt,
+        message: `Read ${rows.length} ${REPORT_POSITION.toLowerCase()} rows from Weekly Report_Hiring Spend / Current Month.`,
+      },
+    };
+  } catch (err) {
+    return {
+      rows: [],
+      fetch: {
+        source: "Indeed sheet",
+        status: "warning",
+        fetchedAt,
+        message: `Could not read Greg's Indeed spend sheet: ${truncateMessage(err)}`,
+      },
+    };
+  }
 }
 
 function aggregateRows(records: RawHiringRecord[], fetches: HiringSourceFetch[]): HiringPlatformRow[] {
@@ -633,7 +879,9 @@ function aggregateRows(records: RawHiringRecord[], fetches: HiringSourceFetch[])
 
 export const __hiringAdsSnapshotTest = {
   aggregateRows,
+  buildGoogleRecords,
   detectMarket,
+  hasDriverHiringIntent,
 };
 
 function buildUnmapped(records: RawHiringRecord[]): UnmappedHiringAd[] {
@@ -692,12 +940,14 @@ export async function collectHiringAdSnapshot(
 ): Promise<HiringAdSnapshot> {
   const now = options.now ?? new Date();
   const schedule = getPreviousMondaySunday(now);
-  const [googleResult, metaResult] = await Promise.allSettled([
+  const [googleResult, metaResult, indeedResult] = await Promise.allSettled([
     fetchGoogleRecords(schedule.period),
     fetchMetaRecords(schedule.period),
+    fetchIndeedRows(),
   ]);
 
   const records: RawHiringRecord[] = [];
+  let indeedRows: IndeedComparisonRow[] = [];
   const sourceFetches: HiringSourceFetch[] = [];
 
   if (googleResult.status === "fulfilled") {
@@ -724,6 +974,18 @@ export async function collectHiringAdSnapshot(
     });
   }
 
+  if (indeedResult.status === "fulfilled") {
+    indeedRows = indeedResult.value.rows;
+    sourceFetches.push(indeedResult.value.fetch);
+  } else {
+    sourceFetches.push({
+      source: "Indeed sheet",
+      status: "warning",
+      fetchedAt: new Date().toISOString(),
+      message: truncateMessage(indeedResult.reason),
+    });
+  }
+
   sourceFetches.push({
     source: "GA4 diagnostics",
     status: "skipped",
@@ -738,6 +1000,7 @@ export async function collectHiringAdSnapshot(
   return {
     generatedAt: now.toISOString(),
     timeZone: HIRING_REPORT_TIME_ZONE,
+    reportPosition: REPORT_POSITION,
     reportPeriod: schedule.period,
     reportPeriodLabel: schedule.label,
     reportDueAfter: schedule.dueAfter,
@@ -745,6 +1008,7 @@ export async function collectHiringAdSnapshot(
     activeMarkets,
     actionSummary: buildActionSummary(rows, unmappedHiringAds, sourceFetches),
     rows,
+    indeedRows,
     unmappedHiringAds,
     sourceFetches,
     reportUrl: options.reportUrl ?? null,
@@ -818,6 +1082,8 @@ function renderRows(rows: HiringPlatformRow[]): string {
       <td class="right">${escapeHtml(usd(row.spend))}</td>
       <td class="right">${escapeHtml(integer(row.impressions))}</td>
       <td class="right">${escapeHtml(integer(row.clicks))}</td>
+      <td class="right">${escapeHtml(usd(costPerClick(row.spend, row.clicks)))}</td>
+      <td class="right">${escapeHtml(usd(costPerThousandImpressions(row.spend, row.impressions)))}</td>
       <td>${escapeHtml(row.hiringConversionRate)}</td>
       <td>${escapeHtml(row.notes)}</td>
     </tr>
@@ -834,9 +1100,20 @@ function sumNullable(rows: HiringPlatformRow[], pick: (row: HiringPlatformRow) =
   return rows.some((row) => pick(row) === null) ? null : rows.reduce((sum, row) => sum + (pick(row) ?? 0), 0);
 }
 
-function totalClicksDisplay(snapshot: HiringAdSnapshot): string {
+function averageCostPerClickDisplay(snapshot: HiringAdSnapshot): string {
   if (!hasLiveFetch(snapshot)) return "Pending";
-  return integer(sumNullable(snapshot.rows, (row) => row.clicks));
+  return usd(costPerClick(
+    sumNullable(snapshot.rows, (row) => row.spend),
+    sumNullable(snapshot.rows, (row) => row.clicks),
+  ));
+}
+
+function averageCpmDisplay(snapshot: HiringAdSnapshot): string {
+  if (!hasLiveFetch(snapshot)) return "Pending";
+  return usd(costPerThousandImpressions(
+    sumNullable(snapshot.rows, (row) => row.spend),
+    sumNullable(snapshot.rows, (row) => row.impressions),
+  ));
 }
 
 function activeUnmappedAds(snapshot: HiringAdSnapshot): UnmappedHiringAd[] {
@@ -858,7 +1135,7 @@ function visibleEmailMarkets(snapshot: HiringAdSnapshot): string[] {
 
 function renderEmailMetric(labelText: string, value: string, note: string): string {
   return `
-    <td style="width:33.333%;padding:0 8px 0 0;vertical-align:top;">
+    <td style="width:25%;padding:0 8px 0 0;vertical-align:top;">
       <div style="padding:12px 13px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;">
         <div style="color:#64748b;font-size:11px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;">${escapeHtml(labelText)}</div>
         <div style="margin-top:6px;color:#0f172a;font-size:22px;line-height:1.15;font-weight:800;">${escapeHtml(value)}</div>
@@ -901,6 +1178,8 @@ function renderEmailMarketCoverage(snapshot: HiringAdSnapshot): string {
     const spend = sumNullable(rows, (row) => row.spend);
     const impressions = sumNullable(rows, (row) => row.impressions);
     const clicks = sumNullable(rows, (row) => row.clicks);
+    const cpc = costPerClick(spend, clicks);
+    const cpm = costPerThousandImpressions(spend, impressions);
     const style = marketCoverageStyle(status);
     const platformSummary = rows.map(platformEmailSummary).join("<br>");
 
@@ -915,14 +1194,28 @@ function renderEmailMarketCoverage(snapshot: HiringAdSnapshot): string {
             <td style="width:112px;text-align:right;vertical-align:top;white-space:nowrap;">
               <span style="display:inline-block;padding:5px 10px;border-radius:999px;font-size:12px;font-weight:800;${emailStatusStyle(status)}">${escapeHtml(status)}</span>
               <div style="margin-top:10px;color:#0f172a;font-size:15px;line-height:1.25;font-weight:800;">${escapeHtml(usd(spend))}</div>
-              <div style="margin-top:3px;color:${style.text};font-size:12px;line-height:1.4;">${escapeHtml(integer(impressions))} shown</div>
-              <div style="color:${style.text};font-size:12px;line-height:1.4;">${escapeHtml(integer(clicks))} clicks</div>
+              <div style="margin-top:3px;color:${style.text};font-size:12px;line-height:1.4;">${escapeHtml(integer(clicks))} clicks · ${escapeHtml(usd(cpc))} CPC</div>
+              <div style="color:${style.text};font-size:12px;line-height:1.4;">${escapeHtml(integer(impressions))} shown · ${escapeHtml(usd(cpm))} CPM</div>
             </td>
           </tr>
         </table>
       </div>
     `;
   }).join("");
+}
+
+function renderEmailIndeedCallout(snapshot: HiringAdSnapshot): string {
+  if (snapshot.indeedRows.length === 0) return "";
+  const coreRows = snapshot.indeedRows.filter((row) => snapshot.requestedMarkets.includes(row.market));
+  const rows = coreRows.length > 0 ? coreRows : snapshot.indeedRows.slice(0, 3);
+  const summary = rows
+    .map((row) => `${row.market}: ${usd(costPerClick(row.spend, row.clicks))} CPC, ${usd(costPerThousandImpressions(row.spend, row.impressions))} CPM, ${usd(safeDivide(row.spend, row.applications))} CPA`)
+    .join("; ");
+  return `
+    <div style="margin-top:16px;padding:14px 15px;background:#f3f7fb;border:1px solid #dbeafe;border-radius:10px;color:#334155;font-size:13px;line-height:1.5;">
+      <strong style="color:#1e3a8a;">Indeed comparison:</strong> Greg's current-month sheet has ${escapeHtml(snapshot.indeedRows.length)} ${escapeHtml(snapshot.reportPosition.toLowerCase())} market comparison${snapshot.indeedRows.length === 1 ? "" : "s"} in the full report. ${escapeHtml(summary)}
+    </div>
+  `;
 }
 
 export function renderHiringAdsEmail(snapshot: HiringAdSnapshot, aiSummaryHtml?: string): string {
@@ -940,8 +1233,8 @@ export function renderHiringAdsEmail(snapshot: HiringAdSnapshot, aiSummaryHtml?:
       <div style="border:1px solid #dbe4ee;border-radius:14px;overflow:hidden;background:#ffffff;">
         <div style="padding:24px 26px;background:#f6f9fc;border-bottom:1px solid #dbe4ee;">
           <div style="${eyebrow}">Salt Lake Express</div>
-          <h1 style="margin:7px 0 6px 0;color:#0f172a;font-size:25px;line-height:1.15;font-weight:800;">Weekly Hiring Ads Snapshot</h1>
-          <div style="color:#64748b;font-size:14px;line-height:1.45;">${escapeHtml(snapshot.reportPeriodLabel)}</div>
+          <h1 style="margin:7px 0 6px 0;color:#0f172a;font-size:25px;line-height:1.15;font-weight:800;">Weekly ${escapeHtml(snapshot.reportPosition)} Hiring Ads Snapshot</h1>
+          <div style="color:#64748b;font-size:14px;line-height:1.45;">${escapeHtml(snapshot.reportPeriodLabel)} · Google/Meta weekly delivery</div>
         </div>
         <div style="padding:22px 26px 24px 26px;">
           <p style="margin:0;color:#0f172a;font-size:16px;line-height:1.45;font-weight:800;">${escapeHtml(lead)}</p>
@@ -950,7 +1243,8 @@ export function renderHiringAdsEmail(snapshot: HiringAdSnapshot, aiSummaryHtml?:
       <tr>
         ${renderEmailMetric("Active markets", activeMarketDisplay(snapshot), "requested markets")}
         ${renderEmailMetric("Mapped spend", periodSpendDisplay(snapshot), "assigned markets")}
-        ${renderEmailMetric("Mapped clicks", totalClicksDisplay(snapshot), "assigned markets")}
+        ${renderEmailMetric("Avg CPC", averageCostPerClickDisplay(snapshot), "cost per click")}
+        ${renderEmailMetric("CPM", averageCpmDisplay(snapshot), "cost per 1k shown")}
       </tr>
           </table>
 
@@ -962,6 +1256,7 @@ export function renderHiringAdsEmail(snapshot: HiringAdSnapshot, aiSummaryHtml?:
           ${activeUnmapped.length > 0 ? `<div style="margin-top:18px;padding:13px 15px;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;color:#9a3412;font-size:13px;line-height:1.45;"><strong>${escapeHtml(activeUnmapped.length)} active hiring ad${activeUnmapped.length === 1 ? "" : "s"} ${activeUnmapped.length === 1 ? "needs" : "need"} market review.</strong> The full report lists the ad names before anyone changes markets.</div>` : ""}
           ${snapshot.unmappedHiringAds.length > activeUnmapped.length ? `<div style="margin-top:10px;padding:13px 15px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;color:#475569;font-size:13px;line-height:1.45;"><strong style="color:#334155;">Full report note:</strong> ${escapeHtml(snapshot.unmappedHiringAds.length)} hiring ad${snapshot.unmappedHiringAds.length === 1 ? "" : "s"} could not be assigned to a market.</div>` : ""}
 
+          ${renderEmailIndeedCallout(snapshot)}
           <div style="margin-top:16px;padding:14px 15px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;color:#475569;font-size:13px;line-height:1.5;">Hiring conversion rate is not available yet because completed applications are not tied back cleanly from Tenstreet/IntelliApp into the ad platforms. Drew is working with Tenstreet on that.</div>
 
           <div style="margin-top:20px;">${fullReportCta}</div>
@@ -981,17 +1276,24 @@ export function renderHiringAdsText(snapshot: HiringAdSnapshot): string {
     const spend = sumNullable(rows, (row) => row.spend);
     const impressions = sumNullable(rows, (row) => row.impressions);
     const clicks = sumNullable(rows, (row) => row.clicks);
-    return `${market}: ${status}. ${platformSummary}. Spend: ${usd(spend)}. Shown: ${integer(impressions)}. Clicks: ${integer(clicks)}.`;
+    const cpc = costPerClick(spend, clicks);
+    const cpm = costPerThousandImpressions(spend, impressions);
+    return `${market}: ${status}. ${platformSummary}. Spend: ${usd(spend)}. Clicks: ${integer(clicks)}. CPC: ${usd(cpc)}. Shown: ${integer(impressions)}. CPM: ${usd(cpm)}.`;
   });
+  const indeedLines = snapshot.indeedRows.slice(0, 8).map((row) => (
+    `${row.market}: ${row.status}. Spend: ${usd(row.spend)}. Clicks: ${integer(row.clicks)}. CPC: ${usd(costPerClick(row.spend, row.clicks))}. Shown: ${integer(row.impressions)}. CPM: ${usd(costPerThousandImpressions(row.spend, row.impressions))}. Applications: ${integer(row.applications)}. CPA: ${usd(safeDivide(row.spend, row.applications))}.`
+  ));
   const lines = [
-    "Weekly Hiring Ads Snapshot",
+    `Weekly ${snapshot.reportPosition} Hiring Ads Snapshot`,
     `Report period: ${snapshot.reportPeriodLabel}`,
+    "Google/Meta weekly delivery. Indeed rows are current-month comparisons from Greg's sheet.",
     "",
     snapshot.actionSummary[0] ?? "Hiring ads snapshot generated.",
     "",
     `Active markets: ${activeMarketDisplay(snapshot)}`,
     `Mapped spend: ${periodSpendDisplay(snapshot)}`,
-    `Mapped clicks: ${totalClicksDisplay(snapshot)}`,
+    `Average CPC: ${averageCostPerClickDisplay(snapshot)}`,
+    `CPM: ${averageCpmDisplay(snapshot)}`,
     "",
     "Market coverage:",
     ...marketCoverageLines,
@@ -1006,7 +1308,13 @@ export function renderHiringAdsText(snapshot: HiringAdSnapshot): string {
     lines.push("");
   }
 
-  lines.push("Hiring conversion rate is not available yet because completed hiring applications are not tied back cleanly from Tenstreet/IntelliApp into the ad platforms. Drew is working with Tenstreet to get that sorted out.");
+  if (indeedLines.length > 0) {
+    lines.push("Indeed current-month comparison from Greg's sheet:");
+    lines.push(...indeedLines);
+    lines.push("");
+  }
+
+  lines.push("Cost per application is not available from Google/Meta yet because completed hiring applications are not tied back cleanly from Tenstreet/IntelliApp into the ad platforms. Drew is working with Tenstreet to get that sorted out.");
   lines.push(snapshot.reportUrl ? `Open full report: ${snapshot.reportUrl}` : "The full HTML report is attached.");
 
   return lines.join("\n");
@@ -1051,6 +1359,51 @@ function renderUnmapped(snapshot: HiringAdSnapshot): string {
   `;
 }
 
+function renderIndeedRows(snapshot: HiringAdSnapshot): string {
+  if (snapshot.indeedRows.length === 0) {
+    return `<p class="muted">No Indeed comparison rows were available from Greg's sheet.</p>`;
+  }
+
+  return `
+    <table>
+      <thead>
+        <tr>
+          <th>Market</th>
+          <th>Status</th>
+          <th>Company</th>
+          <th class="right">Spend</th>
+          <th class="right">Shown</th>
+          <th class="right">Clicks</th>
+          <th class="right">CPC</th>
+          <th class="right">CPM</th>
+          <th class="right">Apply starts</th>
+          <th class="right">Applications</th>
+          <th class="right">CPA</th>
+          <th>Note</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${snapshot.indeedRows.map((row) => `
+          <tr>
+            <td><strong>${escapeHtml(row.market)}</strong></td>
+            <td><span class="pill ${statusClass(row.status)}">${escapeHtml(row.status)}</span></td>
+            <td>${escapeHtml(row.company)}</td>
+            <td class="right">${escapeHtml(usd(row.spend))}</td>
+            <td class="right">${escapeHtml(integer(row.impressions))}</td>
+            <td class="right">${escapeHtml(integer(row.clicks))}</td>
+            <td class="right">${escapeHtml(usd(costPerClick(row.spend, row.clicks)))}</td>
+            <td class="right">${escapeHtml(usd(costPerThousandImpressions(row.spend, row.impressions)))}</td>
+            <td class="right">${escapeHtml(integer(row.applyStarts))}</td>
+            <td class="right">${escapeHtml(integer(row.applications))}</td>
+            <td class="right">${escapeHtml(usd(safeDivide(row.spend, row.applications)))}</td>
+            <td>${escapeHtml(row.notes)}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+}
+
 export function renderHiringAdsFullReport(snapshot: HiringAdSnapshot, aiSummaryHtml?: string): string {
   const activeCards = !hasLiveFetch(snapshot)
     ? `<article class="empty-card"><h3>Waiting for live fetch</h3><p>The Monday runner fills this section with one green card per active hiring market.</p></article>`
@@ -1059,11 +1412,17 @@ export function renderHiringAdsFullReport(snapshot: HiringAdSnapshot, aiSummaryH
       const rows = snapshot.rows.filter((row) => row.market === market && row.status === "Active");
       const platforms = rows.map((row) => row.platform).join(", ");
       const spend = rows.reduce((sum, row) => sum + (row.spend ?? 0), 0);
+      const impressions = rows.reduce((sum, row) => sum + (row.impressions ?? 0), 0);
+      const clicks = rows.reduce((sum, row) => sum + (row.clicks ?? 0), 0);
       return `
         <article class="active-card">
           <div class="card-top"><h3>${escapeHtml(market)}</h3><span class="pill active">Active</span></div>
-          <p>${escapeHtml(platforms)} ${rows.length === 1 ? "is" : "are"} showing hiring ads.</p>
+          <p>${escapeHtml(platforms)} ${rows.length === 1 ? "is" : "are"} showing ${escapeHtml(snapshot.reportPosition.toLowerCase())} hiring ads.</p>
           <div class="metric"><span>Mapped spend</span><strong>${escapeHtml(usd(spend))}</strong></div>
+          <div class="metric-grid">
+            <div class="metric"><span>CPC</span><strong>${escapeHtml(usd(costPerClick(spend, clicks)))}</strong></div>
+            <div class="metric"><span>CPM</span><strong>${escapeHtml(usd(costPerThousandImpressions(spend, impressions)))}</strong></div>
+          </div>
         </article>
       `;
     }).join("")
@@ -1079,14 +1438,14 @@ export function renderHiringAdsFullReport(snapshot: HiringAdSnapshot, aiSummaryH
     body{margin:0;background:#09090b;color:#f4f4f5;font-family:Arial,Helvetica,sans-serif}
     main{max-width:1180px;margin:0 auto;padding:28px}
     header{display:flex;gap:20px;justify-content:space-between;align-items:flex-end;border-bottom:1px solid #27272a;padding-bottom:22px}
-    h1,h2,h3{margin:0;color:#fff}h1{font-size:38px}h2{font-size:20px;margin-bottom:12px}h3{font-size:18px}
+    h1,h2,h3{margin:0;color:#fff}h1{font-size:38px;line-height:1.08}h2{font-size:20px;margin-bottom:12px}h3{font-size:18px}
     p{color:#a1a1aa;line-height:1.55}.eyebrow{color:#f4bd50;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase}
-    .stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.stat{border-left:1px solid #27272a;padding-left:18px}.stat span,.metric span{display:block;color:#71717a;font-size:11px;font-weight:700;letter-spacing:1.3px;text-transform:uppercase}.stat strong{display:block;margin-top:6px;font-size:26px}
-    section{margin-top:26px}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}.active-card,.empty-card,.panel{border:1px solid #27272a;background:#18181b;padding:18px}.active-card{border-color:rgba(16,185,129,.35);background:rgba(16,185,129,.08)}.card-top{display:flex;justify-content:space-between;gap:12px;align-items:center}.metric{margin-top:16px}
+    .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;min-width:520px}.stat{border-left:1px solid #27272a;padding-left:18px}.stat span,.metric span{display:block;color:#71717a;font-size:11px;font-weight:700;letter-spacing:1.3px;text-transform:uppercase}.stat strong{display:block;margin-top:6px;font-size:25px}
+    section{margin-top:26px}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}.active-card,.empty-card,.panel{border:1px solid #27272a;background:#18181b;padding:18px}.active-card{border-color:rgba(16,185,129,.35);background:rgba(16,185,129,.08)}.card-top{display:flex;justify-content:space-between;gap:12px;align-items:center}.metric{margin-top:16px}.metric strong{display:block;margin-top:4px;color:#fff;font-size:18px}.metric-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
     table{width:100%;border-collapse:collapse;font-size:14px;background:#111113;border:1px solid #27272a}th{padding:11px;border-bottom:1px solid #27272a;color:#71717a;font-size:11px;letter-spacing:1.2px;text-align:left;text-transform:uppercase}td{padding:13px 11px;border-bottom:1px solid #27272a;vertical-align:top}.right{text-align:right}.muted{color:#71717a}
     .pill{display:inline-block;padding:4px 9px;border-radius:999px;font-size:12px;font-weight:700}.active{background:#064e3b;color:#6ee7b7}.inactive{background:#27272a;color:#d4d4d8}.review{background:#78350f;color:#fde68a}
-    .summary-list{margin:0;padding-left:20px;color:#e4e4e7}.summary-list li{margin:8px 0}.note{padding:14px;background:#111113;border:1px solid #27272a;color:#d4d4d8}
-    a{color:#67e8f9}@media(max-width:760px){main{padding:20px}header{display:block}.stats{grid-template-columns:1fr}.stat{border-left:0;border-top:1px solid #27272a;padding:12px 0 0}table{display:block;overflow-x:auto;white-space:nowrap}}
+    .summary-list{margin:0;padding-left:20px;color:#e4e4e7}.summary-list li{margin:8px 0}.note{padding:14px;background:#111113;border:1px solid #27272a;color:#d4d4d8}.section-note{margin-top:0}
+    a{color:#67e8f9}@media(max-width:760px){main{padding:20px}header{display:block}.stats{grid-template-columns:1fr;min-width:0}.stat{border-left:0;border-top:1px solid #27272a;padding:12px 0 0}table{display:block;overflow-x:auto;white-space:nowrap}}
   </style>
 </head>
 <body>
@@ -1094,13 +1453,15 @@ export function renderHiringAdsFullReport(snapshot: HiringAdSnapshot, aiSummaryH
   <header>
     <div>
       <div class="eyebrow">Salt Lake Express</div>
-      <h1>Hiring Ads Snapshot</h1>
-      <p>Report period: ${escapeHtml(snapshot.reportPeriodLabel)}. Generated ${escapeHtml(snapshot.generatedAt)}. Time zone: ${escapeHtml(snapshot.timeZone)}.</p>
+      <h1>${escapeHtml(snapshot.reportPosition)} Hiring Ads Snapshot</h1>
+      <p>Google/Meta weekly delivery for ${escapeHtml(snapshot.reportPeriodLabel)}. Generated ${escapeHtml(snapshot.generatedAt)}. Time zone: ${escapeHtml(snapshot.timeZone)}.</p>
     </div>
     <div class="stats">
       <div class="stat"><span>Active markets</span><strong>${escapeHtml(activeMarketDisplay(snapshot))}</strong></div>
       <div class="stat"><span>Mapped spend</span><strong>${escapeHtml(periodSpendDisplay(snapshot))}</strong></div>
-      <div class="stat"><span>Hiring conversion rate</span><strong>Not tracked</strong></div>
+      <div class="stat"><span>Avg CPC</span><strong>${escapeHtml(averageCostPerClickDisplay(snapshot))}</strong></div>
+      <div class="stat"><span>CPM</span><strong>${escapeHtml(averageCpmDisplay(snapshot))}</strong></div>
+      <div class="stat"><span>Application CPA</span><strong>Not tracked</strong></div>
     </div>
   </header>
   <section class="panel">
@@ -1109,15 +1470,20 @@ export function renderHiringAdsFullReport(snapshot: HiringAdSnapshot, aiSummaryH
     <ul class="summary-list">${snapshot.actionSummary.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
   </section>
   <section>
-    <h2>Active Hiring Markets</h2>
+    <h2>Active Driver Hiring Markets</h2>
     <div class="cards">${activeCards}</div>
   </section>
   <section>
-    <h2>Market Detail</h2>
+    <h2>Google / Meta Weekly Detail</h2>
     <table>
-      <thead><tr><th>Market</th><th>Platform</th><th>Status</th><th class="right">Spend</th><th class="right">Shown</th><th class="right">Clicks</th><th>Tracking</th><th>Note</th></tr></thead>
+      <thead><tr><th>Market</th><th>Platform</th><th>Status</th><th class="right">Spend</th><th class="right">Shown</th><th class="right">Clicks</th><th class="right">CPC</th><th class="right">CPM</th><th>Tracking</th><th>Note</th></tr></thead>
       <tbody>${renderRows(snapshot.rows)}</tbody>
     </table>
+  </section>
+  <section>
+    <h2>Indeed Current-Month Comparison</h2>
+    <p class="section-note">Greg's sheet has application counts, so Indeed can show cost per application. These rows are current-month, not the weekly Google/Meta window.</p>
+    ${renderIndeedRows(snapshot)}
   </section>
   <section>
     <h2>Unmapped Hiring Ads</h2>
@@ -1131,7 +1497,7 @@ export function renderHiringAdsFullReport(snapshot: HiringAdSnapshot, aiSummaryH
     </table>
   </section>
   <section class="note">
-    Hiring conversion rate stays "Not tracked" unless completed applications are connected to Google Ads or Meta Ads. GA4 website sessions are diagnostic only when ads land on external systems.
+    Cost per application stays "Not tracked" for Google/Meta unless completed applications are connected to Google Ads or Meta Ads. GA4 website sessions are diagnostic only when ads land on external systems.
   </section>
 </main>
 </body>

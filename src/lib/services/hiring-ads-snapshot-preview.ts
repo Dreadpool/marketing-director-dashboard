@@ -16,6 +16,7 @@ export function typeOnlyPreviewSnapshot(now = new Date()): HiringAdSnapshot {
   return {
     generatedAt: now.toISOString(),
     timeZone: "America/Denver",
+    reportPosition: "Driver",
     reportPeriod: schedule.period,
     reportPeriodLabel: schedule.label,
     reportDueAfter: schedule.dueAfter,
@@ -38,6 +39,7 @@ export function typeOnlyPreviewSnapshot(now = new Date()): HiringAdSnapshot {
       notes: "Preview row. The Monday runner fills this with live read-only ad data.",
       sourceIds: [],
     }))),
+    indeedRows: [],
     unmappedHiringAds: [],
     sourceFetches: [
       {

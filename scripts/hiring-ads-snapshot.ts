@@ -556,7 +556,7 @@ async function run(options: CliOptions): Promise<void> {
     }
     const emailHtml = renderHiringAdsEmail(snapshot);
     const emailText = renderHiringAdsText(snapshot);
-    const subject = `${options.testRun ? "[TEST] " : ""}Weekly hiring ads snapshot - ${snapshot.reportPeriodLabel}`;
+    const subject = `${options.testRun ? "[TEST] " : ""}Weekly ${snapshot.reportPosition.toLowerCase()} hiring ads snapshot - ${snapshot.reportPeriodLabel}`;
     const fullReportPath = path.join(runDir, "full-report.html");
     const emailPath = path.join(runDir, "email.html");
     const emailTextPath = path.join(runDir, "email.txt");
