@@ -1240,8 +1240,8 @@ function renderRows(rows: HiringPlatformRow[]): string {
   `).join("");
 }
 
-function emailStatusStyle(status: HiringStatus | "Indeed active"): string {
-  if (status === "Active" || status === "Indeed active") return "background:#dcfce7;color:#166534;";
+function emailStatusStyle(status: HiringStatus): string {
+  if (status === "Active") return "background:#dcfce7;color:#166534;";
   if (status === "Inactive") return "background:#f4f4f5;color:#52525b;";
   return "background:#fef3c7;color:#92400e;";
 }
@@ -1312,14 +1312,6 @@ function googleMetaMarketMetrics(snapshot: HiringAdSnapshot, market: string, per
     cpc: costPerClick(spend, clicks),
     cpm: costPerThousandImpressions(spend, impressions),
   };
-}
-
-function mtdChannelStatus(snapshot: HiringAdSnapshot, market: string): HiringStatus | "Indeed active" {
-  const googleMeta = googleMetaMarketMetrics(snapshot, market, "mtd");
-  const indeed = indeedMarketMetrics(snapshot, market);
-  if (googleMeta.status === "Active") return "Active";
-  if (indeed.status === "Active") return "Indeed active";
-  return googleMeta.status;
 }
 
 function indeedMarketMetrics(snapshot: HiringAdSnapshot, market: string) {
@@ -1457,7 +1449,6 @@ function renderEmailChannelComparison(snapshot: HiringAdSnapshot): string {
         const indeed = indeedMarketMetrics(snapshot, market);
         const hasIndeedRow = snapshot.indeedRows.some((row) => row.market === market);
         const noGoogleMetaDelivery = googleMeta.spend === 0 && googleMeta.clicks === 0 && googleMeta.impressions === 0;
-        const status = mtdChannelStatus(snapshot, market);
         const readout = market === "Omak, WA"
           ? "Indeed is the only channel producing application data here; Google is enabled but still has no delivery."
           : market === "St. George, UT"
@@ -1465,12 +1456,7 @@ function renderEmailChannelComparison(snapshot: HiringAdSnapshot): string {
             : "Indeed has the useful application signal; Google has delivery, but the sample is still small.";
         return `
           <div style="${index === 0 ? "" : "margin-top:10px;"}padding:15px;background:#ffffff;border:1px solid #dbe4ee;border-radius:12px;">
-            <table role="presentation" style="width:100%;border-collapse:collapse;margin-bottom:10px;">
-              <tr>
-                <td style="color:#0f172a;font-size:16px;line-height:1.25;font-weight:800;">${escapeHtml(market)}</td>
-                <td style="text-align:right;"><span style="display:inline-block;padding:6px 11px;border-radius:999px;font-size:12px;font-weight:800;${emailStatusStyle(status)}">${escapeHtml(status)}</span></td>
-              </tr>
-            </table>
+            <div style="margin-bottom:10px;color:#0f172a;font-size:16px;line-height:1.25;font-weight:800;">${escapeHtml(market)}</div>
             <table role="presentation" style="width:100%;border-collapse:collapse;">
               <tr>
                 <td style="width:19%;padding:0 6px 7px 0;color:#64748b;font-size:11px;line-height:1.25;font-weight:800;letter-spacing:.4px;text-transform:uppercase;">Channel</td>
@@ -1536,7 +1522,6 @@ export function renderHiringAdsEmail(snapshot: HiringAdSnapshot, aiSummaryHtml?:
         <div style="padding:24px 26px;background:#f6f9fc;border-bottom:1px solid #dbe4ee;">
           <div style="${eyebrow}">Salt Lake Express</div>
           <h1 style="margin:7px 0 6px 0;color:#0f172a;font-size:25px;line-height:1.15;font-weight:800;">Weekly ${escapeHtml(snapshot.reportPosition)} Hiring Ads Snapshot</h1>
-          <div style="color:#64748b;font-size:14px;line-height:1.45;">Month-to-date channel economics first · weekly delivery health second</div>
         </div>
         <div style="padding:22px 26px 24px 26px;">
           <p style="margin:0;color:#0f172a;font-size:16px;line-height:1.45;font-weight:800;">${escapeHtml(lead)}</p>
@@ -1600,7 +1585,7 @@ export function renderHiringAdsText(snapshot: HiringAdSnapshot): string {
     `Weekly ${snapshot.reportPosition} Hiring Ads Snapshot`,
     `MTD comparison period: ${snapshot.mtdReportPeriodLabel}`,
     `Weekly delivery period: ${snapshot.reportPeriodLabel}`,
-    "Month-to-date channel economics first. Weekly Google/Meta delivery health second.",
+    "Month-to-date channel economics and weekly Google/Meta delivery health.",
     "",
     snapshot.indeedRows.length > 0
       ? "Indeed is the only channel with application counts right now. Google/Meta CPA stays unknown until Tenstreet/IntelliApp application tracking is connected."

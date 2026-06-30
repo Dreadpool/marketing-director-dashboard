@@ -209,6 +209,8 @@ describe("hiring ads snapshot rendering", () => {
     expect(html).toContain("Review why enabled Google ads did not deliver.");
     expect(html).toContain("$136.61 | 181 clicks");
     expect(html).toContain("main efficiency metric for hiring ads");
+    expect(html).not.toContain("Month-to-date channel economics first");
+    expect(html).not.toContain("Indeed active");
     expect(html).not.toContain("Active hiring markets");
     expect(html).not.toContain("Core and active markets");
     expect(text).toContain("Weekly Driver Hiring Ads Snapshot");
