@@ -146,14 +146,16 @@ describe("hiring ads snapshot rendering", () => {
     const html = renderHiringAdsEmail(snapshot);
     const text = renderHiringAdsText(snapshot);
 
-    expect(html).toContain("Market coverage");
+    expect(html).toContain("Channel comparison");
+    expect(html).toContain("Delivery status");
     expect(html).toContain("Google Ads: enabled, no delivery");
     expect(html).toContain("181 clicks · $0.75 CPC");
     expect(html).toContain("2,136 shown · $63.96 CPM");
     expect(html).not.toContain("Active hiring markets");
     expect(html).not.toContain("Core and active markets");
     expect(text).toContain("Weekly Driver Hiring Ads Snapshot");
-    expect(text).toContain("Market coverage:");
+    expect(text).toContain("Channel comparison:");
+    expect(text).toContain("Delivery status:");
     expect(text).toContain("CPC: $0.75");
     expect(text).toContain("CPM: $63.96");
     expect(text).not.toContain("Active hiring markets:");
@@ -203,13 +205,16 @@ describe("hiring ads snapshot rendering", () => {
     const fullReport = renderHiringAdsFullReport(snapshot);
     const text = renderHiringAdsText(snapshot);
 
-    expect(email).toContain("Indeed comparison");
-    expect(email).toContain("$14.91 CPA");
+    expect(email).toContain("Channel comparison");
+    expect(email).toContain("Indeed CPA");
+    expect(email).toContain("$14.91");
+    expect(fullReport).toContain("Channel Comparison");
     expect(fullReport).toContain("Indeed Current-Month Comparison");
     expect(fullReport).toContain("Northwestern Stagelines");
     expect(fullReport).toContain("$14.91");
-    expect(text).toContain("Indeed current-month comparison from Greg's sheet:");
-    expect(text).toContain("Applications: 25. CPA: $14.91.");
+    expect(text).toContain("Channel comparison:");
+    expect(text).toContain("Indeed current month spend $372.82");
+    expect(text).toContain("CPA $14.91");
   });
 
   it("renders raw email with plain-text fallback, HTML, and attachment", () => {
@@ -287,9 +292,9 @@ describe("hiring ads snapshot rendering", () => {
 
     const text = renderHiringAdsText(snapshot);
 
-    expect(text).toContain("Mapped spend: Unknown");
-    expect(text).toContain("Average CPC: Unknown");
-    expect(text).not.toContain("Mapped spend: $0");
+    expect(text).toContain("Google/Meta spend: Unknown");
+    expect(text).toContain("Google/Meta average CPC: Unknown");
+    expect(text).not.toContain("Google/Meta spend: $0");
   });
 
   it("keeps confidently detected active hiring markets outside the requested list", () => {

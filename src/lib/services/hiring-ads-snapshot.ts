@@ -113,6 +113,7 @@ const REPORT_POSITION = "Driver";
 const INDEED_HIRING_SPEND_SHEET_ID = "1cQkl_BYydxT-8NOubOITNo9iN8aqiO-bM-vLZrk09fE";
 const INDEED_CURRENT_MONTH_RANGE = "Current Month!A1:AF200";
 const GWS_SLE = "/Users/brady/.agents/skills/gws/scripts/gws-sle";
+const SOURCE_FRESHNESS_WARNING_DAYS = 14;
 const REQUESTED_MARKETS = ["Omak, WA", "St. George, UT", "Pocatello, ID"];
 const PLATFORMS: HiringPlatform[] = ["Google Ads", "Meta Ads"];
 const HIRING_TERMS = [
@@ -155,6 +156,19 @@ const NON_DRIVER_HIRING_TERMS = [
   "csr",
   "reservation",
   "reservations",
+];
+const INDEED_REQUIRED_HEADERS = [
+  "Source",
+  "Job Type",
+  "Job status",
+  "City",
+  "Spend",
+  "Impressions",
+  "Clicks",
+  "Apply starts",
+  "Applies",
+  "Company name",
+  "State/Region",
 ];
 
 const KNOWN_MARKETS: Array<{ label: string; patterns: RegExp[] }> = [
@@ -706,32 +720,81 @@ function aggregateIndeedRows(rows: IndeedComparisonRow[]): IndeedComparisonRow[]
   });
 }
 
+function gwsEnv(): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    HOME: "/Users/brady",
+    PATH: "/Users/brady/.npm-global/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+  };
+}
+
+async function fetchIndeedSheetMetadata(): Promise<{ modifiedTime?: string; lastModifiedBy?: string }> {
+  const { stdout } = await execFileAsync(GWS_SLE, [
+    "drive",
+    "files",
+    "get",
+    "--params",
+    JSON.stringify({
+      fileId: INDEED_HIRING_SPEND_SHEET_ID,
+      fields: "modifiedTime,lastModifyingUser(emailAddress,displayName)",
+    }),
+  ], {
+    env: gwsEnv(),
+    timeout: 60000,
+    maxBuffer: 1024 * 1024,
+  });
+  const parsed = parseGwsJson(stdout) as {
+    modifiedTime?: string;
+    lastModifyingUser?: { emailAddress?: string; displayName?: string };
+  };
+  return {
+    modifiedTime: parsed.modifiedTime,
+    lastModifiedBy: parsed.lastModifyingUser?.emailAddress ?? parsed.lastModifyingUser?.displayName,
+  };
+}
+
+function sourceFreshnessWarning(modifiedTime: string | undefined, now = new Date()): string | null {
+  if (!modifiedTime) return null;
+  const modified = Date.parse(modifiedTime);
+  if (!Number.isFinite(modified)) return null;
+  const ageDays = (now.getTime() - modified) / 86400000;
+  if (ageDays <= SOURCE_FRESHNESS_WARNING_DAYS) return null;
+  return `Sheet has not been modified for ${Math.floor(ageDays)} days.`;
+}
+
 async function fetchIndeedRows(): Promise<{
   rows: IndeedComparisonRow[];
   fetch: HiringSourceFetch;
 }> {
   const fetchedAt = new Date().toISOString();
   try {
-    const { stdout } = await execFileAsync(GWS_SLE, [
-      "sheets",
-      "spreadsheets",
-      "values",
-      "get",
-      "--params",
-      JSON.stringify({
-        spreadsheetId: INDEED_HIRING_SPEND_SHEET_ID,
-        range: INDEED_CURRENT_MONTH_RANGE,
+    const [valuesResult, metadataResult] = await Promise.allSettled([
+      execFileAsync(GWS_SLE, [
+        "sheets",
+        "spreadsheets",
+        "values",
+        "get",
+        "--params",
+        JSON.stringify({
+          spreadsheetId: INDEED_HIRING_SPEND_SHEET_ID,
+          range: INDEED_CURRENT_MONTH_RANGE,
+        }),
+      ], {
+        env: gwsEnv(),
+        timeout: 60000,
+        maxBuffer: 1024 * 1024 * 3,
       }),
-    ], {
-      env: {
-        ...process.env,
-        HOME: "/Users/brady",
-        PATH: "/Users/brady/.npm-global/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
-      },
-      timeout: 60000,
-      maxBuffer: 1024 * 1024 * 3,
-    });
-    const parsed = parseGwsJson(stdout) as { values?: string[][] };
+      fetchIndeedSheetMetadata(),
+    ]);
+
+    if (valuesResult.status === "rejected") throw valuesResult.reason;
+
+    const metadata = metadataResult.status === "fulfilled" ? metadataResult.value : {};
+    const staleWarning = sourceFreshnessWarning(metadata.modifiedTime);
+    const metadataNote = metadata.modifiedTime
+      ? `Sheet modified ${metadata.modifiedTime}${metadata.lastModifiedBy ? ` by ${metadata.lastModifiedBy}` : ""}.`
+      : "Sheet modified time unavailable.";
+    const parsed = parseGwsJson(valuesResult.value.stdout) as { values?: string[][] };
     const values = parsed.values ?? [];
     const [headerRow, ...bodyRows] = values;
     if (!headerRow) {
@@ -741,12 +804,25 @@ async function fetchIndeedRows(): Promise<{
           source: "Indeed sheet",
           status: "warning",
           fetchedAt,
-          message: "Google Sheet was readable but empty.",
+          message: `Google Sheet was readable but empty. ${metadataNote}`,
         },
       };
     }
 
     const headers = new Map(headerRow.map((value, index) => [value.toLowerCase(), index]));
+    const missingHeaders = INDEED_REQUIRED_HEADERS.filter((header) => !headers.has(header.toLowerCase()));
+    if (missingHeaders.length > 0) {
+      return {
+        rows: [],
+        fetch: {
+          source: "Indeed sheet",
+          status: "warning",
+          fetchedAt,
+          message: `Greg's sheet is missing expected columns: ${missingHeaders.join(", ")}. ${metadataNote}`,
+        },
+      };
+    }
+
     const rows = bodyRows.flatMap((row): IndeedComparisonRow[] => {
       const source = sheetCell(row, headers, "Source");
       const jobType = sheetCell(row, headers, "Job Type");
@@ -774,14 +850,20 @@ async function fetchIndeedRows(): Promise<{
         notes: "Indeed current-month totals. This does not use the weekly Google/Meta report window.",
       }];
     });
+    const aggregatedRows = aggregateIndeedRows(rows);
+    const warnings = [
+      rows.length === 0 ? `No ${REPORT_POSITION.toLowerCase()} Indeed rows were found in Current Month.` : null,
+      staleWarning,
+      metadataResult.status === "rejected" ? `Could not read sheet modified time: ${truncateMessage(metadataResult.reason)}` : null,
+    ].filter(Boolean);
 
     return {
-      rows: aggregateIndeedRows(rows),
+      rows: aggregatedRows,
       fetch: {
         source: "Indeed sheet",
-        status: "ok",
+        status: warnings.length > 0 ? "warning" : "ok",
         fetchedAt,
-        message: `Read ${rows.length} ${REPORT_POSITION.toLowerCase()} rows from Weekly Report_Hiring Spend / Current Month.`,
+        message: `Read ${rows.length} ${REPORT_POSITION.toLowerCase()} rows from Weekly Report_Hiring Spend / Current Month. ${metadataNote}${warnings.length > 0 ? ` ${warnings.join(" ")}` : ""}`,
       },
     };
   } catch (err) {
@@ -1133,6 +1215,72 @@ function visibleEmailMarkets(snapshot: HiringAdSnapshot): string[] {
   ];
 }
 
+function comparisonMarkets(snapshot: HiringAdSnapshot, includeAllIndeed: boolean): string[] {
+  return [
+    ...visibleEmailMarkets(snapshot),
+    ...(includeAllIndeed ? snapshot.indeedRows.map((row) => row.market) : []),
+  ].filter((market, index, markets) => markets.indexOf(market) === index);
+}
+
+function googleMetaMarketMetrics(snapshot: HiringAdSnapshot, market: string) {
+  const rows = snapshot.rows.filter((row) => row.market === market);
+  const spend = sumNullable(rows, (row) => row.spend);
+  const impressions = sumNullable(rows, (row) => row.impressions);
+  const clicks = sumNullable(rows, (row) => row.clicks);
+  return {
+    status: statusForRows(rows),
+    spend,
+    impressions,
+    clicks,
+    cpc: costPerClick(spend, clicks),
+    cpm: costPerThousandImpressions(spend, impressions),
+  };
+}
+
+function indeedMarketMetrics(snapshot: HiringAdSnapshot, market: string) {
+  const rows = snapshot.indeedRows.filter((row) => row.market === market);
+  if (rows.length === 0) {
+    return {
+      status: "Inactive" as HiringStatus,
+      spend: null,
+      impressions: null,
+      clicks: null,
+      applications: null,
+      cpc: null,
+      cpm: null,
+      cpa: null,
+    };
+  }
+
+  const spend = rows.reduce((sum, row) => sum + row.spend, 0);
+  const impressions = rows.reduce((sum, row) => sum + row.impressions, 0);
+  const clicks = rows.reduce((sum, row) => sum + row.clicks, 0);
+  const applications = rows.reduce((sum, row) => sum + row.applications, 0);
+  const status: HiringStatus = rows.some((row) => row.status === "Active") ? "Active" : "Inactive";
+  return {
+    status,
+    spend,
+    impressions,
+    clicks,
+    applications,
+    cpc: costPerClick(spend, clicks),
+    cpm: costPerThousandImpressions(spend, impressions),
+    cpa: safeDivide(spend, applications),
+  };
+}
+
+function indeedApplicationsDisplay(snapshot: HiringAdSnapshot): string {
+  if (snapshot.indeedRows.length === 0) return "Unknown";
+  return integer(snapshot.indeedRows.reduce((sum, row) => sum + row.applications, 0));
+}
+
+function averageIndeedCpaDisplay(snapshot: HiringAdSnapshot): string {
+  if (snapshot.indeedRows.length === 0) return "Unknown";
+  const spend = snapshot.indeedRows.reduce((sum, row) => sum + row.spend, 0);
+  const applications = snapshot.indeedRows.reduce((sum, row) => sum + row.applications, 0);
+  return usd(safeDivide(spend, applications));
+}
+
 function renderEmailMetric(labelText: string, value: string, note: string): string {
   return `
     <td style="width:25%;padding:0 8px 0 0;vertical-align:top;">
@@ -1204,16 +1352,42 @@ function renderEmailMarketCoverage(snapshot: HiringAdSnapshot): string {
   }).join("");
 }
 
-function renderEmailIndeedCallout(snapshot: HiringAdSnapshot): string {
-  if (snapshot.indeedRows.length === 0) return "";
-  const coreRows = snapshot.indeedRows.filter((row) => snapshot.requestedMarkets.includes(row.market));
-  const rows = coreRows.length > 0 ? coreRows : snapshot.indeedRows.slice(0, 3);
-  const summary = rows
-    .map((row) => `${row.market}: ${usd(costPerClick(row.spend, row.clicks))} CPC, ${usd(costPerThousandImpressions(row.spend, row.impressions))} CPM, ${usd(safeDivide(row.spend, row.applications))} CPA`)
-    .join("; ");
+function renderEmailChannelComparison(snapshot: HiringAdSnapshot): string {
+  const markets = comparisonMarkets(snapshot, false);
+  if (markets.length === 0) return "";
+
   return `
-    <div style="margin-top:16px;padding:14px 15px;background:#f3f7fb;border:1px solid #dbeafe;border-radius:10px;color:#334155;font-size:13px;line-height:1.5;">
-      <strong style="color:#1e3a8a;">Indeed comparison:</strong> Greg's current-month sheet has ${escapeHtml(snapshot.indeedRows.length)} ${escapeHtml(snapshot.reportPosition.toLowerCase())} market comparison${snapshot.indeedRows.length === 1 ? "" : "s"} in the full report. ${escapeHtml(summary)}
+    <div style="margin-top:24px;">
+      <p style="margin:0 0 10px 0;color:#334155;font-size:12px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;">Channel comparison</p>
+      ${markets.map((market, index) => {
+        const googleMeta = googleMetaMarketMetrics(snapshot, market);
+        const indeed = indeedMarketMetrics(snapshot, market);
+        const indeedStatus = snapshot.indeedRows.some((row) => row.market === market)
+          ? `${indeed.status} · current month`
+          : "No current-month row";
+        return `
+          <div style="${index === 0 ? "" : "margin-top:10px;"}padding:13px 15px;background:#ffffff;border:1px solid #dbe4ee;border-radius:12px;">
+            <div style="color:#0f172a;font-size:15px;line-height:1.25;font-weight:800;">${escapeHtml(market)}</div>
+            <table role="presentation" style="width:100%;border-collapse:collapse;margin-top:10px;">
+              <tr>
+                <td style="width:118px;padding:0 10px 8px 0;color:#475569;font-size:12px;line-height:1.35;font-weight:800;vertical-align:top;">Google/Meta<br><span style="font-weight:400;">weekly</span></td>
+                <td style="padding:0 8px 8px 0;color:#0f172a;font-size:12px;line-height:1.35;vertical-align:top;"><strong>${escapeHtml(usd(googleMeta.spend))}</strong><br><span style="color:#64748b;">spend</span></td>
+                <td style="padding:0 8px 8px 0;color:#0f172a;font-size:12px;line-height:1.35;vertical-align:top;"><strong>${escapeHtml(usd(googleMeta.cpc))}</strong><br><span style="color:#64748b;">CPC</span></td>
+                <td style="padding:0 8px 8px 0;color:#0f172a;font-size:12px;line-height:1.35;vertical-align:top;"><strong>${escapeHtml(usd(googleMeta.cpm))}</strong><br><span style="color:#64748b;">CPM</span></td>
+                <td style="padding:0 0 8px 0;color:#0f172a;font-size:12px;line-height:1.35;vertical-align:top;"><strong>Not tracked</strong><br><span style="color:#64748b;">CPA</span></td>
+              </tr>
+              <tr>
+                <td style="width:118px;padding:8px 10px 0 0;border-top:1px solid #e2e8f0;color:#1e3a8a;font-size:12px;line-height:1.35;font-weight:800;vertical-align:top;">Indeed<br><span style="font-weight:400;">${escapeHtml(indeedStatus)}</span></td>
+                <td style="padding:8px 8px 0 0;border-top:1px solid #e2e8f0;color:#0f172a;font-size:12px;line-height:1.35;vertical-align:top;"><strong>${escapeHtml(usd(indeed.spend))}</strong><br><span style="color:#64748b;">spend</span></td>
+                <td style="padding:8px 8px 0 0;border-top:1px solid #e2e8f0;color:#0f172a;font-size:12px;line-height:1.35;vertical-align:top;"><strong>${escapeHtml(usd(indeed.cpc))}</strong><br><span style="color:#64748b;">CPC</span></td>
+                <td style="padding:8px 8px 0 0;border-top:1px solid #e2e8f0;color:#0f172a;font-size:12px;line-height:1.35;vertical-align:top;"><strong>${escapeHtml(usd(indeed.cpm))}</strong><br><span style="color:#64748b;">CPM</span></td>
+                <td style="padding:8px 0 0 0;border-top:1px solid #e2e8f0;color:#0f172a;font-size:12px;line-height:1.35;vertical-align:top;"><strong>${escapeHtml(usd(indeed.cpa))}</strong><br><span style="color:#64748b;">CPA</span></td>
+              </tr>
+            </table>
+          </div>
+        `;
+      }).join("")}
+      <div style="margin-top:10px;color:#64748b;font-size:12px;line-height:1.45;">Indeed is from Greg's current-month sheet; Google/Meta is the weekly report window. The full report includes every Indeed market row.</div>
     </div>
   `;
 }
@@ -1242,21 +1416,22 @@ export function renderHiringAdsEmail(snapshot: HiringAdSnapshot, aiSummaryHtml?:
           <table role="presentation" style="width:100%;border-collapse:collapse;margin-top:18px;">
       <tr>
         ${renderEmailMetric("Active markets", activeMarketDisplay(snapshot), "requested markets")}
-        ${renderEmailMetric("Mapped spend", periodSpendDisplay(snapshot), "assigned markets")}
-        ${renderEmailMetric("Avg CPC", averageCostPerClickDisplay(snapshot), "cost per click")}
-        ${renderEmailMetric("CPM", averageCpmDisplay(snapshot), "cost per 1k shown")}
+        ${renderEmailMetric("Google/Meta spend", periodSpendDisplay(snapshot), "weekly mapped")}
+        ${renderEmailMetric("Google/Meta CPC", averageCostPerClickDisplay(snapshot), "weekly average")}
+        ${renderEmailMetric("Indeed CPA", averageIndeedCpaDisplay(snapshot), "current month")}
       </tr>
           </table>
 
+          ${renderEmailChannelComparison(snapshot)}
+
           <div style="margin-top:24px;">
-            <p style="${sectionLabel}">Market coverage</p>
+            <p style="${sectionLabel}">Delivery status</p>
             ${renderEmailMarketCoverage(snapshot)}
           </div>
 
           ${activeUnmapped.length > 0 ? `<div style="margin-top:18px;padding:13px 15px;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;color:#9a3412;font-size:13px;line-height:1.45;"><strong>${escapeHtml(activeUnmapped.length)} active hiring ad${activeUnmapped.length === 1 ? "" : "s"} ${activeUnmapped.length === 1 ? "needs" : "need"} market review.</strong> The full report lists the ad names before anyone changes markets.</div>` : ""}
           ${snapshot.unmappedHiringAds.length > activeUnmapped.length ? `<div style="margin-top:10px;padding:13px 15px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;color:#475569;font-size:13px;line-height:1.45;"><strong style="color:#334155;">Full report note:</strong> ${escapeHtml(snapshot.unmappedHiringAds.length)} hiring ad${snapshot.unmappedHiringAds.length === 1 ? "" : "s"} could not be assigned to a market.</div>` : ""}
 
-          ${renderEmailIndeedCallout(snapshot)}
           <div style="margin-top:16px;padding:14px 15px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;color:#475569;font-size:13px;line-height:1.5;">Hiring conversion rate is not available yet because completed applications are not tied back cleanly from Tenstreet/IntelliApp into the ad platforms. Drew is working with Tenstreet on that.</div>
 
           <div style="margin-top:20px;">${fullReportCta}</div>
@@ -1280,9 +1455,12 @@ export function renderHiringAdsText(snapshot: HiringAdSnapshot): string {
     const cpm = costPerThousandImpressions(spend, impressions);
     return `${market}: ${status}. ${platformSummary}. Spend: ${usd(spend)}. Clicks: ${integer(clicks)}. CPC: ${usd(cpc)}. Shown: ${integer(impressions)}. CPM: ${usd(cpm)}.`;
   });
-  const indeedLines = snapshot.indeedRows.slice(0, 8).map((row) => (
-    `${row.market}: ${row.status}. Spend: ${usd(row.spend)}. Clicks: ${integer(row.clicks)}. CPC: ${usd(costPerClick(row.spend, row.clicks))}. Shown: ${integer(row.impressions)}. CPM: ${usd(costPerThousandImpressions(row.spend, row.impressions))}. Applications: ${integer(row.applications)}. CPA: ${usd(safeDivide(row.spend, row.applications))}.`
-  ));
+  const comparisonLines = comparisonMarkets(snapshot, false).map((market) => {
+    const googleMeta = googleMetaMarketMetrics(snapshot, market);
+    const indeed = indeedMarketMetrics(snapshot, market);
+    const indeedLabel = snapshot.indeedRows.some((row) => row.market === market) ? "Indeed current month" : "Indeed current month: no row";
+    return `${market}: Google/Meta weekly spend ${usd(googleMeta.spend)}, CPC ${usd(googleMeta.cpc)}, CPM ${usd(googleMeta.cpm)}, CPA Not tracked. ${indeedLabel} spend ${usd(indeed.spend)}, CPC ${usd(indeed.cpc)}, CPM ${usd(indeed.cpm)}, applications ${integer(indeed.applications)}, CPA ${usd(indeed.cpa)}.`;
+  });
   const lines = [
     `Weekly ${snapshot.reportPosition} Hiring Ads Snapshot`,
     `Report period: ${snapshot.reportPeriodLabel}`,
@@ -1291,11 +1469,14 @@ export function renderHiringAdsText(snapshot: HiringAdSnapshot): string {
     snapshot.actionSummary[0] ?? "Hiring ads snapshot generated.",
     "",
     `Active markets: ${activeMarketDisplay(snapshot)}`,
-    `Mapped spend: ${periodSpendDisplay(snapshot)}`,
-    `Average CPC: ${averageCostPerClickDisplay(snapshot)}`,
-    `CPM: ${averageCpmDisplay(snapshot)}`,
+    `Google/Meta spend: ${periodSpendDisplay(snapshot)}`,
+    `Google/Meta average CPC: ${averageCostPerClickDisplay(snapshot)}`,
+    `Indeed CPA: ${averageIndeedCpaDisplay(snapshot)}`,
     "",
-    "Market coverage:",
+    "Channel comparison:",
+    ...comparisonLines,
+    "",
+    "Delivery status:",
     ...marketCoverageLines,
     "",
   ];
@@ -1308,9 +1489,8 @@ export function renderHiringAdsText(snapshot: HiringAdSnapshot): string {
     lines.push("");
   }
 
-  if (indeedLines.length > 0) {
-    lines.push("Indeed current-month comparison from Greg's sheet:");
-    lines.push(...indeedLines);
+  if (snapshot.indeedRows.length > 0) {
+    lines.push(`Full report includes ${snapshot.indeedRows.length} Indeed current-month market row${snapshot.indeedRows.length === 1 ? "" : "s"}.`);
     lines.push("");
   }
 
@@ -1357,6 +1537,31 @@ function renderUnmapped(snapshot: HiringAdSnapshot): string {
       </tbody>
     </table>
   `;
+}
+
+function renderChannelComparisonRows(snapshot: HiringAdSnapshot): string {
+  return comparisonMarkets(snapshot, true).map((market) => {
+    const googleMeta = googleMetaMarketMetrics(snapshot, market);
+    const indeed = indeedMarketMetrics(snapshot, market);
+    const hasIndeedRow = snapshot.indeedRows.some((row) => row.market === market);
+    return `
+      <tr>
+        <td><strong>${escapeHtml(market)}</strong></td>
+        <td><span class="pill ${statusClass(googleMeta.status)}">${escapeHtml(googleMeta.status)}</span></td>
+        <td class="right">${escapeHtml(usd(googleMeta.spend))}</td>
+        <td class="right">${escapeHtml(integer(googleMeta.clicks))}</td>
+        <td class="right">${escapeHtml(usd(googleMeta.cpc))}</td>
+        <td class="right">${escapeHtml(usd(googleMeta.cpm))}</td>
+        <td>Not tracked</td>
+        <td><span class="pill ${hasIndeedRow ? statusClass(indeed.status) : "inactive"}">${escapeHtml(hasIndeedRow ? indeed.status : "No row")}</span></td>
+        <td class="right">${escapeHtml(usd(indeed.spend))}</td>
+        <td class="right">${escapeHtml(integer(indeed.applications))}</td>
+        <td class="right">${escapeHtml(usd(indeed.cpc))}</td>
+        <td class="right">${escapeHtml(usd(indeed.cpm))}</td>
+        <td class="right">${escapeHtml(usd(indeed.cpa))}</td>
+      </tr>
+    `;
+  }).join("");
 }
 
 function renderIndeedRows(snapshot: HiringAdSnapshot): string {
@@ -1458,16 +1663,41 @@ export function renderHiringAdsFullReport(snapshot: HiringAdSnapshot, aiSummaryH
     </div>
     <div class="stats">
       <div class="stat"><span>Active markets</span><strong>${escapeHtml(activeMarketDisplay(snapshot))}</strong></div>
-      <div class="stat"><span>Mapped spend</span><strong>${escapeHtml(periodSpendDisplay(snapshot))}</strong></div>
-      <div class="stat"><span>Avg CPC</span><strong>${escapeHtml(averageCostPerClickDisplay(snapshot))}</strong></div>
-      <div class="stat"><span>CPM</span><strong>${escapeHtml(averageCpmDisplay(snapshot))}</strong></div>
-      <div class="stat"><span>Application CPA</span><strong>Not tracked</strong></div>
+      <div class="stat"><span>Google/Meta spend</span><strong>${escapeHtml(periodSpendDisplay(snapshot))}</strong></div>
+      <div class="stat"><span>Google/Meta CPC</span><strong>${escapeHtml(averageCostPerClickDisplay(snapshot))}</strong></div>
+      <div class="stat"><span>Google/Meta CPM</span><strong>${escapeHtml(averageCpmDisplay(snapshot))}</strong></div>
+      <div class="stat"><span>Indeed apps</span><strong>${escapeHtml(indeedApplicationsDisplay(snapshot))}</strong></div>
+      <div class="stat"><span>Indeed CPA</span><strong>${escapeHtml(averageIndeedCpaDisplay(snapshot))}</strong></div>
     </div>
   </header>
   <section class="panel">
     <h2>What Changed / Action Needed</h2>
     ${aiSummaryHtml ? `<div class="note">${aiSummaryHtml}</div>` : ""}
     <ul class="summary-list">${snapshot.actionSummary.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+  </section>
+  <section>
+    <h2>Channel Comparison</h2>
+    <p class="section-note">Google/Meta rows use the weekly report window. Indeed rows use Greg's current-month sheet, which includes application counts and cost per application.</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Market</th>
+          <th>G/M status</th>
+          <th class="right">G/M spend</th>
+          <th class="right">G/M clicks</th>
+          <th class="right">G/M CPC</th>
+          <th class="right">G/M CPM</th>
+          <th>G/M CPA</th>
+          <th>Indeed status</th>
+          <th class="right">Indeed spend</th>
+          <th class="right">Apps</th>
+          <th class="right">Indeed CPC</th>
+          <th class="right">Indeed CPM</th>
+          <th class="right">Indeed CPA</th>
+        </tr>
+      </thead>
+      <tbody>${renderChannelComparisonRows(snapshot)}</tbody>
+    </table>
   </section>
   <section>
     <h2>Active Driver Hiring Markets</h2>
