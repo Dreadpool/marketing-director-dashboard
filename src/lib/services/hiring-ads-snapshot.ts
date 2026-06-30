@@ -1408,7 +1408,6 @@ function renderEmailMarketEconomics(snapshot: HiringAdSnapshot): string {
       <table role="presentation" style="width:100%;border-collapse:collapse;margin-bottom:10px;">
         <tr>
           <td style="color:#334155;font-size:12px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;">Market economics</td>
-          <td style="text-align:right;color:#64748b;font-size:12px;line-height:1.4;">Same metrics per channel</td>
         </tr>
       </table>
 
@@ -1614,8 +1613,8 @@ export function renderHiringAdsEmail(snapshot: HiringAdSnapshot): string {
           ${previewNotice}
           <table role="presentation" style="width:100%;border-collapse:collapse;margin-top:0;">
             <tr>
-              ${renderEmailMetric("Indeed CPA", averageIndeedCpaDisplay(snapshot), `${indeedApplicationsDisplay(snapshot)} completed apps`, true)}
               ${renderEmailMetric("Indeed spend", mtdIndeedSpendDisplay(snapshot), "MTD shown markets")}
+              ${renderEmailMetric("Indeed CPA", averageIndeedCpaDisplay(snapshot), `${indeedApplicationsDisplay(snapshot)} completed apps`, true)}
               ${renderEmailMetric("Google spend", mtdGoogleSpendDisplay(snapshot), "MTD shown markets")}
               ${renderEmailMetric("Google CPA", "", "")}
             </tr>
@@ -1662,8 +1661,8 @@ export function renderHiringAdsText(snapshot: HiringAdSnapshot): string {
     `MTD economics: ${snapshot.mtdReportPeriodLabel}`,
     `Weekly Google check: ${snapshot.reportPeriodLabel}`,
     "",
-    `Indeed CPA: ${averageIndeedCpaDisplay(snapshot)} (${indeedApplicationsDisplay(snapshot)} completed apps)`,
     `Indeed spend: ${mtdIndeedSpendDisplay(snapshot)}`,
+    `Indeed CPA: ${averageIndeedCpaDisplay(snapshot)} (${indeedApplicationsDisplay(snapshot)} completed apps)`,
     `Google spend: ${mtdGoogleSpendDisplay(snapshot)}`,
     "Google CPA:",
     "",

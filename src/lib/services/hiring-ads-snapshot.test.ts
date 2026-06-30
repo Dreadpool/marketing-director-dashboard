@@ -206,7 +206,6 @@ describe("hiring ads snapshot rendering", () => {
 
     expect(html).toContain("Market economics");
     expect(html).toContain("Weekly Google check");
-    expect(html).toContain("Same metrics per channel");
     expect(html).toContain("Google MTD");
     expect(html).toContain("Indeed MTD");
     expect(html).toContain("Google CPA");
@@ -216,6 +215,7 @@ describe("hiring ads snapshot rendering", () => {
     expect(html).toContain("Delivering");
     expect(html).toContain("Meta is not currently running in these requested markets.");
     expect(html).toContain("Data limits");
+    expect(html).not.toContain("Same metrics per channel");
     expect(html).not.toContain("Month-to-date channel economics first");
     expect(html).not.toContain("Indeed active");
     expect(html).not.toContain("Google/Meta");
@@ -230,6 +230,9 @@ describe("hiring ads snapshot rendering", () => {
     expect(text).toContain("CPC $0.75");
     expect(text).toContain("Status Delivering");
     expect(text).toContain("CPA means cost per completed application.");
+    expect(text.indexOf("Indeed spend:")).toBeLessThan(text.indexOf("Indeed CPA:"));
+    expect(text.indexOf("Indeed CPA:")).toBeLessThan(text.indexOf("Google spend:"));
+    expect(text.indexOf("Google spend:")).toBeLessThan(text.indexOf("Google CPA:"));
     expect(text).not.toContain("Google/Meta");
     expect(text).not.toContain("Tiny sample");
     expect(text).not.toContain("Active hiring markets:");
@@ -283,6 +286,10 @@ describe("hiring ads snapshot rendering", () => {
     expect(email).toContain("Indeed CPA");
     expect(email).toContain("$14.91");
     expect(email).toContain("Google CPA");
+    expect(email.indexOf("Indeed spend")).toBeLessThan(email.indexOf("Indeed CPA"));
+    expect(email.indexOf("Indeed CPA")).toBeLessThan(email.indexOf("Google spend"));
+    expect(email.indexOf("Google spend")).toBeLessThan(email.indexOf("Google CPA"));
+    expect(email).not.toContain("Same metrics per channel");
     expect(email).not.toContain("Google/Meta");
     expect(fullReport).toContain("Month-To-Date Channel Economics");
     expect(fullReport).toContain("Indeed Current-Month Comparison");
