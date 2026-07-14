@@ -70,12 +70,6 @@ export function BriefCard({ brief }: { brief: Brief }) {
           {brief.status === 'proposed' && !rejecting && (
             <div className="flex items-center gap-2 mt-3">
               <button
-                onClick={() => pushToMeta(brief.briefId, router)}
-                className="px-3 py-1.5 text-xs bg-yellow-600 hover:bg-yellow-500 rounded text-slate-950 font-medium transition"
-              >
-                Accept →
-              </button>
-              <button
                 onClick={() => setRejecting(true)}
                 className="px-3 py-1.5 text-xs bg-transparent border border-red-900/60 hover:border-red-600/80 hover:bg-red-950/30 rounded text-red-300 font-medium transition"
               >
@@ -133,18 +127,6 @@ export function BriefCard({ brief }: { brief: Brief }) {
 }
 
 type AppRouter = ReturnType<typeof useRouter>;
-
-async function pushToMeta(briefId: string, router: AppRouter) {
-  const res = await fetch(`/api/creative-pipeline/push-brief/${briefId}`, {
-    method: 'POST',
-  });
-  if (res.ok) {
-    router.refresh();
-  } else {
-    const err = await res.json().catch(() => ({ error: 'unknown' }));
-    alert(`Push failed: ${err.error}`);
-  }
-}
 
 async function rejectBrief(
   briefId: string,
