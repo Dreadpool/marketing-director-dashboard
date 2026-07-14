@@ -1,8 +1,8 @@
 # References
 
 ## Source Project CLAUDE.md Files
-- Meta Ads: `~/workspace/sle/marketing/meta-ads/CLAUDE.md`
-- Google Ads: `~/workspace/sle/marketing/google-ads-api/CLAUDE.md`
+- Meta Ads: `~/workspace/sle/marketing/paid-ads/meta-ads/README.md`
+- Google Ads: `~/workspace/sle/marketing/paid-ads/google-ads/README.md`
 - BigQuery: `~/workspace/sle/analytics/bigquery-data-analysis/CLAUDE.md`
 - GA4: `~/workspace/sle/analytics/ga4-data-analysis/CLAUDE.md`
 - SEO: `~/workspace/sle/analytics/seo-analysis/CLAUDE.md`
