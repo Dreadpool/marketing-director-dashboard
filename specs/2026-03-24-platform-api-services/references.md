@@ -11,5 +11,5 @@
 - Google Ads developer token: stored in registered private environment configuration; never write it in repository files
 
 ## Related Projects
-- Google Ads API config: `~/workspace/sle/google-ads-api/`
-- Meta Ads MCP server config: see MCP server settings
+- Google Ads workflow: `~/workspace/sle/marketing/paid-ads/google-ads/`
+- Meta Ads operations: `/Users/brady/.agents/skills/meta-ads/SKILL.md`
