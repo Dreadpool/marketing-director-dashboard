@@ -24,7 +24,7 @@ const DEFAULT_AUTOMATION_HOME = path.join(
   "automations",
   AUTOMATION_ID,
 );
-const REPO_DIR = "/Users/brady/workspace/sle/products/marketing-director-dashboard";
+const REPO_DIR = "/Users/brady/workspace/sle/marketing/marketing-director-dashboard";
 const CODEX_BIN = "/Users/brady/.npm-global/bin/codex";
 const GWS_SLE = "/Users/brady/.agents/skills/gws/scripts/gws-sle";
 const VERCEL_BIN = "/Users/brady/.npm-global/bin/vercel";
