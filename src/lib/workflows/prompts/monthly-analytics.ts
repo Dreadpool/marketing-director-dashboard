@@ -7,12 +7,12 @@ The data contains: period, current_month (revenue, customers, marketing, top_cus
 ## Metrics to Calculate and Report
 
 ### Revenue (Gross Bookings Framework)
-- Gross Bookings (primary KPI): total booking value across all payment types
-- Net Bookings: gross minus all cancellation amounts
+- Gross Bookings (primary KPI): total booking value across all payment types from the canonical active-orders view, excluding voids and same-month rebook originals
+- Net Bookings: gross minus canonical cancellation amounts
 - Net Booking Rate: percentage of bookings that held (note: ~45% of cancels are reschedules, so rate appears lower than true retention)
 - New Cash: CC + cash + other net (excludes account credits). This is what CAC and payback ratio use.
-- Average order value (uses Gross Bookings / total orders)
-- Revenue per customer, orders per customer
+- Average order value: countable real-booking gross value / countable orders
+- Revenue per customer, orders per customer: paid-ins and fee-only cancellations are excluded from customer and order counts
 - CardPointe variance: if CC net differs from CardPointe settlement by >$1000, flag for investigation
 
 ### Customers

@@ -20,9 +20,9 @@ export type MasterMetricsRevenue = {
   net_booking_rate: number; // net / gross as decimal (0.81 = 81%)
   new_cash: number; // CC net + cash net + other net (no account credits)
   total_orders: number;
-  avg_order_value: number; // gross_bookings / total_orders
+  avg_order_value: number; // countable real-booking gross / total_orders
   unique_customers: number;
-  revenue_per_customer: number; // uses gross_bookings
+  revenue_per_customer: number; // countable real-booking gross / unique_customers
   orders_per_customer: number;
   by_category: RevenueByCategory[];
   total_cancels: number; // sum of all cancel amounts

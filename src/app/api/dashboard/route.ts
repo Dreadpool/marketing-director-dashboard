@@ -7,6 +7,7 @@ import { normalizeMetaAdsInsights } from "@/lib/schemas/transformers/meta-ads";
 import { normalizeGoogleAdsData } from "@/lib/schemas/transformers/google-ads";
 import { createProvenance } from "@/lib/schemas";
 import type { DashboardMetrics } from "@/lib/schemas";
+import { getMonthDateRange } from "@/lib/utils/month-period";
 
 /** Revalidate every 4 hours */
 export const revalidate = 14400;
@@ -15,10 +16,7 @@ export async function GET() {
   try {
     const now = new Date();
     const period = { year: now.getFullYear(), month: now.getMonth() + 1 };
-    const dateRange = {
-      start: `${period.year}-${String(period.month).padStart(2, "0")}-01`,
-      end: new Date(period.year, period.month, 0).toISOString().slice(0, 10),
-    };
+    const dateRange = getMonthDateRange(period);
 
     const [bqResult, metaResult, googleResult] = await Promise.allSettled([
       getDashboardSummary(period),

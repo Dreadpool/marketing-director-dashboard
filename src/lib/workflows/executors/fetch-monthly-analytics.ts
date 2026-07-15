@@ -6,19 +6,19 @@ import type {
 } from "@/lib/schemas/sources/monthly-analytics";
 import {
   getSalesOrders,
-  getCancelAmounts,
   getCardPointeSettlements,
   getCancelsByPaymentCategory,
   getCustomerFirstPurchases,
 } from "@/lib/services/bigquery-sales";
+import type { SalesOrderRow } from "@/lib/services/bigquery-sales";
 import { getMonthlyAdSpend } from "@/lib/services/bigquery-adspend";
 import {
-  applyCancelAdjustments,
   calculateRevenueBreakdown,
   calculateCustomerSegmentation,
   calculateTopCustomers,
   calculateCAC,
 } from "@/lib/services/metrics-calculator";
+import { getMonthDateRange } from "@/lib/utils/month-period";
 
 const MONTH_NAMES = [
   "",
@@ -36,14 +36,24 @@ const MONTH_NAMES = [
   "December",
 ];
 
+export function calculateRevenueVariance(rows: SalesOrderRow[]): number {
+  const paymentTotal = rows.reduce(
+    (s, r) =>
+      s + r.payment_amount_1 + r.payment_amount_2 + r.payment_amount_3 + r.payment_amount_4,
+    0,
+  );
+  const saleTotal = rows.reduce((s, r) => s + r.total_sale, 0);
+
+  return saleTotal > 0
+    ? Math.round(Math.abs(paymentTotal - saleTotal) * 100) / 100
+    : 0;
+}
+
 /** Fetch and compute all monthly analytics metrics from BigQuery + QuickBooks GL */
 export async function fetchMonthlyAnalytics(
   period: MonthPeriod,
 ): Promise<MasterMetrics> {
-  const startDate = `${period.year}-${String(period.month).padStart(2, "0")}-01`;
-  const endDate = new Date(period.year, period.month, 0)
-    .toISOString()
-    .slice(0, 10);
+  const { start: startDate, end: endDate } = getMonthDateRange(period);
 
   // 1. Parallel: sales orders + CardPointe + ad spend + cancels by category
   const [salesResult, cardpointeResult, adSpendResult, cancelsByCatResult] =
@@ -89,14 +99,9 @@ export async function fetchMonthlyAnalytics(
     console.error("Cancels by category fetch failed:", cancelsByCatResult.reason);
   }
 
-  // 2. Get cancel amounts for fetched order IDs (still needed for promo/top customer calculations)
-  const orderIds = salesRows.map((r) => r.order_id);
-  const cancelMap = await getCancelAmounts(orderIds);
+  const adjustedRows = salesRows;
 
-  // 3. Apply cancellations
-  const adjustedRows = applyCancelAdjustments(salesRows, cancelMap);
-
-  // 4. Get customer first purchases for new/returning determination
+  // 2. Get customer first purchases for new/returning determination
   const uniqueEmails = [
     ...new Set(
       adjustedRows
@@ -104,9 +109,9 @@ export async function fetchMonthlyAnalytics(
         .map((r) => r.purchaser_email!.toLowerCase().trim()),
     ),
   ];
-  const firstPurchaseMap = await getCustomerFirstPurchases(uniqueEmails, period);
+  const firstPurchaseMap = await getCustomerFirstPurchases(uniqueEmails);
 
-  // 5. Run all calculations
+  // 3. Run all calculations
   const revenue = calculateRevenueBreakdown(adjustedRows, cardpointe, cancelsByCategory);
   const customers = calculateCustomerSegmentation(
     adjustedRows,
@@ -142,7 +147,7 @@ export async function fetchMonthlyAnalytics(
     avgCustomerValueSource,
   });
 
-  // 6. Data quality checks
+  // 4. Data quality checks
   const orderIdSet = new Set(adjustedRows.map((r) => r.order_id));
   const nullEmails = adjustedRows.filter((r) => !r.purchaser_email).length;
   const zeroRevenueRows = adjustedRows.filter(
@@ -162,20 +167,7 @@ export async function fetchMonthlyAnalytics(
     .slice(0, 10)
     .map(([email, count]) => ({ email, count }));
 
-  // Revenue variance: compare sum of payment amounts vs total_sale
-  const paymentTotal = adjustedRows.reduce(
-    (s, r) =>
-      s + r.payment_amount_1 + r.payment_amount_2 + r.payment_amount_3 + r.payment_amount_4,
-    0,
-  );
-  const saleTotal = adjustedRows.reduce(
-    (s, r) => s + r.revenue_after_cancellations,
-    0,
-  );
-  const revenueVariance =
-    saleTotal > 0
-      ? Math.round(Math.abs(paymentTotal - saleTotal) * 100) / 100
-      : 0;
+  const revenueVariance = calculateRevenueVariance(adjustedRows);
 
   const monthName = MONTH_NAMES[period.month];
   const loadedSources = ["bigquery"];
@@ -241,7 +233,7 @@ export async function fetchMonthlyAnalytics(
       "Ad spend data unavailable. Marketing metrics show zeros. Check QuickBooks GL data in BigQuery.";
   }
 
-  // 7. Fetch prior-year data for YoY comparison (optional, non-blocking)
+  // 5. Fetch prior-year data for YoY comparison (optional, non-blocking)
   const priorYearPeriod: MonthPeriod = { year: period.year - 1, month: period.month };
   const yoyComparison = await computeYoYComparison(
     revenue,
@@ -326,10 +318,7 @@ async function computeYoYComparison(
       ? adSpendResult.value
       : { categories: {} as Record<string, number>, total_spend: 0, transaction_count: 0 };
 
-  // Get cancel amounts and compute prior-year metrics
-  const priorOrderIds = priorSalesRows.map((r) => r.order_id);
-  const priorCancelMap = await getCancelAmounts(priorOrderIds);
-  const priorAdjusted = applyCancelAdjustments(priorSalesRows, priorCancelMap);
+  const priorAdjusted = priorSalesRows;
 
   const priorUniqueEmails = [
     ...new Set(
@@ -340,7 +329,6 @@ async function computeYoYComparison(
   ];
   const priorFirstPurchaseMap = await getCustomerFirstPurchases(
     priorUniqueEmails,
-    priorPeriod,
   );
 
   const priorRevenue = calculateRevenueBreakdown(

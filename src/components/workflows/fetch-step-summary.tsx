@@ -191,7 +191,7 @@ function HeadlineMetrics({ data }: { data: MasterMetrics }) {
           label="Gross Bookings"
           value={usd.format(rev.gross_bookings)}
           secondary={`${num.format(rev.total_orders)} orders, ${usd2.format(rev.avg_order_value)} avg`}
-          tooltip="Total payment amounts on all Sale records for the month, before cancellations. Excludes voided orders (failed payments) and orders that were rescheduled to a new booking in the same month. The replacement booking is counted instead. If a customer rebooks across months (e.g. books in Jan, reschedules in Feb), both months show their respective booking. This means adding months together slightly overcounts rebook activity in Gross, but Net Bookings corrects for this since the cancel offsets the original."
+          tooltip="Total payment amounts from the canonical active-orders view before cancellations. Excludes voids and original orders replaced by a real rebook in the same month. The order count and average exclude paid-ins and fee-only cancellations."
           yoyChange={yoy?.gross_bookings_change_percent}
           goodDirection="up"
         />
@@ -199,14 +199,14 @@ function HeadlineMetrics({ data }: { data: MasterMetrics }) {
           label="Net Bookings"
           value={usd.format(rev.net_bookings)}
           secondary={<NetBookingRateBadge rate={rev.net_booking_rate} />}
-          tooltip="Gross Bookings minus true cancellation amounts. True cancels are Cancel records where the order was not voided and not rebooked (no other Sale has previous_order pointing to this order_id). Cancel amounts use ABS(canceled_outbound_fare + canceled_return_fare + canceled_baggage_fee), the refund amount excluding the ~$4 processing fee we retain. Source: BigQuery tds_sales.sales_orders."
+          tooltip="Gross Bookings minus cancellation amounts from BigQuery tds_sales.vw_sle_active_orders. The view handles cancel signs, duplicate cancel records, voids, paid-ins, and fee-only cancellation flags."
           yoyChange={yoy?.net_bookings_change_percent}
           goodDirection="up"
         />
         <MetricCell
           label="New Cash"
           value={usd.format(rev.new_cash)}
-          tooltip="Net revenue from payment types that represent incoming cash: credit cards (Visa, Mastercard, AmEx, Discover), POS Cash, and Driver Collect Payment. Excludes Customer Account Credit (recycled balances) and Corporate Account (billed separately). Calculated as gross per category minus true cancel amounts per category. Source: BigQuery tds_sales.sales_orders."
+          tooltip="Net revenue from payment types that represent incoming cash: credit cards, POS Cash, and Driver Collect Payment. Excludes Customer Account Credit and Corporate Account. Source: BigQuery tds_sales.vw_sle_active_orders plus CardPointe validation."
           yoyChange={yoy?.new_cash_change_percent}
           goodDirection="up"
         />
@@ -264,7 +264,7 @@ function HeadlineMetrics({ data }: { data: MasterMetrics }) {
                 <Info className="h-3 w-3 text-muted-foreground/50" />
               </TooltipTrigger>
               <TooltipContent side="top" className="max-w-xs text-xs">
-                <p>Total real revenue (CardPointe CC net + cash + other from TDS) divided by unique active customers that month. Confirmed: total_sale always equals SUM(payment_amount_1..4) on Sale records. Source: {mkt.avg_customer_value_source === "cardpointe" ? "CardPointe settlements" : "TDS sales_orders"}.</p>
+                <p>Total real revenue divided by unique active customers that month. Paid-ins and fee-only cancellations are excluded from customer counts. Source: {mkt.avg_customer_value_source === "cardpointe" ? "CardPointe settlements" : "TDS active-orders view"}.</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>

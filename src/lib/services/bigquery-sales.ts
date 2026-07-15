@@ -1,12 +1,11 @@
 import type { MonthPeriod } from "@/lib/schemas/types";
 import { getBigQueryClient, PROJECT_ID } from "./bigquery-client";
+import { getMonthDateRange } from "@/lib/utils/month-period";
 
 const DATASET = process.env.BIGQUERY_DATASET ?? "tds_sales";
 
 function periodToDateRange(period: MonthPeriod) {
-  const start = `${period.year}-${String(period.month).padStart(2, "0")}-01`;
-  const end = new Date(period.year, period.month, 0).toISOString().slice(0, 10);
-  return { start, end };
+  return getMonthDateRange(period);
 }
 
 export type SalesOrderRow = {
@@ -29,9 +28,14 @@ export type SalesOrderRow = {
   trip_origin_stop: string | null;
   trip_destination_stop: string | null;
   previous_order: number | null;
+  revenue_after_cancellations: number;
+  total_canceled_amount: number;
+  num_cancel_records: number;
+  is_paid_in: boolean;
+  is_fee_only_cancellation: boolean;
 };
 
-/** Fetch sales orders for a month, excluding voided order_ids */
+/** Fetch active SLE sales orders for a month from the canonical revenue view. */
 export async function getSalesOrders(
   period: MonthPeriod,
 ): Promise<SalesOrderRow[]> {
@@ -54,16 +58,14 @@ export async function getSalesOrders(
       payment_type_4, COALESCE(payment_amount_4, 0) AS payment_amount_4,
       trip_origin_stop,
       trip_destination_stop,
-      previous_order
-    FROM \`${PROJECT_ID}.${DATASET}.sales_orders\`
+      previous_order,
+      COALESCE(revenue_after_cancellations, 0) AS revenue_after_cancellations,
+      COALESCE(total_canceled_amount, 0) AS total_canceled_amount,
+      COALESCE(num_cancel_records, 0) AS num_cancel_records,
+      COALESCE(is_paid_in, FALSE) AS is_paid_in,
+      COALESCE(is_fee_only_cancellation, FALSE) AS is_fee_only_cancellation
+    FROM \`${PROJECT_ID}.${DATASET}.vw_sle_active_orders\`
     WHERE DATE(purchase_date) BETWEEN @start_date AND @end_date
-      AND (activity_type = 'Sale' OR activity_type IS NULL)
-      AND selling_company = 'Salt Lake Express'
-      AND order_id NOT IN (
-        SELECT DISTINCT order_id
-        FROM \`${PROJECT_ID}.${DATASET}.sales_orders\`
-        WHERE activity_type = 'Void'
-      )
   `;
 
   const [rows] = await bq.query({
@@ -95,6 +97,11 @@ export async function getSalesOrders(
     trip_origin_stop: r.trip_origin_stop ? String(r.trip_origin_stop) : null,
     trip_destination_stop: r.trip_destination_stop ? String(r.trip_destination_stop) : null,
     previous_order: r.previous_order ? Number(r.previous_order) : null,
+    revenue_after_cancellations: Number(r.revenue_after_cancellations),
+    total_canceled_amount: Number(r.total_canceled_amount),
+    num_cancel_records: Number(r.num_cancel_records),
+    is_paid_in: Boolean(r.is_paid_in),
+    is_fee_only_cancellation: Boolean(r.is_fee_only_cancellation),
   }));
 }
 
@@ -112,13 +119,22 @@ export async function getCancelAmounts(
   const query = `
     SELECT
       order_id,
-      SUM(
-        ABS(COALESCE(canceled_outbound_fare, 0)) +
-        ABS(COALESCE(canceled_return_fare, 0)) +
-        ABS(COALESCE(canceled_baggage_fee, 0))
-      ) AS total_canceled
+      CASE
+        WHEN COUNT(DISTINCT ABS(COALESCE(canceled_outbound_fare, 0))) = 1
+         AND COUNT(DISTINCT ABS(COALESCE(canceled_return_fare, 0))) = 1
+         AND COUNT(DISTINCT ABS(COALESCE(canceled_baggage_fee, 0))) = 1
+        THEN
+          MAX(ABS(COALESCE(canceled_outbound_fare, 0))) +
+          MAX(ABS(COALESCE(canceled_return_fare, 0))) +
+          MAX(ABS(COALESCE(canceled_baggage_fee, 0)))
+        ELSE
+          SUM(ABS(COALESCE(canceled_outbound_fare, 0)) +
+              ABS(COALESCE(canceled_return_fare, 0)) +
+              ABS(COALESCE(canceled_baggage_fee, 0)))
+      END AS total_canceled
     FROM \`${PROJECT_ID}.${DATASET}.sales_orders\`
     WHERE activity_type = 'Cancel'
+      AND selling_company = 'Salt Lake Express'
       AND order_id IN UNNEST(@order_ids)
     GROUP BY order_id
   `;
@@ -177,43 +193,25 @@ export async function getCancelsByPaymentCategory(
   const bq = getBigQueryClient();
 
   const query = `
-    WITH voided AS (
-      SELECT DISTINCT order_id
-      FROM \`${PROJECT_ID}.${DATASET}.sales_orders\`
-      WHERE activity_type = 'Void'
-    ),
-    rebook_originals AS (
+    WITH rebook_originals AS (
       SELECT DISTINCT CAST(CAST(previous_order AS FLOAT64) AS INT64) AS order_id
-      FROM \`${PROJECT_ID}.${DATASET}.sales_orders\`
+      FROM \`${PROJECT_ID}.${DATASET}.vw_sle_active_orders\`
       WHERE previous_order IS NOT NULL
-        AND (activity_type = 'Sale' OR activity_type IS NULL)
-        AND selling_company = 'Salt Lake Express'
         AND DATE(purchase_date) BETWEEN @start_date AND @end_date
-        AND order_id NOT IN (SELECT order_id FROM voided)
+        AND is_paid_in = FALSE
+        AND is_fee_only_cancellation = FALSE
     ),
     sales AS (
-      SELECT order_id, payment_type_1
-      FROM \`${PROJECT_ID}.${DATASET}.sales_orders\`
+      SELECT order_id, payment_type_1, total_canceled_amount
+      FROM \`${PROJECT_ID}.${DATASET}.vw_sle_active_orders\`
       WHERE DATE(purchase_date) BETWEEN @start_date AND @end_date
-        AND (activity_type = 'Sale' OR activity_type IS NULL)
-        AND selling_company = 'Salt Lake Express'
-        AND order_id NOT IN (SELECT order_id FROM voided)
         AND order_id NOT IN (SELECT order_id FROM rebook_originals)
-    ),
-    cancels AS (
-      SELECT order_id,
-        ABS(COALESCE(canceled_outbound_fare, 0)) +
-        ABS(COALESCE(canceled_return_fare, 0)) +
-        ABS(COALESCE(canceled_baggage_fee, 0)) AS cancel_amount
-      FROM \`${PROJECT_ID}.${DATASET}.sales_orders\`
-      WHERE activity_type = 'Cancel'
-        AND order_id IN (SELECT order_id FROM sales)
+        AND total_canceled_amount > 0
     )
     SELECT
-      s.payment_type_1,
-      c.cancel_amount
-    FROM sales s
-    INNER JOIN cancels c ON s.order_id = c.order_id
+      payment_type_1,
+      total_canceled_amount AS cancel_amount
+    FROM sales
   `;
 
   const [rows] = await bq.query({
@@ -317,7 +315,6 @@ export async function getCardPointeSettlements(
  */
 export async function getCustomerFirstPurchases(
   emails: string[],
-  _period: MonthPeriod,
 ): Promise<Map<string, string>> {
   if (emails.length === 0) return new Map();
 
@@ -326,18 +323,20 @@ export async function getCustomerFirstPurchases(
   // Query all-time first purchase per email. We pass the emails to filter
   // but the MIN(purchase_date) is computed across all time.
   const query = `
-    WITH voided AS (
-      SELECT DISTINCT order_id
-      FROM \`${PROJECT_ID}.${DATASET}.sales_orders\`
-      WHERE activity_type = 'Void'
+    WITH rebook_originals AS (
+      SELECT DISTINCT CAST(CAST(previous_order AS FLOAT64) AS INT64) AS order_id
+      FROM \`${PROJECT_ID}.${DATASET}.vw_sle_active_orders\`
+      WHERE previous_order IS NOT NULL
+        AND is_paid_in = FALSE
+        AND is_fee_only_cancellation = FALSE
     )
     SELECT
       LOWER(TRIM(purchaser_email)) AS email,
       CAST(MIN(DATE(purchase_date)) AS STRING) AS first_purchase_date
-    FROM \`${PROJECT_ID}.${DATASET}.sales_orders\`
-    WHERE (activity_type = 'Sale' OR activity_type IS NULL)
-      AND selling_company = 'Salt Lake Express'
-      AND order_id NOT IN (SELECT order_id FROM voided)
+    FROM \`${PROJECT_ID}.${DATASET}.vw_sle_active_orders\`
+    WHERE order_id NOT IN (SELECT order_id FROM rebook_originals)
+      AND is_paid_in = FALSE
+      AND is_fee_only_cancellation = FALSE
       AND purchaser_email IS NOT NULL
       AND LOWER(TRIM(purchaser_email)) IN UNNEST(@emails)
     GROUP BY email
