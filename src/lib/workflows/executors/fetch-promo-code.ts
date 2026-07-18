@@ -26,7 +26,7 @@ export interface PromoCodeMetrics {
   campaignCost?: number;
   roi?: {
     revenueReturn: number;
-    spendPerFirstPurchaser: number;
+    spendPerFirstPurchaser?: number;
   };
   similarCodes?: Array<{ code: string; orders: number }>;
   derivedPeriod?: { year: number; month: number };
@@ -293,7 +293,9 @@ export async function fetchPromoCode(
   if (campaignCost && campaignCost > 0) {
     roi = {
       revenueReturn: safeDivide(grossRevenue, campaignCost),
-      spendPerFirstPurchaser: safeDivide(campaignCost, newCustomers),
+      ...(newCustomers > 0
+        ? { spendPerFirstPurchaser: campaignCost / newCustomers }
+        : {}),
     };
   }
 

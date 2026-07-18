@@ -181,7 +181,7 @@ export function PromoCodeFetchSummary({ data }: { data: PromoCodeMetrics }) {
                 Spend / First Observed Purchaser
               </p>
               <p className="text-2xl font-bold font-heading tabular-nums">
-                {newCustomers > 0
+                {roi.spendPerFirstPurchaser !== undefined
                   ? usd2.format(roi.spendPerFirstPurchaser)
                   : "No first observed purchasers"}
               </p>

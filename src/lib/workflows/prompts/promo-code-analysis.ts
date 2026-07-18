@@ -16,7 +16,7 @@ The fetch step provides a PromoCodeMetrics object with:
 - topRoutes (route name, order count, revenue)
 - weeklyUsage (week label, order count — for usage timeline)
 - channelBreakdown (web vs agent-booked orders)
-- campaignCost (optional), roi (optional: revenueReturn and spendPerFirstPurchaser; descriptive only)
+- campaignCost (optional), roi (optional: revenueReturn and spendPerFirstPurchaser when at least one first observed purchaser exists; descriptive only)
 
 ## Your Analysis Structure
 
