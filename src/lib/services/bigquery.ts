@@ -49,10 +49,24 @@ export async function getMonthlyRevenueSummary(
   const query = `
     SELECT
       COALESCE(SUM(revenue_after_cancellations), 0) AS total_revenue,
-      COUNT(DISTINCT order_id) AS total_orders,
-      COUNT(DISTINCT LOWER(TRIM(purchaser_email))) AS unique_customers
+      COUNT(DISTINCT IF(
+        is_paid_in = FALSE AND is_fee_only_cancellation = FALSE,
+        order_id,
+        NULL
+      )) AS total_orders,
+      COUNT(DISTINCT IF(
+        is_paid_in = FALSE AND is_fee_only_cancellation = FALSE,
+        LOWER(TRIM(purchaser_email)),
+        NULL
+      )) AS unique_customers,
+      COALESCE(SUM(IF(
+        is_paid_in = FALSE AND is_fee_only_cancellation = FALSE,
+        revenue_after_cancellations,
+        0
+      )), 0) AS countable_order_revenue
     FROM \`${PROJECT_ID}.${DATASET}.vw_sle_active_orders\`
-    WHERE DATE(purchase_date) >= @start_date
+    WHERE selling_company = 'Salt Lake Express'
+      AND DATE(purchase_date) >= @start_date
       AND DATE(purchase_date) < @end_date
   `;
 
@@ -61,15 +75,21 @@ export async function getMonthlyRevenueSummary(
     params: { start_date: start, end_date: end },
   });
 
-  const row = rows[0] ?? { total_revenue: 0, total_orders: 0, unique_customers: 0 };
+  const row = rows[0] ?? {
+    total_revenue: 0,
+    total_orders: 0,
+    unique_customers: 0,
+    countable_order_revenue: 0,
+  };
   const totalRevenue = Number(row.total_revenue);
   const totalOrders = Number(row.total_orders);
+  const countableOrderRevenue = Number(row.countable_order_revenue);
 
   return {
     totalRevenue,
     totalOrders,
     uniqueCustomers: Number(row.unique_customers),
-    avgOrderValue: totalOrders > 0 ? totalRevenue / totalOrders : 0,
+    avgOrderValue: totalOrders > 0 ? countableOrderRevenue / totalOrders : 0,
   };
 }
 
@@ -94,7 +114,12 @@ export async function getCustomerSegmentation(
       FROM \`${PROJECT_ID}.${DATASET}.vw_sle_active_orders\` o
       LEFT JOIN \`${PROJECT_ID}.${DATASET}.customer_first_order\` f
         ON LOWER(TRIM(o.purchaser_email)) = LOWER(TRIM(f.customer_account_holder_email))
-      WHERE DATE(o.purchase_date) >= @start_date
+      WHERE o.selling_company = 'Salt Lake Express'
+        AND o.is_paid_in = FALSE
+        AND o.is_fee_only_cancellation = FALSE
+        AND o.purchaser_email IS NOT NULL
+        AND TRIM(o.purchaser_email) != ''
+        AND DATE(o.purchase_date) >= @start_date
         AND DATE(o.purchase_date) < @end_date
       GROUP BY email
     )

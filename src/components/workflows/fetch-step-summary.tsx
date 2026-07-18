@@ -249,10 +249,10 @@ function HeadlineMetrics({ data }: { data: MasterMetrics }) {
       {/* Row 3: Efficiency */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <MetricCell
-          label="CAC"
+          label="Spend / First Purchaser"
           value={usd2.format(mkt.cac)}
-          secondary={`${usd.format(mkt.ad_spend)} / ${num.format(cust.new_customers)}`}
-          tooltip="Customer Acquisition Cost. Marketing Spend divided by New Customers. Blended across all marketing channels."
+          secondary={`${usd.format(mkt.ad_spend)} / ${num.format(cust.new_customers)} first purchasers`}
+          tooltip="Total marketing spend divided by first observed purchasing emails. This blended operating ratio does not prove marketing caused those purchases."
           yoyChange={yoy?.cac_change_percent}
           goodDirection="down"
         />
@@ -283,10 +283,10 @@ function HeadlineMetrics({ data }: { data: MasterMetrics }) {
           </p>
         </div>
         <MetricCell
-          label="CAC : Gross Profit"
+          label="Gross Profit / Spend"
           value={`$${(mkt.cac_to_value_ratio ?? 0).toFixed(1)} : $1`}
-          secondary={`${usd2.format(mkt.avg_customer_gross_profit ?? 0)} GP per ${usd2.format(mkt.cac)} CAC`}
-          tooltip="For every $1 spent acquiring a customer, how much gross profit do they generate? Uses 43% margin on regular routes ($27.10/pax × 1.3 pax/order = $35.23 GP on ~$82 order). Excludes grant-funded routes which skew the blended margin higher. Above $3 = healthy unit economics."
+          secondary={`${usd2.format(mkt.avg_customer_gross_profit ?? 0)} GP per ${usd2.format(mkt.cac)} spend`}
+          tooltip="Average gross profit per first observed purchaser divided by blended marketing spend per first observed purchaser. This is an operating ratio, not incremental acquisition proof."
           yoyChange={yoy?.cac_to_value_ratio_change_percent}
           goodDirection="up"
         />
