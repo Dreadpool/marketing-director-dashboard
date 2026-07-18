@@ -18,17 +18,14 @@ describe("Evaluation prompts", () => {
     });
   }
 
-  it("step1 prompt contains correct CPA thresholds", () => {
+  it("step1 prompt does not invent a profitability benchmark", () => {
     const prompt = getEvaluationPrompt("step1-decision-metrics");
-    expect(prompt).toContain("$9");
-    expect(prompt).toContain("$14");
-    expect(prompt).toContain("$35.23");
-    expect(prompt).toContain("1.3x");
-    expect(prompt).toContain("3.0x");
-    // Should NOT contain old wrong thresholds
-    expect(prompt).not.toContain("$12");
-    expect(prompt).not.toContain("$51");
-    expect(prompt).not.toContain("6.9x");
+    expect(prompt).toContain("profitability benchmark is unavailable");
+    expect(prompt).not.toContain("$9");
+    expect(prompt).not.toContain("$14");
+    expect(prompt).not.toContain("$35.23");
+    expect(prompt).not.toContain("1.3x");
+    expect(prompt).not.toContain("3.0x");
   });
 
   it("d5 pattern match prompt contains all 5 diagnosis patterns", () => {

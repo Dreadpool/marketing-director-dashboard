@@ -85,7 +85,6 @@ export type NormalizedCAC = {
   value: number;
   totalSpend: number;
   newCustomers: number;
-  paybackRatio: number;
   provenance: DataProvenance[];
   comparison?: MetricComparison;
 };

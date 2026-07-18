@@ -207,7 +207,7 @@ export const workflows: Workflow[] = [
     slug: "monthly-analytics-review",
     title: "Monthly Analytics Review",
     description:
-      "Unified monthly report combining all sources: revenue, customers, CAC, payment analysis, and promo codes.",
+      "Unified monthly report combining revenue, purchasing emails, marketing spend, payment analysis, and promo codes.",
     icon: "calendar",
     status: "active",
     cadence: { frequency: "monthly", dueRule: { type: "day-of-month", day: 10 } },
@@ -225,7 +225,7 @@ export const workflows: Workflow[] = [
         id: "analyze",
         label: "Initial Analysis",
         description:
-          "Revenue breakdown, payment analysis, customer segmentation, promo codes, CAC",
+          "Revenue breakdown, payment analysis, purchaser segmentation, promo codes, and spend per first observed purchaser",
         type: "analyze",
       },
       {

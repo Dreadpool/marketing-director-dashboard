@@ -61,8 +61,8 @@ describe("computeDailyTrend", () => {
 
   it("returns performing for 10 days of good performance", () => {
     const daily = buildDays(10, {
-      ctr: 0.015, // 1.5% - healthy
-      cpa: 8, // below $14 threshold
+      ctr: 0.015,
+      cpa: 8,
       purchases: 5,
     });
     const trend = computeDailyTrend(daily);
@@ -219,23 +219,31 @@ describe("classifyWithTrends", () => {
 
     const result = classifyWithTrends(trend);
     expect(result.status).toBe("kill");
-    expect(result.reason).toMatch(/never performed/i);
-    expect(result.action).toMatch(/born bad/i);
+    expect(result.reason).toMatch(/creative-response floor/i);
+    expect(result.action).toMatch(/engagement failure/i);
   });
 
-  it("returns kill / born_bad for ad that never achieved CPA < $14", () => {
-    // CTR is OK but CPA always above $14
+  it("does not use absolute CPA to classify lifecycle health", () => {
     const daily = buildDays(10, {
       ctr: 0.015,
-      cpa: 20, // above $14 target
+      cpa: 20,
       purchases: 2,
     });
     const trend = computeDailyTrend(daily);
-    expect(trend.lifecycle_stage).toBe("born_bad");
+    expect(trend.lifecycle_stage).toBe("performing");
 
     const result = classifyWithTrends(trend);
-    expect(result.status).toBe("kill");
-    expect(result.action).toMatch(/born bad/i);
+    expect(result.status).toBe("healthy");
+  });
+
+  it("keeps an engaged ad without purchase evidence unclassified", () => {
+    const daily = buildDays(10, {
+      ctr: 0.015,
+      cpa: 0,
+      purchases: 0,
+    });
+    const trend = computeDailyTrend(daily);
+    expect(trend.lifecycle_stage).toBe("learning");
   });
 
   it("returns underperforming for fatiguing ad", () => {

@@ -20,7 +20,7 @@ import type {
 import {
   resolveActiveSteps,
   getStepDef,
-  SLE_THRESHOLDS,
+  DIAGNOSTIC_THRESHOLDS,
 } from "./evaluations/meta-ads-monthly";
 import { fetchMetaAds } from "./executors/fetch-meta-ads";
 import {
@@ -38,13 +38,6 @@ function getPriorPeriod(period: MonthPeriod): MonthPeriod {
     return { year: period.year - 1, month: 12 };
   }
   return { year: period.year, month: period.month - 1 };
-}
-
-function isCpaOffTarget(metrics: MetaAdsMetrics): boolean {
-  return (
-    metrics.account_health.cpa_status === "elevated" ||
-    metrics.account_health.cpa_status === "high"
-  );
 }
 
 async function runAiEvaluation(
@@ -227,11 +220,6 @@ async function prepareStepData(
           campaign_count: rtCampaigns.length,
         },
         period: metrics.period,
-        thresholds: {
-          cpa_on_target: SLE_THRESHOLDS.cpa_on_target,
-          cpa_elevated: SLE_THRESHOLDS.cpa_elevated,
-          roas_floor: SLE_THRESHOLDS.roas_floor,
-        },
       };
     }
 
@@ -239,7 +227,7 @@ async function prepareStepData(
       const weeklyFreq = await getOrFetchWeeklyFrequency(runId, period);
       return {
         weekly_frequency: weeklyFreq,
-        threshold: SLE_THRESHOLDS.frequency_fatigue,
+        threshold: DIAGNOSTIC_THRESHOLDS.frequency_fatigue,
         period: metrics.period,
       };
     }
@@ -264,13 +252,13 @@ async function prepareStepData(
           prior_cpm: priorCpm,
           change_pct: change,
           flagged:
-            change !== null && change > SLE_THRESHOLDS.cpm_mom_increase,
+            change !== null && change > DIAGNOSTIC_THRESHOLDS.cpm_mom_increase,
         };
       });
 
       return {
         cpm_comparisons: cpmComparisons,
-        threshold_pct: SLE_THRESHOLDS.cpm_mom_increase * 100,
+        threshold_pct: DIAGNOSTIC_THRESHOLDS.cpm_mom_increase * 100,
         period: metrics.period,
       };
     }
@@ -296,13 +284,13 @@ async function prepareStepData(
           change_pct: change,
           flagged:
             change !== null &&
-            change < -SLE_THRESHOLDS.ctr_mom_decrease,
+            change < -DIAGNOSTIC_THRESHOLDS.ctr_mom_decrease,
         };
       });
 
       return {
         ctr_comparisons: ctrComparisons,
-        threshold_pct: SLE_THRESHOLDS.ctr_mom_decrease * 100,
+        threshold_pct: DIAGNOSTIC_THRESHOLDS.ctr_mom_decrease * 100,
         period: metrics.period,
       };
     }
@@ -393,7 +381,7 @@ async function prepareStepData(
         signals: {
           frequency_7d: avgFrequency7d,
           frequency_flagged:
-            avgFrequency7d > SLE_THRESHOLDS.frequency_fatigue,
+            avgFrequency7d > DIAGNOSTIC_THRESHOLDS.frequency_fatigue,
           cpm_current: avgCurrentCpm,
           cpm_prior: avgPriorCpm,
           cpm_change_pct:
@@ -403,7 +391,7 @@ async function prepareStepData(
           cpm_flagged:
             avgPriorCpm > 0 &&
             (avgCurrentCpm - avgPriorCpm) / avgPriorCpm >
-              SLE_THRESHOLDS.cpm_mom_increase,
+              DIAGNOSTIC_THRESHOLDS.cpm_mom_increase,
           ctr_current: avgCurrentCtr,
           ctr_prior: avgPriorCtr,
           ctr_change_pct:
@@ -413,7 +401,7 @@ async function prepareStepData(
           ctr_flagged:
             avgPriorCtr > 0 &&
             (avgCurrentCtr - avgPriorCtr) / avgPriorCtr <
-              -SLE_THRESHOLDS.ctr_mom_decrease,
+              -DIAGNOSTIC_THRESHOLDS.ctr_mom_decrease,
           conversion_rate: cvr,
           prospecting_cpa: tofCpa,
           retargeting_cpa: rtCpa,
@@ -635,10 +623,7 @@ export async function initEvaluationRun(
 
   const runId = run.id;
 
-  // Fetch initial data to determine CPA status (needed for branching)
-  const metrics = await getOrFetchMetrics(runId, period);
-  const cpaOffTarget = isCpaOffTarget(metrics);
-  const activeStepIds = resolveActiveSteps(cpaOffTarget);
+  const activeStepIds = resolveActiveSteps(false);
 
   // Create step run records for all active steps
   const stepInserts = activeStepIds.map((stepId, i) => ({
@@ -754,9 +739,7 @@ export async function initEvaluationFromRun(
   // Cache the metrics from the parent run (no re-fetch needed)
   runDataCaches.set(runId, { metrics });
 
-  // Determine CPA branching from the cached metrics
-  const cpaOffTarget = isCpaOffTarget(metrics);
-  const activeStepIds = resolveActiveSteps(cpaOffTarget);
+  const activeStepIds = resolveActiveSteps(false);
 
   // Create evaluation step records
   const stepInserts = activeStepIds.map((stepId, i) => ({

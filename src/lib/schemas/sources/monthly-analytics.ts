@@ -20,9 +20,9 @@ export type MasterMetricsRevenue = {
   net_booking_rate: number; // net / gross as decimal (0.81 = 81%)
   new_cash: number; // CC net + cash net + other net (no account credits)
   total_orders: number;
-  avg_order_value: number; // gross_bookings / total_orders
+  avg_order_value: number; // countable real-booking gross / total_orders
   unique_customers: number;
-  revenue_per_customer: number; // uses gross_bookings
+  revenue_per_customer: number; // countable real-booking gross / unique_customers
   orders_per_customer: number;
   by_category: RevenueByCategory[];
   total_cancels: number; // sum of all cancel amounts
@@ -48,9 +48,7 @@ export type MasterMetricsMarketing = {
   transaction_count: number;
   cac: number;
   avg_customer_value: number;
-  avg_customer_gross_profit: number;
   avg_customer_value_source: "cardpointe" | "tds_sales_orders";
-  cac_to_value_ratio: number;
 };
 
 export type MasterMetricsPaymentMethods = {
@@ -156,10 +154,6 @@ export type MasterMetricsComparison = {
   previous_new_customers?: number;
   avg_customer_value_change_percent?: number;
   previous_avg_customer_value?: number;
-  cac_to_value_ratio_change_percent?: number;
-  previous_cac_to_value_ratio?: number;
-  avg_customer_gross_profit_change_percent?: number;
-  previous_avg_customer_gross_profit?: number;
 };
 
 export type ZeroRevenueEmail = {

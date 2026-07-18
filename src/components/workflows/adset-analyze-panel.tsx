@@ -361,7 +361,6 @@ export function AdSetAnalyzePanel({
                     labelStyle={{ color: "#71717a" }}
                   />
                   <ReferenceLine y={medianCpa} stroke={MUTED} strokeDasharray="6 4" strokeWidth={1.5} />
-                  <ReferenceLine y={9} stroke={GREEN} strokeDasharray="3 6" strokeWidth={0.8} label={{ value: "$9 target", position: "right", fill: GREEN, fontSize: 9, opacity: 0.5 }} />
                   <defs>
                     <linearGradient id="cpaFill" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor={RED} stopOpacity={0.15} />

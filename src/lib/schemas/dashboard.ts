@@ -20,7 +20,7 @@ export type DashboardMetrics = {
   dateRange: DateRange;
   /** Maps to "Revenue" card */
   revenue: RevenueOverview;
-  /** Maps to "New Customers" card */
+  /** Maps to first-observed and returning purchaser cards. */
   customers: NormalizedCustomers;
   /** Maps to "Ad Spend" card */
   adSpend: NormalizedAdSpend;

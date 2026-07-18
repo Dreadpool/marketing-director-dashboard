@@ -205,7 +205,9 @@ function HeadlineKPIs({ health }: { health: MetaAdsMetrics["account_health"] }) 
   return (
     <div className="space-y-3">
       <p className="text-[11px] text-muted-foreground/60">
-        We make $35 profit per booking after operating costs. Meta takes ~30% too much credit for conversions, so a reported $9 CPA is really ~$12. To stay profitable (3:1 return), keep CPA under $9 as reported by Meta.
+        CPA, ROAS, purchases, and revenue are reported by Meta. SLE&apos;s
+        profitability benchmark is pending a route-economics rerun, so these
+        numbers are diagnostic rather than profit verdicts.
       </p>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
       <MetricCard
@@ -216,15 +218,15 @@ function HeadlineKPIs({ health }: { health: MetaAdsMetrics["account_health"] }) 
       <MetricCard
         label="CPA"
         value={usd2.format(health.cpa)}
-        secondary={health.cpa_status === "on-target" ? "On target (<$9)" : health.cpa_status === "elevated" ? "Elevated ($9-14)" : "High (>$14)"}
-        tooltip="Meta-reported CPA. Thresholds account for 1.3x over-attribution and 43% gross margin on regular routes ($35.23 GP/order). True CPA ≈ Meta CPA × 1.3."
+        secondary="Platform attributed"
+        tooltip="Meta-reported spend divided by Meta-attributed purchases."
         statusColor={cpaColor(health.cpa)}
       />
       <MetricCard
         label="ROAS"
         value={`${health.roas.toFixed(2)}x`}
-        secondary={health.roas_status === "above-target" ? "Above breakeven (>3.0x)" : "Below breakeven (<3.0x)"}
-        tooltip="Return on Ad Spend (revenue, not profit). Below 3.0x = losing money after COGS and over-attribution. CPA is the primary decision metric, not ROAS."
+        secondary="Platform attributed"
+        tooltip="Meta-attributed revenue divided by Meta spend; not profitability proof."
         statusColor={roasColor(health.roas)}
       />
       <MetricCard
@@ -246,7 +248,7 @@ const HEALTH_STYLES: Record<
 > = {
   healthy: {
     bg: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
-    label: "Healthy",
+    label: "No warning",
   },
   learning: {
     bg: "bg-blue-500/10 text-blue-400 border border-blue-500/20",
@@ -258,11 +260,11 @@ const HEALTH_STYLES: Record<
   },
   underperforming: {
     bg: "bg-red-500/10 text-red-400 border border-red-500/20",
-    label: "Underperforming",
+    label: "Degrading",
   },
   kill: {
     bg: "bg-red-700 text-white",
-    label: "Kill",
+    label: "Replace creative",
   },
 };
 
@@ -1104,7 +1106,7 @@ export function MetaAdsFetchSummary({ data }: { data: MetaAdsMetrics }) {
         />
       </CollapsibleSection>
 
-      {/* Hiring Campaigns (separate from CAC) */}
+      {/* Hiring campaigns are separate from passenger acquisition. */}
       {data.hiring_campaigns && data.hiring_campaigns.length > 0 && (
         <CollapsibleSection title="Hiring / Recruitment Campaigns">
           <p className="text-xs text-muted-foreground mb-3">

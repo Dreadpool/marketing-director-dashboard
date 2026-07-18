@@ -1,7 +1,6 @@
 import type {
   SalesOrderRow,
   CardPointeSettlement,
-  CancelsByPaymentCategory,
 } from "./bigquery-sales";
 import type {
   MasterMetricsRevenue,
@@ -9,6 +8,7 @@ import type {
   MasterMetricsTopCustomers,
   MasterMetricsMarketing,
 } from "@/lib/schemas/sources/monthly-analytics";
+import { getMonthDateRange } from "@/lib/utils/month-period";
 
 // Payment type constants matching the Python pipeline
 const CC_TYPES = [
@@ -37,41 +37,56 @@ function categorizePaymentType(
   return "other";
 }
 
-type AdjustedRow = SalesOrderRow & { revenue_after_cancellations: number };
+type AdjustedRow = SalesOrderRow;
 
-/** Apply cancel map to rows, computing net revenue */
-export function applyCancelAdjustments(
-  rows: SalesOrderRow[],
-  cancelMap: Map<number, number>,
-): AdjustedRow[] {
-  return rows.map((r) => ({
-    ...r,
-    revenue_after_cancellations: r.total_sale - (cancelMap.get(r.order_id) ?? 0),
-  }));
+export function isCountableSalesOrderRow(row: SalesOrderRow): boolean {
+  return !row.is_paid_in && !row.is_fee_only_cancellation;
+}
+
+function getRebookedOriginalIds(rows: SalesOrderRow[]): Set<number> {
+  return new Set(
+    rows
+      .filter((r) => r.previous_order && isCountableSalesOrderRow(r))
+      .map((r) => r.previous_order!),
+  );
+}
+
+function getCountableRows(rows: SalesOrderRow[]): SalesOrderRow[] {
+  const rebookedOriginalIds = getRebookedOriginalIds(rows);
+  return rows.filter(
+    (r) => !rebookedOriginalIds.has(r.order_id) && isCountableSalesOrderRow(r),
+  );
+}
+
+function getPaymentSlotTotal(row: SalesOrderRow): number {
+  return (
+    row.payment_amount_1 +
+    row.payment_amount_2 +
+    row.payment_amount_3 +
+    row.payment_amount_4
+  );
 }
 
 /** Revenue breakdown: Gross Bookings as primary KPI, CardPointe for cross-validation only */
 export function calculateRevenueBreakdown(
   rows: AdjustedRow[],
   cardpointe: CardPointeSettlement | null,
-  cancelsByCategory: CancelsByPaymentCategory,
 ): MasterMetricsRevenue {
   // Rebook originals: orders whose order_id is referenced as previous_order by another row
-  const rebookedOriginalIds = new Set(
-    rows.filter((r) => r.previous_order).map((r) => r.previous_order!),
-  );
+  const rebookedOriginalIds = getRebookedOriginalIds(rows);
   // Active rows: all sales EXCEPT rebook originals that were replaced this month
   const activeRows = rows.filter((r) => !rebookedOriginalIds.has(r.order_id));
+  const countableRows = activeRows.filter(isCountableSalesOrderRow);
   // Rebook rows: the replacement sales (for transparency metrics)
-  const rebookRows = rows.filter((r) => !!r.previous_order);
+  const rebookRows = rows.filter((r) => !!r.previous_order && isCountableSalesOrderRow(r));
 
-  const totalOrders = new Set(activeRows.map((r) => r.order_id)).size;
+  const totalOrders = new Set(countableRows.map((r) => r.order_id)).size;
 
   // Rebook transparency metrics
   const rebookCount = new Set(rebookRows.map((r) => r.order_id)).size;
   let rebookAmount = 0;
   for (const row of rebookRows) {
-    rebookAmount += row.payment_amount_1 + row.payment_amount_2 + row.payment_amount_3 + row.payment_amount_4;
+    rebookAmount += getPaymentSlotTotal(row);
   }
 
   // Sum gross payment slots by category from TDS (active orders only)
@@ -79,6 +94,12 @@ export function calculateRevenueBreakdown(
   let cashGross = 0;
   let otherGross = 0;
   let accountCreditGross = 0;
+  const cancelsByCategory = {
+    cc: 0,
+    cash: 0,
+    account_credit: 0,
+    other: 0,
+  };
 
   for (const row of activeRows) {
     const slots = [
@@ -96,6 +117,12 @@ export function calculateRevenueBreakdown(
       else if (cat === "account_credit") accountCreditGross += slot.amount;
       else otherGross += slot.amount;
     }
+
+    const category = categorizePaymentType(row.payment_type_1);
+    cancelsByCategory[category] += Math.min(
+      row.total_canceled_amount,
+      getPaymentSlotTotal(row),
+    );
   }
 
   // Subtract cancellations per category (no CardPointe override)
@@ -105,6 +132,10 @@ export function calculateRevenueBreakdown(
   const otherNet = otherGross - cancelsByCategory.other;
 
   const grossBookings = ccGross + cashGross + otherGross + accountCreditGross;
+  const countableGrossBookings = countableRows.reduce(
+    (sum, row) => sum + getPaymentSlotTotal(row),
+    0,
+  );
   const totalCancels =
     cancelsByCategory.cc +
     cancelsByCategory.cash +
@@ -128,7 +159,7 @@ export function calculateRevenueBreakdown(
   ];
 
   const uniqueEmails = new Set(
-    rows
+    countableRows
       .filter((r) => r.purchaser_email)
       .map((r) => r.purchaser_email!.toLowerCase().trim()),
   );
@@ -139,10 +170,13 @@ export function calculateRevenueBreakdown(
     net_booking_rate: round2(netBookingRate),
     new_cash: round2(newCash),
     total_orders: totalOrders,
-    avg_order_value: totalOrders > 0 ? round2(grossBookings / totalOrders) : 0,
+    avg_order_value:
+      totalOrders > 0 ? round2(countableGrossBookings / totalOrders) : 0,
     unique_customers: uniqueEmails.size,
     revenue_per_customer:
-      uniqueEmails.size > 0 ? round2(grossBookings / uniqueEmails.size) : 0,
+      uniqueEmails.size > 0
+        ? round2(countableGrossBookings / uniqueEmails.size)
+        : 0,
     orders_per_customer:
       uniqueEmails.size > 0 ? round2(totalOrders / uniqueEmails.size) : 0,
     by_category: byCategory,
@@ -159,17 +193,14 @@ export function calculateCustomerSegmentation(
   firstPurchaseMap: Map<string, string>,
   period: { year: number; month: number },
 ): MasterMetricsCustomers {
-  const startDate = `${period.year}-${String(period.month).padStart(2, "0")}-01`;
-  const endDate = new Date(period.year, period.month, 0)
-    .toISOString()
-    .slice(0, 10);
+  const { start: startDate, end: endDate } = getMonthDateRange(period);
 
   const customerData = new Map<
     string,
     { revenue: number; orders: number; isNew: boolean }
   >();
 
-  for (const row of rows) {
+  for (const row of getCountableRows(rows)) {
     if (!row.purchaser_email) continue;
     const email = row.purchaser_email.toLowerCase().trim();
 
@@ -178,7 +209,7 @@ export function calculateCustomerSegmentation(
       orders: 0,
       isNew: false,
     };
-    existing.revenue += row.total_sale;
+    existing.revenue += row.revenue_after_cancellations;
     existing.orders += 1;
 
     const firstPurchase = firstPurchaseMap.get(email);
@@ -240,7 +271,7 @@ export function calculateTopCustomers(
     }
   >();
 
-  for (const row of rows) {
+  for (const row of getCountableRows(rows)) {
     if (!row.purchaser_email) continue;
     const email = row.purchaser_email.toLowerCase().trim();
     const existing = customerMap.get(email) ?? {
@@ -310,14 +341,7 @@ export function calculateTopCustomers(
   };
 }
 
-/** Order-level gross margin for REGULAR routes (what ads drive).
- *  $27.10 GP per passenger × 1.3 avg passengers = $35.23 GP on ~$82 avg order = 43%.
- *  The blended margin including grant-funded routes is higher, but those routes have
- *  artificially high margins from subsidies and don't reflect acquisition economics.
- *  Hardcoded until dynamic COGS from QB GL by route type. */
-const GROSS_MARGIN = 0.43;
-
-/** CAC and marketing efficiency metrics */
+/** Marketing spend and first-observed-purchaser metrics. */
 export function calculateCAC(params: {
   newCustomers: number;
   adSpend: number;
@@ -330,18 +354,13 @@ export function calculateCAC(params: {
           avgCustomerValue, avgCustomerValueSource } = params;
 
   const cac = newCustomers > 0 ? adSpend / newCustomers : 0;
-  const avgCustomerGrossProfit = avgCustomerValue * GROSS_MARGIN;
-  const cacToValueRatio = cac > 0 ? avgCustomerGrossProfit / cac : 0;
-
   return {
     ad_spend: round2(adSpend),
     ad_spend_categories: adSpendCategories,
     transaction_count: transactionCount,
     cac: round2(cac),
     avg_customer_value: round2(avgCustomerValue),
-    avg_customer_gross_profit: round2(avgCustomerGrossProfit),
     avg_customer_value_source: avgCustomerValueSource,
-    cac_to_value_ratio: round2(cacToValueRatio),
   };
 }
 

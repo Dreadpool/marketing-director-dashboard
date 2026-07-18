@@ -1,8 +1,6 @@
 import type { MonthPeriod } from "@/lib/schemas/types";
 import type {
   CampaignSegment,
-  CpaStatus,
-  RoasStatus,
   GoogleAdsMetrics,
   GoogleAdsCampaignMetrics,
   GoogleAdsSegmentHealth,
@@ -18,16 +16,7 @@ import { microsToUSD, percentChange } from "@/lib/schemas/utils";
 import { getMonthlySpend } from "@/lib/services/google-ads";
 import { getSalesOrders } from "@/lib/services/bigquery-sales";
 
-// --- SLE Thresholds (derived from unit economics, matches Meta) ---
-
 export const GOOGLE_ADS_THRESHOLDS = {
-  cpa_on_target: 9,
-  cpa_elevated: 14,
-  roas_floor: 3.0,
-  roas_watch: 2.0,
-  over_attribution: 1.3,
-  gp_per_order: 35.23,
-  gross_margin: 0.43,
   ground_truth_divergence: 0.30,
 } as const;
 
@@ -47,18 +36,6 @@ export function classifySegment(campaignName: string): CampaignSegment {
   if (name.includes("charter")) return "charters";
   if (name.includes("stgeo") || name.includes("nws")) return "non-brand";
   return "other";
-}
-
-export function getCpaStatus(cpa: number): CpaStatus {
-  if (cpa <= GOOGLE_ADS_THRESHOLDS.cpa_on_target) return "on-target";
-  if (cpa <= GOOGLE_ADS_THRESHOLDS.cpa_elevated) return "elevated";
-  return "high";
-}
-
-export function getRoasStatus(roas: number): RoasStatus {
-  if (roas >= GOOGLE_ADS_THRESHOLDS.roas_floor) return "above-target";
-  if (roas >= GOOGLE_ADS_THRESHOLDS.roas_watch) return "watch";
-  return "below-target";
 }
 
 // --- Month names (index 0 empty so month 1 = "January") ---
@@ -142,9 +119,8 @@ function computeSegmentHealth(
     roas,
     ctr: safeDivide(totalClicks, totalImpressions),
     avg_cpc: safeDivide(totalSpend, totalClicks),
-    // Spending with zero conversions = zombie (high CPA), not "on-target"
-    cpa_status: totalConversions === 0 && totalSpend > 0 ? "high" : totalConversions === 0 ? "on-target" : getCpaStatus(cpa),
-    roas_status: totalSpend === 0 ? "above-target" : getRoasStatus(roas),
+    cpa_status: "unbenchmarked",
+    roas_status: "unbenchmarked",
     campaign_count: filtered.length,
   };
 }
@@ -178,9 +154,8 @@ function computeAccountHealth(
     roas,
     ctr: safeDivide(totalClicks, totalImpressions),
     avg_cpc: safeDivide(totalSpend, totalClicks),
-    // Spending with zero conversions = zombie (high CPA), not "on-target"
-    cpa_status: totalConversions === 0 && totalSpend > 0 ? "high" : totalConversions === 0 ? "on-target" : getCpaStatus(cpa),
-    roas_status: totalSpend === 0 ? "above-target" : getRoasStatus(roas),
+    cpa_status: "unbenchmarked",
+    roas_status: "unbenchmarked",
     segments,
   };
 }

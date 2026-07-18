@@ -14,7 +14,7 @@ const mockResponses: { pattern: RegExp; response: string }[] = [
   {
     pattern: /metric|kpi|revenue|cac|roas/i,
     response:
-      "Key metrics will populate once data sources are connected. I'll be tracking revenue, new customers, ad spend, CAC, and ROAS across all channels.",
+      "Key metrics will populate once data sources are connected. I'll track revenue, first observed purchasers, ad spend, platform CPA, and platform ROAS across channels.",
   },
   {
     pattern: /meta|facebook|instagram/i,
@@ -24,7 +24,7 @@ const mockResponses: { pattern: RegExp; response: string }[] = [
   {
     pattern: /google|search|ads/i,
     response:
-      "The Google Ads workflow will query your campaigns via GAQL. I'll break down spend by campaign type, analyze search terms, and calculate your blended CAC.",
+      "The Google Ads workflow will query campaigns via GAQL, break down spend by campaign type, analyze search terms, and compare platform-reported CPA trends.",
   },
   {
     pattern: /help|what can you/i,

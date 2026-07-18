@@ -4,43 +4,29 @@ const evaluationPrompts: Record<string, string> = {
   "step1-decision-metrics": `You are evaluating Meta Ads decision metrics for Salt Lake Express (SLE), a bus transportation company.
 
 ## Your Task
-Assess the three CTC decision metrics: CPA, ROAS, and purchase volume. Determine if CPA is on-target, elevated, or high.
-
-## SLE Unit Economics
-- GP per order: $35.23 (regular routes, 43% margin on $82 avg order)
-- Meta over-attribution: 1.3x (true CPA ≈ Meta CPA × 1.3)
-- Max Meta CPA for 3:1 GP ratio: $9
-- Max Meta CPA for 2:1 GP ratio: $14
-- ROAS breakeven: 3.0x
-
-## Thresholds
-- CPA <$9: ON-TARGET (healthy, scaling opportunity)
-- CPA $9-$14: ELEVATED (watch closely, investigate diagnostics)
-- CPA >$14: HIGH (losing money, immediate action needed)
-- ROAS: ≥3.0x above breakeven, <3.0x below breakeven
-- Retargeting CPA should be LOWER than prospecting CPA
+Assess platform-reported CPA, ROAS, and purchase volume as diagnostic signals. SLE's current profitability benchmark is unavailable until route economics are rerun. Do not label the account profitable, unprofitable, healthy, or unhealthy from platform attribution.
 
 ## Output Format
-Start with a status assessment: ON-TARGET, ELEVATED, or HIGH.
+Start with the most important observed change or concentration risk.
 
 Provide a brief evaluation (3-5 sentences) covering:
-1. Account CPA with status
-2. ROAS relative to 3.0x floor
+1. Account CPA and its change over time
+2. Platform-reported ROAS without a profitability verdict
 3. Prospecting CPA vs retargeting CPA comparison
 4. Purchase volume observation
 
-Then provide action items if CPA is elevated or high:
+Then provide action items supported by trend, concentration, or measurement evidence:
 
 ACTION: [specific recommendation]
 PRIORITY: [CRITICAL/HIGH/MEDIUM]
 OWNER: [AGENCY/DIRECTOR/JOINT]
 
-If CPA is on-target, suggest 1-2 scaling or testing opportunities instead.`,
+Do not recommend scaling or cutting spend from a fixed CPA or ROAS threshold.`,
 
   "d1-frequency": `You are collecting frequency data for Salt Lake Express Meta Ads campaigns.
 
 ## Context
-CPA has been flagged as elevated or high. You are checking frequency as ONE diagnostic signal among several. This step collects data, it does not produce a standalone verdict.
+You are checking frequency as one diagnostic signal among several. This step collects data; it does not produce a standalone verdict.
 
 ## Important: Frequency Alone Is Not a Problem
 7-day frequency >3.0 is a risk factor, NOT a standalone problem. Regional markets like SLE (bus transportation) have smaller audiences, so frequency naturally runs higher than national brands. Do NOT flag frequency alone as a problem.
@@ -62,7 +48,7 @@ Do NOT produce ACTION items in this step. Actions come from D5 pattern match bas
   "d2-cpm-trend": `You are diagnosing CPM trends for Salt Lake Express Meta Ads campaigns.
 
 ## Context
-CPA has been flagged as elevated or high. You are checking if rising auction costs (CPM) are a contributing factor.
+You are checking whether rising auction costs (CPM) contribute to a change in platform-reported efficiency.
 
 ## Threshold
 CPM increase >30% MoM = flagged. This means the cost to reach people is rising significantly.
@@ -83,7 +69,7 @@ OWNER: [AGENCY/DIRECTOR/JOINT]`,
   "d3-ctr-trend": `You are diagnosing CTR trends for Salt Lake Express Meta Ads campaigns.
 
 ## Context
-CPA has been flagged as elevated or high. You are checking if declining click-through rates are a contributing factor.
+You are checking whether declining click-through rates contribute to a change in platform-reported efficiency.
 
 ## Threshold
 CTR decrease >20% MoM = flagged. This means fewer people are clicking your ads relative to impressions.
@@ -104,7 +90,7 @@ OWNER: [AGENCY/DIRECTOR/JOINT]`,
   "d4-conversion-rate": `You are diagnosing conversion rate for Salt Lake Express Meta Ads campaigns.
 
 ## Context
-CPA has been flagged as elevated or high. You are checking if the problem is with ad delivery (getting clicks) or with conversion (turning clicks into purchases).
+You are checking whether a change in tracked conversion rate comes from ad delivery or the downstream journey.
 
 ## Key Distinction
 If clicks are stable or up but purchases are down, the problem is NOT the ads. The issue is downstream: landing page, booking flow, pricing, or offer. This is critical because the fix is completely different from an ads problem.
@@ -124,35 +110,24 @@ OWNER: [AGENCY/DIRECTOR/JOINT]`,
   "step4-creative-health": `You are evaluating creative health for Salt Lake Express Meta Ads.
 
 ## Context
-Every ad has been classified into a health status using SLE unit economics: healthy, learning, watch, underperforming, or kill. Your job is to translate the classification data into clear action items.
-
-## SLE Unit Economics
-- CPA target: <$9 (healthy), $9-$14 (watch), >$14 (underperforming)
-- Kill criteria: $27+ spent with 0 purchases, CTR <0.5%, or video hook rate <15%
-- Learning budget per ad set: $6,000
+Every ad has been classified from engagement, relative performance, and trend evidence: healthy, learning, watch, underperforming, or kill. SLE's profitability benchmark is unavailable. Your job is to translate supported diagnostic findings into clear action items without treating platform attribution as profit proof.
 
 ## Your Task
 1. Assess portfolio health: what percentage of spend is in healthy vs learning vs kill/underperforming ads?
 2. Call out specific ads by name that need action (use the kill_ads and underperforming_ads lists)
-3. Distinguish between "kill" (dead weight, no recovery) and "underperforming" (losing money but might be fixable)
-4. Flag if learning budget is too spread thin (learning spend >50% of total)
+3. Distinguish clear creative-response failures from relative underperformance; do not infer profit
+4. Flag concentration or fragmented learning when the supplied evidence supports it
 
 ## Output Format
-Start with a one-sentence portfolio assessment (e.g., "62% of spend is in healthy ads, but $850 is in kill ads that should be paused").
+Start with a one-sentence portfolio assessment grounded in the supplied classifications.
 
 Then provide action items - one per problem ad:
 
-ACTION: Pause ad "Specific Ad Name" in "Campaign Name". [Why, from the reason field]
+ACTION: Review or replace ad "Specific Ad Name" in "Campaign Name". [Why, from the reason field]
 PRIORITY: [CRITICAL/HIGH/MEDIUM]
 OWNER: [AGENCY/DIRECTOR/JOINT]
 
-Also provide account-level action items if portfolio composition is unhealthy:
-
-ACTION: Rebalance spend - too much is in learning ads (X%). Consolidate into fewer tested ad sets.
-PRIORITY: HIGH
-OWNER: AGENCY
-
-Keep action items specific and actionable. Do not add generic advice like "test new creative" without naming which ads.`,
+Do not recommend scaling, cutting, or pausing spend from a fixed CPA, ROAS, or spend threshold. Keep action items specific and name the supporting signal.`,
 
   "d5-pattern-match": `You are performing a root cause diagnosis for Salt Lake Express Meta Ads CPA issues by combining signals from the diagnostic sub-flow.
 

@@ -14,7 +14,6 @@ import {
   CheckCircle2,
   XCircle,
   AlertTriangle,
-  Info,
 } from "lucide-react";
 import { cpaColor, roasColor } from "@/lib/utils/meta-ads-formatting";
 import type {
@@ -89,21 +88,9 @@ function statusBadge(segment: GoogleAdsSegmentHealth): {
       className: "bg-muted text-muted-foreground border-border",
     };
   }
-  if (segment.cpa_status === "on-target") {
-    return {
-      label: "Healthy",
-      className: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-    };
-  }
-  if (segment.cpa_status === "elevated") {
-    return {
-      label: "Watch",
-      className: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-    };
-  }
   return {
-    label: "Bleeding",
-    className: "bg-red-500/10 text-red-400 border-red-500/20",
+    label: "Reported",
+    className: "bg-muted text-muted-foreground border-border",
   };
 }
 
@@ -175,10 +162,10 @@ function CpaDiagnostic({
       <div className="mt-2.5 border-t border-border/40 pt-2">
         <div className="text-[9px] font-bold text-red-400">
           <AlertTriangle className="mr-1 inline h-3 w-3" />
-          ZOMBIE: Spending with zero conversions
+          No tracked conversions
         </div>
         <div className="mt-1 rounded bg-red-500/5 px-2 py-1 text-[9px] text-red-400">
-          → Pause or restructure. No conversions to optimize toward.
+          → Check conversion tracking and search quality before changing spend.
         </div>
       </div>
     );
@@ -208,7 +195,7 @@ function CpaDiagnostic({
     diagnosis = "Both CPC and CVR degrading. Fix conversion rate first (free, higher leverage).";
     diagColor = "text-red-400";
   } else if (cpcStable && cvrStable) {
-    diagnosis = "CPA elevated but components stable. Check if seasonal (compare YoY).";
+    diagnosis = "CPA increased while components are stable. Check seasonality and mix.";
     diagColor = "text-muted-foreground";
   } else {
     diagnosis = "Mixed signals. Review CPC and CVR trends.";
@@ -264,15 +251,12 @@ function SegmentCard({
   const color = SEGMENT_COLORS[segment.segment];
   const badge = statusBadge(segment);
   const isVideo = segment.segment === "video";
-  const showDiagnostic =
-    !isVideo &&
-    (segment.cpa_status === "elevated" || segment.cpa_status === "high");
-
   const cpaTrend = segmentTrend?.cpa;
   const convTrend = segmentTrend?.conversions;
   const cpaChange = cpaTrend?.yoy_change ?? cpaTrend?.mom_change ?? null;
   const convChange = convTrend?.yoy_change ?? convTrend?.mom_change ?? null;
   const trendLabel = cpaTrend?.yoy_change != null ? "last year" : "last month";
+  const showDiagnostic = !isVideo && cpaChange !== null && cpaChange > 0.1;
 
   return (
     <div
@@ -409,12 +393,13 @@ function SegmentCampaignTable({
       </thead>
       <tbody>
         {filtered.map((c) => {
-          const isZombie = c.conversions === 0 && c.spend > 0 && !isVideo;
+          const hasNoTrackedConversions =
+            c.conversions === 0 && c.spend > 0 && !isVideo;
           return (
             <tr
               key={c.campaign_id}
               className={`border-b border-border/20 ${
-                isZombie ? "bg-red-500/5" : ""
+                hasNoTrackedConversions ? "bg-muted/20" : ""
               }`}
             >
               <td className="px-1.5 py-1.5">
@@ -428,12 +413,12 @@ function SegmentCampaignTable({
                     ? c.campaign_name.slice(0, 40) + "…"
                     : c.campaign_name}
                 </span>
-                {isZombie && (
+                {hasNoTrackedConversions && (
                   <Badge
                     variant="outline"
                     className="ml-1.5 border-border bg-muted text-[8px] text-muted-foreground"
                   >
-                    ZOMBIE
+                    No tracked conversions
                   </Badge>
                 )}
               </td>
@@ -472,7 +457,7 @@ function SegmentCampaignTable({
                   </td>
                   <td
                     className={`px-1.5 py-1.5 text-right tabular-nums ${
-                      isZombie ? "text-red-400" : ""
+                      hasNoTrackedConversions ? "text-muted-foreground" : ""
                     }`}
                   >
                     {num.format(Math.round(c.conversions))}
@@ -574,8 +559,8 @@ export function GoogleAdsFetchSummary({
             <h2 className="text-base font-semibold">Google Ads Analysis</h2>
             <p className="text-[11px] text-muted-foreground">
               Campaign performance by segment
-              (Brand/Non-Brand/Competitor/PMax), CPA/ROAS decision metrics,
-              and YoY trends.
+              (Brand/Non-Brand/Competitor/PMax), platform-reported CPA/ROAS,
+              and trends. Profitability thresholds are not currently applied.
             </p>
           </div>
           <div className="text-right">

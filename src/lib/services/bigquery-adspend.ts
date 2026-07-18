@@ -1,5 +1,6 @@
 import type { MonthPeriod } from "@/lib/schemas/types";
 import { getBigQueryClient, PROJECT_ID } from "./bigquery-client";
+import { getMonthDateRange } from "@/lib/utils/month-period";
 
 const GL_DATASET = "quickbooks_gl";
 
@@ -31,10 +32,7 @@ export async function getMonthlyAdSpend(
   period: MonthPeriod,
 ): Promise<AdSpendResult> {
   const bq = getBigQueryClient();
-  const startDate = `${period.year}-${String(period.month).padStart(2, "0")}-01`;
-  const endDate = new Date(period.year, period.month, 0)
-    .toISOString()
-    .slice(0, 10);
+  const { start: startDate, end: endDate } = getMonthDateRange(period);
 
   const [rows] = await bq.query({
     query: `
