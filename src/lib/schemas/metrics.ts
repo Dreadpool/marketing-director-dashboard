@@ -80,7 +80,7 @@ export type NormalizedCPA = {
   provenance: DataProvenance;
 };
 
-/** True customer acquisition cost: total spend / BigQuery new customers */
+/** Blended spend per first observed purchasing email; not causal CAC. */
 export type NormalizedCAC = {
   value: number;
   totalSpend: number;

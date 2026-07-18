@@ -48,9 +48,9 @@ function safeOp(op: string): string {
 
 /**
  * Build a customer-rollup CTE and apply the supplied criteria as HAVING clauses.
- * SLE company filter and void exclusion are baked in.
+ * SLE company and real-booking filters are baked in.
  */
-function buildExploreQuery(criteria: SegmentCriteria): string {
+export function buildExploreQuery(criteria: SegmentCriteria): string {
   const havingClauses: string[] = [];
 
   if (criteria.trip_count_last_n_days) {
@@ -58,7 +58,7 @@ function buildExploreQuery(criteria: SegmentCriteria): string {
     const days = Math.max(1, Math.floor(criteria.trip_count_last_n_days.days));
     const value = Math.max(0, Math.floor(criteria.trip_count_last_n_days.value));
     havingClauses.push(
-      `COUNTIF(DATE(purchase_date) >= DATE_SUB(CURRENT_DATE(), INTERVAL ${days} DAY)) ${op} ${value}`,
+      `COUNT(DISTINCT IF(DATE(purchase_date) >= DATE_SUB(CURRENT_DATE(), INTERVAL ${days} DAY), order_id, NULL)) ${op} ${value}`,
     );
   }
   if (criteria.days_since_last_trip) {
@@ -73,13 +73,13 @@ function buildExploreQuery(criteria: SegmentCriteria): string {
   if (criteria.total_spend) {
     const op = safeOp(criteria.total_spend.op);
     const value = Math.max(0, Number(criteria.total_spend.value));
-    havingClauses.push(`SUM(COALESCE(total_sale, 0)) ${op} ${value}`);
+    havingClauses.push(`SUM(COALESCE(revenue_after_cancellations, 0)) ${op} ${value}`);
   }
   if (criteria.customer_segment) {
     switch (criteria.customer_segment) {
       case "churned":
         havingClauses.push(
-          "DATE_DIFF(CURRENT_DATE(), MAX(DATE(purchase_date)), DAY) >= 180 AND COUNT(*) >= 5",
+          "DATE_DIFF(CURRENT_DATE(), MAX(DATE(purchase_date)), DAY) >= 180 AND COUNT(DISTINCT order_id) >= 5",
         );
         break;
       case "active":
@@ -89,12 +89,12 @@ function buildExploreQuery(criteria: SegmentCriteria): string {
         break;
       case "first_timer":
         havingClauses.push(
-          "COUNT(*) = 1 AND DATE_DIFF(CURRENT_DATE(), MAX(DATE(purchase_date)), DAY) <= 90",
+          "COUNT(DISTINCT order_id) = 1 AND DATE_DIFF(CURRENT_DATE(), MAX(DATE(purchase_date)), DAY) <= 90",
         );
         break;
       case "superconsumer":
         havingClauses.push(
-          "COUNTIF(DATE(purchase_date) >= DATE_SUB(CURRENT_DATE(), INTERVAL 365 DAY)) >= 30",
+          "COUNT(DISTINCT IF(DATE(purchase_date) >= DATE_SUB(CURRENT_DATE(), INTERVAL 365 DAY), order_id, NULL)) >= 30",
         );
         break;
     }
@@ -116,26 +116,23 @@ function buildExploreQuery(criteria: SegmentCriteria): string {
   return `
     WITH customer_rollup AS (
       SELECT
-        purchaser_email AS customer_id,
-        ANY_VALUE(purchaser_email) AS email,
+        LOWER(TRIM(purchaser_email)) AS customer_id,
+        LOWER(TRIM(purchaser_email)) AS email,
         ANY_VALUE(CONCAT(COALESCE(purchaser_first_name, ''), ' ', COALESCE(purchaser_last_name, ''))) AS name,
-        COUNT(*) AS trips_lifetime,
-        SUM(COALESCE(total_sale, 0)) AS total_spend_lifetime,
+        COUNT(DISTINCT order_id) AS trips_lifetime,
+        SUM(COALESCE(revenue_after_cancellations, 0)) AS total_spend_lifetime,
         CAST(MAX(DATE(purchase_date)) AS STRING) AS last_trip_date,
         CAST(MIN(DATE(purchase_date)) AS STRING) AS first_trip_date,
         APPROX_TOP_COUNT(CONCAT(COALESCE(trip_origin_stop, '?'), ' → ', COALESCE(trip_destination_stop, '?')), 1)[OFFSET(0)].value AS top_route
-      FROM \`${PROJECT_ID}.${DATASET}.sales_orders\`
+      FROM \`${PROJECT_ID}.${DATASET}.vw_sle_active_orders\`
       WHERE selling_company = 'Salt Lake Express'
-        AND (activity_type = 'Sale' OR activity_type IS NULL)
-        AND order_id NOT IN (
-          SELECT DISTINCT order_id
-          FROM \`${PROJECT_ID}.${DATASET}.sales_orders\`
-          WHERE activity_type = 'Void'
-        )
+        AND is_paid_in = FALSE
+        AND is_fee_only_cancellation = FALSE
+        AND (promotion_code IS NULL OR promotion_code != 'N3t_Besplatno!')
         AND purchaser_email IS NOT NULL
-        AND purchaser_email != ''
+        AND TRIM(purchaser_email) != ''
         ${routeFilter}
-      GROUP BY purchaser_email
+      GROUP BY LOWER(TRIM(purchaser_email))
       ${havingSql}
     )
     SELECT

@@ -81,7 +81,7 @@ export async function GET() {
       console.error("Google Ads fetch failed:", googleResult.reason);
     }
 
-    // True CAC: total ad spend / BigQuery new customers
+    // Blended platform spend per first observed purchasing email.
     const cac = {
       value: customers.new > 0 ? totalAdSpend / customers.new : 0,
       totalSpend: totalAdSpend,
