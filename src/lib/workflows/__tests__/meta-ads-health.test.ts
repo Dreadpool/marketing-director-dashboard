@@ -73,8 +73,8 @@ function makeAccountHealth(
     total_clicks: 3000,
     total_reach: 125000,
     avg_frequency: 2,
-    cpa_status: "elevated",
-    roas_status: "above-target",
+    cpa_status: "unbenchmarked",
+    roas_status: "unbenchmarked",
     ...overrides,
   };
 }
@@ -137,13 +137,14 @@ describe("classifyAdHealth", () => {
     expect(result.action).toMatch(/leave it alone/i);
   });
 
-  it("returns learning for ads with <$27 spend", () => {
+  it("does not use the retired $27 spend threshold", () => {
     const ad = makeAd({ impressions: 2000, spend: 20, purchases: 0 });
     const result = classifyAdHealth(ad, makeBenchmarks());
-    expect(result.status).toBe("learning");
+    expect(result.status).toBe("watch");
+    expect(result.action).toMatch(/do not pause from spend alone/i);
   });
 
-  it("returns kill for ad with $30 spend and 0 purchases (Stage 3)", () => {
+  it("does not kill an ad from spend and zero attributed purchases alone", () => {
     const ad = makeAd({
       impressions: 2000,
       spend: 30,
@@ -152,9 +153,9 @@ describe("classifyAdHealth", () => {
       cpa: 0,
     });
     const result = classifyAdHealth(ad, makeBenchmarks());
-    expect(result.status).toBe("kill");
-    expect(result.reason).toMatch(/3x/);
-    expect(result.signals).toContain("0 purchases");
+    expect(result.status).toBe("watch");
+    expect(result.reason).toMatch(/no current profit threshold/i);
+    expect(result.signals).toContain("0 Meta-attributed purchases");
   });
 
   it("returns kill for CTR < 0.5% after 1000+ impressions", () => {
@@ -192,7 +193,7 @@ describe("classifyAdHealth", () => {
     expect(result.reason).toMatch(/past 3 seconds/i);
   });
 
-  it("returns underperforming for ad with 2 purchases and CPA $20", () => {
+  it("uses campaign-relative CPA instead of the retired $14 threshold", () => {
     const ad = makeAd({
       impressions: 5000,
       spend: 40,
@@ -201,8 +202,8 @@ describe("classifyAdHealth", () => {
       cpa: 20,
     });
     const result = classifyAdHealth(ad, makeBenchmarks());
-    expect(result.status).toBe("underperforming");
-    expect(result.reason).toMatch(/\$14/);
+    expect(result.status).toBe("watch");
+    expect(result.reason).toMatch(/campaign average/i);
   });
 
   it("returns watch when ad CPA is 2x its campaign CPA", () => {
@@ -248,7 +249,6 @@ describe("classifyAdHealth", () => {
     const benchmarks = makeBenchmarks({ ctr: 0.012 });
     const result = classifyAdHealth(ad, benchmarks);
     expect(result.status).toBe("healthy");
-    expect(result.action).toMatch(/leave it running/i);
+    expect(result.action).toMatch(/profitability is unbenchmarked/i);
   });
 });
-

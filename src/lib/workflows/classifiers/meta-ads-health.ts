@@ -45,26 +45,16 @@ export function classifyAdHealth(
   const signals: string[] = [];
 
   // Priority 1: Learning (not enough data)
-  if (ad.impressions < 1000 || ad.spend < 27) {
+  if (ad.impressions < 1000) {
     return {
       status: "learning",
-      reason: `Only ${ad.impressions.toLocaleString()} impressions and $${ad.spend.toFixed(0)} spent. Need at least 1,000 impressions or $27 (3x target CPA) to judge.`,
+      reason: `Only ${ad.impressions.toLocaleString()} impressions. Need at least 1,000 impressions before comparing engagement.`,
       action: "Not enough data. Leave it alone.",
       signals: [],
     };
   }
 
-  // Priority 2: Kill - spent 3x target CPA with zero conversions
-  if (ad.spend >= 27 && ad.purchases === 0) {
-    return {
-      status: "kill",
-      reason: `Spent $${ad.spend.toFixed(0)} (3x the $9 target CPA) with zero conversions. Statistical confidence 95% this ad will not convert.`,
-      action: "Kill. Spent 3x target CPA with zero conversions.",
-      signals: ["$27+ spend", "0 purchases"],
-    };
-  }
-
-  // Priority 3: Kill - nobody clicks (CTR < 0.5% after 1000+ impressions)
+  // Kill for clear creative-response failures, not an unverified profit target.
   if (adCtr < 0.005) {
     return {
       status: "kill",
@@ -74,7 +64,7 @@ export function classifyAdHealth(
     };
   }
 
-  // Priority 4: Kill - video hook rate too low (only if this is a video ad)
+  // Video hook rate is a creative-response signal.
   if (ad.hook_rate !== null && ad.hook_rate < 0.15) {
     return {
       status: "kill",
@@ -84,17 +74,16 @@ export function classifyAdHealth(
     };
   }
 
-  // Priority 5: Underperforming - has conversions but CPA > $14
-  if (ad.purchases > 0 && ad.cpa > 14) {
+  if (ad.purchases === 0) {
     return {
-      status: "underperforming",
-      reason: `CPA of $${ad.cpa.toFixed(2)} with ${ad.purchases} purchases. Above the $14 high threshold. Losing money after 1.3x Meta over-attribution.`,
-      action: "Losing money. Pause or revise creative.",
-      signals: [`CPA $${ad.cpa.toFixed(2)} > $14`],
+      status: "watch",
+      reason: `${ad.impressions.toLocaleString()} impressions and $${ad.spend.toFixed(0)} spend with no Meta-attributed purchases. SLE has no current profit threshold for a pause decision.`,
+      action: "Check delivery, clicks, and conversion tracking; do not pause from spend alone.",
+      signals: ["0 Meta-attributed purchases"],
     };
   }
 
-  // Priority 6: Watch - dragging down its campaign
+  // Compare relative performance within the same campaign.
   if (campaignCpa > 0 && ad.cpa > campaignCpa * 1.5) {
     signals.push(
       `CPA $${ad.cpa.toFixed(2)} > 1.5x campaign CPA $${campaignCpa.toFixed(2)}`,
@@ -107,7 +96,7 @@ export function classifyAdHealth(
     };
   }
 
-  // Priority 7: Watch - weak engagement (CTR < 70% of account average)
+  // Weak engagement relative to the account.
   if (benchmarks.ctr > 0 && adCtr < benchmarks.ctr * 0.7) {
     signals.push(
       `CTR ${(adCtr * 100).toFixed(2)}% < 70% of account avg ${(benchmarks.ctr * 100).toFixed(2)}%`,
@@ -120,7 +109,7 @@ export function classifyAdHealth(
     };
   }
 
-  // Priority 8: Watch - video hook/hold rate weak (but not kill-level)
+  // Video hook/hold rate is weak but not kill-level.
   if (ad.hook_rate !== null && ad.hook_rate < 0.25) {
     signals.push(`Hook rate ${(ad.hook_rate * 100).toFixed(0)}% < 25%`);
     return {
@@ -140,11 +129,11 @@ export function classifyAdHealth(
     };
   }
 
-  // Priority 9: Healthy
+  // No relative or engagement warning was found.
   return {
     status: "healthy",
     reason: `CPA $${ad.cpa.toFixed(2)}, CTR ${(adCtr * 100).toFixed(2)}%, ${ad.purchases} purchases on $${ad.spend.toFixed(0)} spend.`,
-    action: "Performing well. Leave it running.",
+    action: "No diagnostic warning. Keep monitoring; profitability is unbenchmarked.",
     signals: [],
   };
 }

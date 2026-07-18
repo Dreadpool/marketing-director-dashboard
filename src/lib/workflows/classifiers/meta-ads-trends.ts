@@ -106,16 +106,16 @@ function classifyLifecycle(
   // Insufficient data
   if (sorted.length < 3) return "learning";
 
-  // "Performing" = at least 3 days with CPA < $14 AND CTR > 0.5%
+  // Require repeated tracked purchases and basic engagement before assigning a lifecycle.
   const performingDays = sorted.filter((d) => {
     const hadConversions = d.purchases > 0 && d.cpa > 0;
-    return hadConversions && d.cpa < 14 && d.ctr > 0.005;
+    return hadConversions && d.ctr > 0.005;
   });
   const hadPerformingPeriod = performingDays.length >= 3;
 
-  // Born bad: peak CTR below 0.5% OR never had a performing period
+  // Born bad is a creative-response verdict only, not a profit verdict.
   if (peak_ctr < 0.005) return "born_bad";
-  if (!hadPerformingPeriod) return "born_bad";
+  if (!hadPerformingPeriod) return "learning";
 
   // Dead: CTR declined 30%+ from peak AND CPA up 50%+ week-over-week
   const ctrDropFromPeak =
@@ -160,11 +160,11 @@ export function classifyWithTrends(
   if (trend.lifecycle_stage === "born_bad") {
     return {
       status: "kill",
-      reason: `Ad never performed. Peak CTR ${(trend.peak_ctr * 100).toFixed(2)}% is below the 0.5% floor, or never achieved CPA < $14 during its run.`,
-      action: "Kill. This ad was born bad. Test a different creative concept.",
+      reason: `Peak CTR ${(trend.peak_ctr * 100).toFixed(2)}% never reached the 0.5% creative-response floor.`,
+      action: "Replace the creative concept; this is an engagement failure, not a profitability verdict.",
       signals: [
         `Peak CTR ${(trend.peak_ctr * 100).toFixed(2)}%`,
-        "Never had a performing period",
+        "Never reached the creative-response floor",
       ],
     };
   }

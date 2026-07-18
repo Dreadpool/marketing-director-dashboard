@@ -186,7 +186,7 @@ function HeadlineMetrics({ data }: { data: MasterMetrics }) {
         </p>
       )}
       {/* Row 1: Revenue */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3">
         <MetricCell
           label="Gross Bookings"
           value={usd.format(rev.gross_bookings)}
@@ -226,15 +226,15 @@ function HeadlineMetrics({ data }: { data: MasterMetrics }) {
               )}
             </>
           }
-          tooltip="Count of unique order_ids from Sale records, excluding voided orders and rebook originals replaced in the same month. Rebook replacements are counted (they represent the standing booking). Source: BigQuery tds_sales.sales_orders."
+          tooltip="Distinct real booking IDs. Voids, paid-ins, fee-only and full cancellations, and replaced originals are excluded; standing replacement bookings are counted. Source: BigQuery sales_orders with canonical SLE void/cancellation rules."
           yoyChange={yoy?.order_change_percent}
           goodDirection="up"
         />
         <MetricCell
-          label="New Customers"
+          label="First Observed Purchasers"
           value={num.format(cust.new_customers)}
           secondary={`${pct(cust.new_customers / (cust.new_customers + cust.returning_customers) * 100)} of total`}
-          tooltip="Customers whose first-ever purchase falls within this month. Source: BigQuery customer_first_order table."
+          tooltip="Purchasing emails whose earliest observed real SLE booking falls within this month. This is not proof that marketing created a new customer. Source: BigQuery customer_first_order."
           yoyChange={yoy?.new_customers_change_percent}
           goodDirection="up"
         />
@@ -264,32 +264,24 @@ function HeadlineMetrics({ data }: { data: MasterMetrics }) {
                 <Info className="h-3 w-3 text-muted-foreground/50" />
               </TooltipTrigger>
               <TooltipContent side="top" className="max-w-xs text-xs">
-                <p>Total real revenue divided by unique active customers that month. Paid-ins and fee-only cancellations are excluded from customer counts. Source: {mkt.avg_customer_value_source === "cardpointe" ? "CardPointe settlements" : "TDS active-orders view"}.</p>
+                <p>Countable real-booking value divided by unique active purchasing emails. Paid-ins and fee-only cancellations are excluded. Source: TDS active-orders view.</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
           <div className="flex items-baseline justify-between gap-2">
             <p className="text-lg font-heading font-semibold tabular-nums">
-              {usd2.format(mkt.avg_customer_gross_profit)}
+              {usd2.format(mkt.avg_customer_value)}
             </p>
-            {yoy?.avg_customer_gross_profit_change_percent != null && yoy.avg_customer_gross_profit_change_percent !== 0 && (
-              <span className={`text-[11px] font-medium tabular-nums shrink-0 ${yoyColor(yoy.avg_customer_gross_profit_change_percent, "up")}`}>
-                {yoy.avg_customer_gross_profit_change_percent > 0 ? "▲" : "▼"} {Math.abs(yoy.avg_customer_gross_profit_change_percent).toFixed(1)}%
+            {yoy?.avg_customer_value_change_percent != null && yoy.avg_customer_value_change_percent !== 0 && (
+              <span className={`text-[11px] font-medium tabular-nums shrink-0 ${yoyColor(yoy.avg_customer_value_change_percent, "up")}`}>
+                {yoy.avg_customer_value_change_percent > 0 ? "▲" : "▼"} {Math.abs(yoy.avg_customer_value_change_percent).toFixed(1)}%
               </span>
             )}
           </div>
           <p className="text-[11px] text-muted-foreground tabular-nums">
-            {usd2.format(mkt.avg_customer_value)} rev × 43% margin
+            Real booking value per active purchasing email
           </p>
         </div>
-        <MetricCell
-          label="Gross Profit / Spend"
-          value={`$${(mkt.cac_to_value_ratio ?? 0).toFixed(1)} : $1`}
-          secondary={`${usd2.format(mkt.avg_customer_gross_profit ?? 0)} GP per ${usd2.format(mkt.cac)} spend`}
-          tooltip="Average gross profit per first observed purchaser divided by blended marketing spend per first observed purchaser. This is an operating ratio, not incremental acquisition proof."
-          yoyChange={yoy?.cac_to_value_ratio_change_percent}
-          goodDirection="up"
-        />
       </div>
     </div>
   );
@@ -518,11 +510,11 @@ function MarketingEfficiency({ data }: { data: MasterMetrics }) {
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger className="inline-flex items-center gap-1 text-[11px] text-muted-foreground cursor-help">
-                  Avg New Customer Value
+                  Avg First Purchaser Value
                   <Info className="h-3 w-3 text-muted-foreground/50" />
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-xs text-xs">
-                  New Customer Revenue / New Customers.
+                  Revenue from first observed purchasers divided by first observed purchasing emails.
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>

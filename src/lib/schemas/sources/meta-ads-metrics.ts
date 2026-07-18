@@ -22,10 +22,10 @@ export type MetaAdsAccountHealth = {
   total_clicks: number;
   total_reach: number;
   avg_frequency: number;
-  /** CTC assessment: <$9 on-target, <$14 elevated, >$14 high. Based on $35.23 GP/order, 43% margin, 1.3x over-attribution. */
-  cpa_status: "on-target" | "elevated" | "high";
-  /** CTC assessment: >3.0x above GP breakeven, else below. ROAS is secondary to CPA. */
-  roas_status: "above-target" | "below-target";
+  /** No current SLE profitability benchmark is applied to platform CPA. */
+  cpa_status: "unbenchmarked";
+  /** No current SLE profitability benchmark is applied to platform ROAS. */
+  roas_status: "unbenchmarked";
 };
 
 export type MetaAdsCampaignRow = {

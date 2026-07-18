@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { SalesOrderRow } from "./bigquery-sales";
 import {
+  calculateCAC,
   calculateCustomerSegmentation,
   calculateRevenueBreakdown,
   calculateTopCustomers,
@@ -81,19 +82,24 @@ describe("Monthly analytics sales metrics", () => {
       payment_amount_1: 30,
       revenue_after_cancellations: 30,
     }),
+    row({
+      order_id: 6,
+      purchaser_email: "fully-canceled@example.com",
+      total_sale: 100,
+      payment_amount_1: 100,
+      revenue_after_cancellations: 0,
+      total_canceled_amount: 100,
+      num_cancel_records: 1,
+      is_fee_only_cancellation: true,
+    }),
   ];
 
   it("retains paid-in and fee-only revenue while excluding them from order and customer denominators", () => {
-    const revenue = calculateRevenueBreakdown(rows, null, {
-      cc: 94,
-      cash: 0,
-      account_credit: 0,
-      other: 0,
-    });
+    const revenue = calculateRevenueBreakdown(rows, null);
 
-    expect(revenue.gross_bookings).toBe(300);
+    expect(revenue.gross_bookings).toBe(400);
     expect(revenue.net_bookings).toBe(206);
-    expect(revenue.total_cancels).toBe(94);
+    expect(revenue.total_cancels).toBe(194);
     expect(revenue.total_orders).toBe(3);
     expect(revenue.unique_customers).toBe(2);
     expect(revenue.avg_order_value).toBe(60);
@@ -154,12 +160,7 @@ describe("Monthly analytics sales metrics", () => {
         num_cancel_records: 1,
         is_fee_only_cancellation: true,
       }),
-    ], null, {
-      cc: 74,
-      cash: 0,
-      account_credit: 0,
-      other: 0,
-    });
+    ], null);
 
     expect(revenue.total_orders).toBe(1);
     expect(revenue.unique_customers).toBe(1);
@@ -178,5 +179,22 @@ describe("Monthly analytics sales metrics", () => {
     ]);
 
     expect(variance).toBe(0);
+  });
+});
+
+describe("Monthly marketing efficiency", () => {
+  it("reports spend per first purchaser without retired profit estimates", () => {
+    const result = calculateCAC({
+      newCustomers: 10,
+      adSpend: 1_000,
+      adSpendCategories: { targeted: 1_000 },
+      transactionCount: 2,
+      avgCustomerValue: 75,
+      avgCustomerValueSource: "tds_sales_orders",
+    });
+
+    expect(result.cac).toBe(100);
+    expect(result).not.toHaveProperty("avg_customer_gross_profit");
+    expect(result).not.toHaveProperty("cac_to_value_ratio");
   });
 });

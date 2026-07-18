@@ -48,9 +48,7 @@ export type MasterMetricsMarketing = {
   transaction_count: number;
   cac: number;
   avg_customer_value: number;
-  avg_customer_gross_profit: number;
   avg_customer_value_source: "cardpointe" | "tds_sales_orders";
-  cac_to_value_ratio: number;
 };
 
 export type MasterMetricsPaymentMethods = {
@@ -156,10 +154,6 @@ export type MasterMetricsComparison = {
   previous_new_customers?: number;
   avg_customer_value_change_percent?: number;
   previous_avg_customer_value?: number;
-  cac_to_value_ratio_change_percent?: number;
-  previous_cac_to_value_ratio?: number;
-  avg_customer_gross_profit_change_percent?: number;
-  previous_avg_customer_gross_profit?: number;
 };
 
 export type ZeroRevenueEmail = {

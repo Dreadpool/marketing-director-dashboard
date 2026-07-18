@@ -7,7 +7,6 @@ import type {
 import {
   getSalesOrders,
   getCardPointeSettlements,
-  getCancelsByPaymentCategory,
   getCustomerFirstPurchases,
 } from "@/lib/services/bigquery-sales";
 import type { SalesOrderRow } from "@/lib/services/bigquery-sales";
@@ -55,13 +54,12 @@ export async function fetchMonthlyAnalytics(
 ): Promise<MasterMetrics> {
   const { start: startDate, end: endDate } = getMonthDateRange(period);
 
-  // 1. Parallel: sales orders + CardPointe + ad spend + cancels by category
-  const [salesResult, cardpointeResult, adSpendResult, cancelsByCatResult] =
+  // 1. Parallel: sales orders + CardPointe validation + ad spend
+  const [salesResult, cardpointeResult, adSpendResult] =
     await Promise.allSettled([
       getSalesOrders(period),
       getCardPointeSettlements(period),
       getMonthlyAdSpend(period),
-      getCancelsByPaymentCategory(period),
     ]);
 
   // BigQuery sales orders are required
@@ -73,7 +71,7 @@ export async function fetchMonthlyAnalytics(
 
   const salesRows = salesResult.value;
 
-  // CardPointe optional but preferred for CC revenue
+  // CardPointe is optional validation only.
   const cardpointe =
     cardpointeResult.status === "fulfilled" ? cardpointeResult.value : null;
   if (cardpointeResult.status === "rejected") {
@@ -90,15 +88,6 @@ export async function fetchMonthlyAnalytics(
     console.error("Ad spend fetch failed:", adSpendResult.reason);
   }
 
-  // Cancels by payment category for net revenue calculation
-  const cancelsByCategory =
-    cancelsByCatResult.status === "fulfilled"
-      ? cancelsByCatResult.value
-      : { cc: 0, cash: 0, account_credit: 0, other: 0 };
-  if (cancelsByCatResult.status === "rejected") {
-    console.error("Cancels by category fetch failed:", cancelsByCatResult.reason);
-  }
-
   const adjustedRows = salesRows;
 
   // 2. Get customer first purchases for new/returning determination
@@ -112,31 +101,14 @@ export async function fetchMonthlyAnalytics(
   const firstPurchaseMap = await getCustomerFirstPurchases(uniqueEmails);
 
   // 3. Run all calculations
-  const revenue = calculateRevenueBreakdown(adjustedRows, cardpointe, cancelsByCategory);
+  const revenue = calculateRevenueBreakdown(adjustedRows, cardpointe);
   const customers = calculateCustomerSegmentation(
     adjustedRows,
     firstPurchaseMap,
     period,
   );
   const topCustomers = calculateTopCustomers(adjustedRows);
-  // Avg Customer Value: prefer CardPointe actuals for CC, add cash + other from TDS
-  const cashNet = revenue.by_category.find(c => c.name === "Cash")?.net ?? 0;
-  const otherNet = revenue.by_category.find(c => c.name === "Other")?.net ?? 0;
-
-  let avgCustomerValueNumerator: number;
-  let avgCustomerValueSource: "cardpointe" | "tds_sales_orders";
-
-  if (cardpointe && cardpointe.net_amount > 0) {
-    avgCustomerValueNumerator = cardpointe.net_amount + cashNet + otherNet;
-    avgCustomerValueSource = "cardpointe";
-  } else {
-    avgCustomerValueNumerator = revenue.new_cash;
-    avgCustomerValueSource = "tds_sales_orders";
-  }
-
-  const avgCustomerValue = revenue.unique_customers > 0
-    ? avgCustomerValueNumerator / revenue.unique_customers
-    : 0;
+  const avgCustomerValue = revenue.revenue_per_customer;
 
   const marketing = calculateCAC({
     newCustomers: customers.new_customers,
@@ -144,7 +116,7 @@ export async function fetchMonthlyAnalytics(
     adSpendCategories: adSpend.categories,
     transactionCount: adSpend.transaction_count,
     avgCustomerValue,
-    avgCustomerValueSource,
+    avgCustomerValueSource: "tds_sales_orders",
   });
 
   // 4. Data quality checks
@@ -289,11 +261,10 @@ async function computeYoYComparison(
     order_change_percent: 0,
   };
 
-  const [salesResult, cardpointeResult, cancelsCatResult, adSpendResult] =
+  const [salesResult, cardpointeResult, adSpendResult] =
     await Promise.allSettled([
       getSalesOrders(priorPeriod),
       getCardPointeSettlements(priorPeriod),
-      getCancelsByPaymentCategory(priorPeriod),
       getMonthlyAdSpend(priorPeriod),
     ]);
 
@@ -309,10 +280,6 @@ async function computeYoYComparison(
 
   const priorCardpointe =
     cardpointeResult.status === "fulfilled" ? cardpointeResult.value : null;
-  const priorCancelsCat =
-    cancelsCatResult.status === "fulfilled"
-      ? cancelsCatResult.value
-      : { cc: 0, cash: 0, account_credit: 0, other: 0 };
   const priorAdSpend =
     adSpendResult.status === "fulfilled"
       ? adSpendResult.value
@@ -334,29 +301,13 @@ async function computeYoYComparison(
   const priorRevenue = calculateRevenueBreakdown(
     priorAdjusted,
     priorCardpointe,
-    priorCancelsCat,
   );
   const priorCustomers = calculateCustomerSegmentation(
     priorAdjusted,
     priorFirstPurchaseMap,
     priorPeriod,
   );
-  // Prior year avg customer value (same CardPointe-preferred logic)
-  const priorCashNet = priorRevenue.by_category.find(c => c.name === "Cash")?.net ?? 0;
-  const priorOtherNet = priorRevenue.by_category.find(c => c.name === "Other")?.net ?? 0;
-
-  let priorAvgCVNumerator: number;
-  let priorAvgCVSource: "cardpointe" | "tds_sales_orders";
-  if (priorCardpointe && priorCardpointe.net_amount > 0) {
-    priorAvgCVNumerator = priorCardpointe.net_amount + priorCashNet + priorOtherNet;
-    priorAvgCVSource = "cardpointe";
-  } else {
-    priorAvgCVNumerator = priorRevenue.new_cash;
-    priorAvgCVSource = "tds_sales_orders";
-  }
-  const priorAvgCustomerValue = priorRevenue.unique_customers > 0
-    ? priorAvgCVNumerator / priorRevenue.unique_customers
-    : 0;
+  const priorAvgCustomerValue = priorRevenue.revenue_per_customer;
 
   const priorMarketing = calculateCAC({
     newCustomers: priorCustomers.new_customers,
@@ -364,7 +315,7 @@ async function computeYoYComparison(
     adSpendCategories: priorAdSpend.categories,
     transactionCount: priorAdSpend.transaction_count,
     avgCustomerValue: priorAvgCustomerValue,
-    avgCustomerValueSource: priorAvgCVSource,
+    avgCustomerValueSource: "tds_sales_orders",
   });
 
   function pctChange(current: number, previous: number): number {
@@ -427,15 +378,5 @@ async function computeYoYComparison(
       priorMarketing.avg_customer_value,
     ),
     previous_avg_customer_value: priorMarketing.avg_customer_value,
-    cac_to_value_ratio_change_percent: pctChange(
-      currentMarketing.cac_to_value_ratio,
-      priorMarketing.cac_to_value_ratio,
-    ),
-    previous_cac_to_value_ratio: priorMarketing.cac_to_value_ratio,
-    avg_customer_gross_profit_change_percent: pctChange(
-      currentMarketing.avg_customer_gross_profit,
-      priorMarketing.avg_customer_gross_profit,
-    ),
-    previous_avg_customer_gross_profit: priorMarketing.avg_customer_gross_profit,
   };
 }

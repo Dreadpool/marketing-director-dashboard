@@ -91,7 +91,6 @@ export function PromoCodeFetchSummary({ data }: { data: PromoCodeMetrics }) {
     avgOrderValue,
     uniqueCustomers,
     newCustomers,
-    returningCustomers,
     newCustomerPct,
     ordersPerCustomer,
     totalDiscounted,
@@ -144,12 +143,12 @@ export function PromoCodeFetchSummary({ data }: { data: PromoCodeMetrics }) {
             value={num.format(totalOrders)}
           />
           <KpiCard
-            label="Gross Revenue"
+            label="Booking Value"
             value={usd.format(grossRevenue)}
             secondary={`Avg ${usd2.format(avgOrderValue)}/order`}
           />
           <KpiCard
-            label="New Customers"
+            label="First Observed Purchasers"
             value={num.format(newCustomers)}
             valueClass="text-emerald-400"
             secondary={`${newCustomerPct.toFixed(1)}% new / ${(100 - newCustomerPct).toFixed(1)}% returning`}
@@ -162,13 +161,13 @@ export function PromoCodeFetchSummary({ data }: { data: PromoCodeMetrics }) {
         </div>
       )}
 
-      {/* Campaign ROI section — conditional */}
+      {/* Descriptive campaign-cost context; not a profit or incrementality verdict. */}
       {!isEmpty && campaignCost && roi && (
         <div className="rounded-lg border border-gold/20 bg-gold/5 px-5 py-4 space-y-3">
           <p className="text-[11px] uppercase tracking-wider text-gold font-semibold">
-            Campaign ROI
+            Campaign Cost Context
           </p>
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
                 Revenue Return
@@ -179,40 +178,17 @@ export function PromoCodeFetchSummary({ data }: { data: PromoCodeMetrics }) {
             </div>
             <div>
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
-                Gross Profit Return
-              </p>
-              <p
-                className={`text-2xl font-bold font-heading tabular-nums ${
-                  roi.grossProfitReturn >= 1.0 ? "text-emerald-400" : "text-red-400"
-                }`}
-              >
-                {roi.grossProfitReturn.toFixed(1)}x
-              </p>
-            </div>
-            <div>
-              <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
-                Cost per Acquisition
+                Spend / First Observed Purchaser
               </p>
               <p className="text-2xl font-bold font-heading tabular-nums">
-                {usd2.format(roi.costPerAcquisition)}
-              </p>
-            </div>
-            <div>
-              <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
-                Net Profit
-              </p>
-              <p
-                className={`text-2xl font-bold font-heading tabular-nums ${
-                  roi.netProfit >= 0 ? "text-emerald-400" : "text-red-400"
-                }`}
-              >
-                {roi.netProfit >= 0 ? "+" : ""}
-                {usd.format(roi.netProfit)}
+                {newCustomers > 0
+                  ? usd2.format(roi.spendPerFirstPurchaser)
+                  : "No first observed purchasers"}
               </p>
             </div>
           </div>
           <p className="text-[11px] text-muted-foreground">
-            Campaign cost: {usd.format(campaignCost)} &bull; 43% gross margin applied
+            Campaign cost: {usd.format(campaignCost)}. Promo-code usage does not prove the campaign caused these bookings.
           </p>
         </div>
       )}

@@ -10,41 +10,34 @@ The data contains: period, current_month (revenue, customers, marketing, top_cus
 - Gross Bookings (primary KPI): total booking value across all payment types from the canonical active-orders view, excluding voids and same-month rebook originals
 - Net Bookings: gross minus canonical cancellation amounts
 - Net Booking Rate: percentage of bookings that held (note: ~45% of cancels are reschedules, so rate appears lower than true retention)
-- New Cash: CC + cash + other net (excludes account credits). This is what CAC and payback ratio use.
+- New Cash: CC + cash + other net (excludes account credits).
 - Average order value: countable real-booking gross value / countable orders
 - Revenue per customer, orders per customer: paid-ins and fee-only cancellations are excluded from customer and order counts
 - CardPointe variance: if CC net differs from CardPointe settlement by >$1000, flag for investigation
 
 ### Customers
-- New customers (first purchase this month) vs returning
-- New vs returning customer revenue and average revenue
-- New vs returning order counts
+- First observed purchasers (earliest real booking this month) vs returning purchasers
+- First observed vs returning purchaser revenue and average revenue
+- First observed vs returning order counts
 
 ### Marketing Efficiency
 - Total marketing spend by QB category (Brand, Targeted, Promotional, Collateral, Other)
-- CAC: Marketing Spend / New Customers
-- Avg Customer Value: Real revenue (CardPointe CC net + cash + other) / unique active customers
-  - Avg Customer Gross Profit: Avg Customer Value × 43% margin (regular routes only, excludes grant-funded route subsidies)
-  - Check avg_customer_value_source to note whether CardPointe actuals or TDS payment slots were used
-- CAC : Gross Profit Ratio: Avg Customer Gross Profit / CAC. Above 3.0 = healthy unit economics.
-- If ad spend unavailable (check metadata.missing_sources): note this and skip CAC analysis
+- Spend per first observed purchaser: Marketing Spend / first observed purchasing emails. This is not causal CAC.
+- Avg Purchaser Value: countable real-booking value from TDS / unique active purchasing emails
+- CardPointe is validation only and never overrides booking value.
+- If ad spend is unavailable (check metadata.missing_sources), note this and skip spend-per-purchaser analysis.
+- Do not infer profitability or incrementality. The route economics and acquisition benchmark are pending a rerun.
 
 ### Top Customers
 - Top 1%, 10%, and top 200 customer concentration (revenue share)
 - Top 10 individual customers
 
-### Quality Thresholds
-Apply these benchmarks and flag any outside expected ranges. Use the CAC:Gross Profit ratio as the primary quality indicator, not fixed dollar thresholds:
-- CAC : Gross Profit >= 3.0x: HEALTHY (strong unit economics, CAC under ~$12)
-- CAC : Gross Profit >= 1.0x: MARGINAL (covering costs but thin, CAC under ~$35)
-- CAC : Gross Profit < 1.0x: NEGATIVE (losing money on each acquired customer after COGS)
-
 ### Pattern Detection
 Flag any of these for the recommendations step:
 - Gross Bookings change > 10% MoM (up or down)
 - Net Booking Rate change > 5 percentage points
-- New customer count change > 15% MoM
-- CAC change > 15% MoM
+- First observed purchaser count change > 15% MoM
+- Spend per first observed purchaser change > 15% MoM
 - Significant shift in new vs returning customer ratio
 - Top customer concentration change
 - CardPointe CC variance > $1000

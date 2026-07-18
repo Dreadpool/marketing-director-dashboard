@@ -13,8 +13,8 @@ export type GoogleAdsPeriod = {
 
 export type CampaignSegment = "brand" | "non-brand" | "charters" | "competitor" | "pmax" | "video" | "other";
 
-export type CpaStatus = "on-target" | "elevated" | "high";
-export type RoasStatus = "above-target" | "watch" | "below-target";
+export type CpaStatus = "unbenchmarked";
+export type RoasStatus = "unbenchmarked";
 
 export type GoogleAdsSegmentHealth = {
   segment: CampaignSegment;

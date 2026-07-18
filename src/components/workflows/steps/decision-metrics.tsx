@@ -2,7 +2,6 @@
 
 "use client";
 
-import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
   TooltipTrigger,
@@ -10,7 +9,6 @@ import {
   TooltipProvider,
 } from "@/components/ui/tooltip";
 import { Info } from "lucide-react";
-import { cpaColor, roasColor } from "@/lib/utils/meta-ads-formatting";
 
 // ─── Formatters ─────────────────────────────────────────────────────────────
 
@@ -25,24 +23,6 @@ const usd2 = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
 });
 const num = new Intl.NumberFormat("en-US");
-
-function cpaStatusBadge(status: string) {
-  const colors: Record<string, string> = {
-    "on-target": "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-    elevated: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-    high: "bg-red-500/10 text-red-400 border-red-500/20",
-  };
-  const labels: Record<string, string> = {
-    "on-target": "On Target",
-    elevated: "Elevated",
-    high: "High",
-  };
-  return (
-    <Badge variant="outline" className={`text-xs ${colors[status] ?? ""}`}>
-      {labels[status] ?? status}
-    </Badge>
-  );
-}
 
 // ─── Metric Card ────────────────────────────────────────────────────────────
 
@@ -118,11 +98,6 @@ interface DecisionMetricsData {
     cpa: number;
     campaign_count: number;
   };
-  thresholds: {
-    cpa_on_target: number;
-    cpa_elevated: number;
-    roas_floor: number;
-  };
 }
 
 export function DecisionMetricsViz({
@@ -137,41 +112,24 @@ export function DecisionMetricsViz({
     <div className="space-y-4">
       {/* Explanation */}
       <p className="text-[11px] text-muted-foreground/60">
-        We make $35 profit per booking. Meta over-reports conversions by ~30%.
-        To maintain a 3:1 return, keep CPA under $9 as reported by Meta.
+        CPA, ROAS, purchases, and revenue are reported by Meta. SLE&apos;s
+        profitability benchmark is pending a route-economics rerun, so these
+        numbers do not receive a profit verdict.
       </p>
-
-      {/* CPA Status */}
-      <div className="flex items-center gap-3">
-        <span className="text-sm font-medium">CPA Status:</span>
-        {cpaStatusBadge(h.cpa_status)}
-      </div>
 
       {/* Account Health KPIs */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <MetricCard
           label="Account CPA"
           value={usd2.format(h.cpa)}
-          secondary={
-            h.cpa_status === "on-target"
-              ? `On target (<$${d.thresholds.cpa_on_target})`
-              : h.cpa_status === "elevated"
-                ? `Elevated ($${d.thresholds.cpa_on_target}-$${d.thresholds.cpa_elevated})`
-                : `High (>$${d.thresholds.cpa_elevated})`
-          }
-          tooltip="Meta-reported CPA. True CPA is ~1.3x higher due to over-attribution."
-          statusColor={cpaColor(h.cpa)}
+          secondary="Platform attributed"
+          tooltip="Meta-reported spend divided by Meta-attributed purchases."
         />
         <MetricCard
           label="ROAS"
           value={`${h.roas.toFixed(2)}x`}
-          secondary={
-            h.roas_status === "above-target"
-              ? `Above ${d.thresholds.roas_floor}x floor`
-              : `Below ${d.thresholds.roas_floor}x floor`
-          }
-          tooltip="Return on Ad Spend. Below 3.0x = losing money after COGS."
-          statusColor={roasColor(h.roas)}
+          secondary="Platform attributed"
+          tooltip="Meta-attributed revenue divided by Meta spend; not profitability proof."
         />
         <MetricCard
           label="Purchases"
@@ -196,7 +154,7 @@ export function DecisionMetricsViz({
             <p className="text-[11px] text-blue-400/80 mb-1">
               Prospecting (TOF) — {p.campaign_count} campaign{p.campaign_count !== 1 ? "s" : ""}
             </p>
-            <p className={`text-lg font-heading font-semibold tabular-nums ${cpaColor(p.cpa)}`}>
+            <p className="text-lg font-heading font-semibold tabular-nums">
               {p.purchases > 0 ? usd2.format(p.cpa) : "No purchases"}
             </p>
             <p className="text-[11px] text-muted-foreground tabular-nums">
@@ -207,7 +165,7 @@ export function DecisionMetricsViz({
             <p className="text-[11px] text-purple-400/80 mb-1">
               Retargeting — {r.campaign_count} campaign{r.campaign_count !== 1 ? "s" : ""}
             </p>
-            <p className={`text-lg font-heading font-semibold tabular-nums ${cpaColor(r.cpa)}`}>
+            <p className="text-lg font-heading font-semibold tabular-nums">
               {r.purchases > 0 ? usd2.format(r.cpa) : "No purchases"}
             </p>
             <p className="text-[11px] text-muted-foreground tabular-nums">
@@ -217,7 +175,7 @@ export function DecisionMetricsViz({
         </div>
         {p.purchases > 0 && r.purchases > 0 && r.cpa > p.cpa && (
           <p className="mt-2 text-xs text-amber-400">
-            Warning: Retargeting CPA ({usd2.format(r.cpa)}) is higher than prospecting CPA ({usd2.format(p.cpa)}). Retargeting should be cheaper since it targets warm audiences.
+            Retargeting CPA ({usd2.format(r.cpa)}) is higher than prospecting CPA ({usd2.format(p.cpa)}). Check audience mix and conversion tracking before acting.
           </p>
         )}
       </div>

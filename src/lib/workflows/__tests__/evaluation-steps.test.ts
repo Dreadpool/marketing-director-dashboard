@@ -1,45 +1,20 @@
 import { describe, it, expect } from "vitest";
 import {
   META_ADS_EVALUATION_STEPS,
-  SLE_THRESHOLDS,
+  DIAGNOSTIC_THRESHOLDS,
   resolveActiveSteps,
   getStepDef,
   getMainSpineSteps,
   getDiagnosticSteps,
 } from "@/lib/workflows/evaluations/meta-ads-monthly";
 
-describe("SLE Thresholds", () => {
-  it("CPA on-target threshold is $9", () => {
-    expect(SLE_THRESHOLDS.cpa_on_target).toBe(9);
-  });
-
-  it("CPA elevated threshold is $14", () => {
-    expect(SLE_THRESHOLDS.cpa_elevated).toBe(14);
-  });
-
-  it("ROAS floor is 3.0x", () => {
-    expect(SLE_THRESHOLDS.roas_floor).toBe(3.0);
-  });
-
-  it("over-attribution factor is 1.3x", () => {
-    expect(SLE_THRESHOLDS.over_attribution).toBe(1.3);
-  });
-
-  it("gross margin is 43%", () => {
-    expect(SLE_THRESHOLDS.gross_margin).toBe(0.43);
-  });
-
-  it("GP per order is $35.23", () => {
-    expect(SLE_THRESHOLDS.gp_per_order).toBe(35.23);
-  });
-
-  it("CPA target derives correctly from unit economics", () => {
-    // $35.23 GP / 3 (3:1 ratio) / 1.3 (over-attribution) = $9.03
-    const derivedCpa =
-      SLE_THRESHOLDS.gp_per_order /
-      3 /
-      SLE_THRESHOLDS.over_attribution;
-    expect(Math.round(derivedCpa)).toBe(SLE_THRESHOLDS.cpa_on_target);
+describe("Diagnostic thresholds", () => {
+  it("contains behavior diagnostics but no retired unit economics", () => {
+    expect(DIAGNOSTIC_THRESHOLDS.frequency_fatigue).toBe(3);
+    expect(DIAGNOSTIC_THRESHOLDS.cpm_mom_increase).toBe(0.3);
+    expect(DIAGNOSTIC_THRESHOLDS.ctr_mom_decrease).toBe(0.2);
+    expect(DIAGNOSTIC_THRESHOLDS).not.toHaveProperty("cpa_on_target");
+    expect(DIAGNOSTIC_THRESHOLDS).not.toHaveProperty("gp_per_order");
   });
 });
 
@@ -69,7 +44,7 @@ describe("Evaluation step definitions", () => {
     expect(step!.spineStep).toBe(6);
   });
 
-  it("diagnostic steps D1-D5 are conditional on CPA off-target", () => {
+  it("diagnostic steps D1-D5 remain available without a profit threshold", () => {
     const diagnosticIds = [
       "d1-frequency",
       "d2-cpm-trend",
@@ -80,7 +55,7 @@ describe("Evaluation step definitions", () => {
     for (const id of diagnosticIds) {
       const step = getStepDef(id);
       expect(step).toBeDefined();
-      expect(step!.condition.type).toBe("cpa-off-target");
+      expect(step!.condition.type).toBe("always");
       expect(step!.spineStep).toBeNull();
       expect(step!.parentStepId).toBe("step1-decision-metrics");
     }
@@ -108,16 +83,21 @@ describe("Evaluation step definitions", () => {
 });
 
 describe("resolveActiveSteps", () => {
-  it("healthy account gets Step 1 + Step 4 + Step 6 (skip diagnostics and remaining placeholders)", () => {
+  it("includes diagnostics regardless of retired CPA status", () => {
     const steps = resolveActiveSteps(false);
     expect(steps).toEqual([
       "step1-decision-metrics",
+      "d1-frequency",
+      "d2-cpm-trend",
+      "d3-ctr-trend",
+      "d4-conversion-rate",
+      "d5-pattern-match",
       "step4-creative-health",
       "step6-action-summary",
     ]);
   });
 
-  it("unhealthy CPA gets Step 1 + D1-D5 + Step 4 + Step 6", () => {
+  it("ignores the legacy CPA branch input", () => {
     const steps = resolveActiveSteps(true);
     expect(steps).toEqual([
       "step1-decision-metrics",

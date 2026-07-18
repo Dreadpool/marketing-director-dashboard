@@ -152,7 +152,6 @@ export function normalizeMonthlyAnalytics(
         value: marketing.cac,
         totalSpend: marketing.ad_spend,
         newCustomers: customers.new_customers,
-        paybackRatio: marketing.cac_to_value_ratio,
         provenance: [monthlyProvenance, bqProvenance],
         comparison: momComparison?.cac,
       },

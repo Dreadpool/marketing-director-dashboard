@@ -7,8 +7,6 @@ import type {
 } from "@/lib/schemas/sources/google-ads-metrics";
 import {
   classifySegment,
-  getCpaStatus,
-  getRoasStatus,
   GOOGLE_ADS_THRESHOLDS,
 } from "@/lib/workflows/executors/fetch-google-ads";
 
@@ -21,13 +19,13 @@ describe("Google Ads metrics types", () => {
   });
 
   it("CpaStatus matches SLE thresholds", () => {
-    const statuses: CpaStatus[] = ["on-target", "elevated", "high"];
-    expect(statuses).toHaveLength(3);
+    const statuses: CpaStatus[] = ["unbenchmarked"];
+    expect(statuses).toHaveLength(1);
   });
 
   it("RoasStatus includes watch tier", () => {
-    const statuses: RoasStatus[] = ["above-target", "watch", "below-target"];
-    expect(statuses).toHaveLength(3);
+    const statuses: RoasStatus[] = ["unbenchmarked"];
+    expect(statuses).toHaveLength(1);
   });
 
   it("GoogleAdsSegmentTrend has required fields", () => {
@@ -45,13 +43,10 @@ describe("Google Ads metrics types", () => {
 });
 
 describe("GOOGLE_ADS_THRESHOLDS", () => {
-  it("matches SLE unit economics", () => {
-    expect(GOOGLE_ADS_THRESHOLDS.cpa_on_target).toBe(9);
-    expect(GOOGLE_ADS_THRESHOLDS.cpa_elevated).toBe(14);
-    expect(GOOGLE_ADS_THRESHOLDS.roas_floor).toBe(3.0);
-    expect(GOOGLE_ADS_THRESHOLDS.gp_per_order).toBe(35.23);
-    expect(GOOGLE_ADS_THRESHOLDS.gross_margin).toBe(0.43);
-    expect(GOOGLE_ADS_THRESHOLDS.over_attribution).toBe(1.3);
+  it("contains measurement checks but no retired profit thresholds", () => {
+    expect(GOOGLE_ADS_THRESHOLDS.ground_truth_divergence).toBe(0.3);
+    expect(GOOGLE_ADS_THRESHOLDS).not.toHaveProperty("cpa_on_target");
+    expect(GOOGLE_ADS_THRESHOLDS).not.toHaveProperty("roas_floor");
   });
 });
 
@@ -83,40 +78,6 @@ describe("classifySegment", () => {
 
   it("falls back to other for unknown patterns", () => {
     expect(classifySegment("Unknown Campaign Name")).toBe("other");
-  });
-});
-
-describe("getCpaStatus", () => {
-  it("returns on-target for CPA <= $9", () => {
-    expect(getCpaStatus(5)).toBe("on-target");
-    expect(getCpaStatus(9)).toBe("on-target");
-  });
-
-  it("returns elevated for CPA $9-$14", () => {
-    expect(getCpaStatus(9.01)).toBe("elevated");
-    expect(getCpaStatus(14)).toBe("elevated");
-  });
-
-  it("returns high for CPA > $14", () => {
-    expect(getCpaStatus(14.01)).toBe("high");
-    expect(getCpaStatus(50)).toBe("high");
-  });
-});
-
-describe("getRoasStatus", () => {
-  it("returns above-target for ROAS >= 3.0x", () => {
-    expect(getRoasStatus(3.0)).toBe("above-target");
-    expect(getRoasStatus(5.0)).toBe("above-target");
-  });
-
-  it("returns watch for ROAS 2.0x-3.0x", () => {
-    expect(getRoasStatus(2.0)).toBe("watch");
-    expect(getRoasStatus(2.99)).toBe("watch");
-  });
-
-  it("returns below-target for ROAS < 2.0x", () => {
-    expect(getRoasStatus(1.99)).toBe("below-target");
-    expect(getRoasStatus(0)).toBe("below-target");
   });
 });
 
@@ -165,13 +126,14 @@ describe("Google Ads prompts", () => {
     expect(googleAdsPrompts.recommend).toBeDefined();
   });
 
-  it("analyze prompt contains SLE unit economics", () => {
+  it("analyze prompt rejects retired unit economics", () => {
     const p = googleAdsPrompts.analyze;
-    expect(p).toContain("$9");
-    expect(p).toContain("$14");
-    expect(p).toContain("$35.23");
-    expect(p).toContain("1.3x");
-    expect(p).toContain("3.0x");
+    expect(p).toContain("pending a rerun");
+    expect(p).not.toContain("$9");
+    expect(p).not.toContain("$14");
+    expect(p).not.toContain("$35.23");
+    expect(p).not.toContain("1.3x");
+    expect(p).not.toContain("3.0x");
   });
 
   it("analyze prompt references brand vs non-brand segmentation", () => {

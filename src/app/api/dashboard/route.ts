@@ -84,10 +84,6 @@ export async function GET() {
       value: customers.new > 0 ? totalAdSpend / customers.new : 0,
       totalSpend: totalAdSpend,
       newCustomers: customers.new,
-      paybackRatio:
-        customers.new > 0 && customers.newAvgRevenue > 0
-          ? customers.newAvgRevenue / (totalAdSpend / customers.new)
-          : 0,
       provenance: [bqProvenance, ...adSpendProvenance],
     };
 

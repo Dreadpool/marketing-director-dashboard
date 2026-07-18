@@ -2,8 +2,6 @@ import type { MonthPeriod } from "@/lib/schemas/types";
 import { getBigQueryClient } from "@/lib/services/bigquery-client";
 
 const DATASET = process.env.BIGQUERY_DATASET ?? "tds_sales";
-const GROSS_MARGIN = 0.43;
-
 function safeDivide(num: number, den: number, fallback = 0): number {
   return den > 0 ? num / den : fallback;
 }
@@ -28,9 +26,7 @@ export interface PromoCodeMetrics {
   campaignCost?: number;
   roi?: {
     revenueReturn: number;
-    grossProfitReturn: number;
-    costPerAcquisition: number;
-    netProfit: number;
+    spendPerFirstPurchaser: number;
   };
   similarCodes?: Array<{ code: string; orders: number }>;
   derivedPeriod?: { year: number; month: number };
@@ -50,6 +46,13 @@ export async function fetchPromoCode(
   // Query 1: All orders with this promo code
   const [ordersResult] = await bq.query({
     query: `
+      WITH rebook_originals AS (
+        SELECT DISTINCT CAST(CAST(previous_order AS FLOAT64) AS INT64) AS order_id
+        FROM \`${DATASET}.vw_sle_active_orders\`
+        WHERE previous_order IS NOT NULL
+          AND is_paid_in = FALSE
+          AND is_fee_only_cancellation = FALSE
+      )
       SELECT
         order_id,
         LOWER(TRIM(purchaser_email)) AS email,
@@ -59,9 +62,10 @@ export async function fetchPromoCode(
         COALESCE(trip_origin_stop, '') AS dep_city,
         COALESCE(trip_destination_stop, '') AS arr_city,
         selling_agent
-      FROM \`${DATASET}.sales_orders\`
-      WHERE selling_company = 'Salt Lake Express'
-        AND (activity_type IS NULL OR activity_type = 'Sale')
+      FROM \`${DATASET}.vw_sle_active_orders\`
+      WHERE is_paid_in = FALSE
+        AND is_fee_only_cancellation = FALSE
+        AND order_id NOT IN (SELECT order_id FROM rebook_originals)
         AND UPPER(TRIM(promotion_code)) = @promoCode
       ORDER BY purchase_date
     `,
@@ -85,11 +89,19 @@ export async function fetchPromoCode(
     try {
       const [similarResult] = await bq.query({
         query: `
-          SELECT UPPER(TRIM(promotion_code)) AS code, COUNT(*) AS orders
-          FROM \`${DATASET}.sales_orders\`
-          WHERE selling_company = 'Salt Lake Express'
+          WITH rebook_originals AS (
+            SELECT DISTINCT CAST(CAST(previous_order AS FLOAT64) AS INT64) AS order_id
+            FROM \`${DATASET}.vw_sle_active_orders\`
+            WHERE previous_order IS NOT NULL
+              AND is_paid_in = FALSE
+              AND is_fee_only_cancellation = FALSE
+          )
+          SELECT UPPER(TRIM(promotion_code)) AS code, COUNT(DISTINCT order_id) AS orders
+          FROM \`${DATASET}.vw_sle_active_orders\`
+          WHERE is_paid_in = FALSE
+            AND is_fee_only_cancellation = FALSE
+            AND order_id NOT IN (SELECT order_id FROM rebook_originals)
             AND promotion_code IS NOT NULL AND TRIM(promotion_code) != ''
-            AND (activity_type IS NULL OR activity_type = 'Sale')
           GROUP BY 1
           ORDER BY orders DESC
           LIMIT 50
@@ -141,16 +153,15 @@ export async function fetchPromoCode(
   // Unique emails for customer queries
   const emails = [...new Set(orders.map((o) => o.email).filter(Boolean))];
 
-  // Query 2: Each customer's first-ever purchase date (from sales_orders directly)
+  // Query 2: Canonical first observed real booking per purchasing email.
   const firstPurchasePromise = emails.length > 0
     ? bq.query({
         query: `
-          SELECT LOWER(TRIM(purchaser_email)) AS email, MIN(DATE(purchase_date)) AS first_date
-          FROM \`${DATASET}.sales_orders\`
-          WHERE selling_company = 'Salt Lake Express'
-            AND (activity_type IS NULL OR activity_type = 'Sale')
-            AND LOWER(TRIM(purchaser_email)) IN UNNEST(@emails)
-          GROUP BY 1
+          SELECT
+            customer_account_holder_email AS email,
+            first_order_date AS first_date
+          FROM \`${DATASET}.customer_first_order\`
+          WHERE customer_account_holder_email IN UNNEST(@emails)
         `,
         params: { emails },
       })
@@ -159,10 +170,18 @@ export async function fetchPromoCode(
   // Query 3: Baseline AOV (same date range, no promo code)
   const baselinePromise = bq.query({
     query: `
+      WITH rebook_originals AS (
+        SELECT DISTINCT CAST(CAST(previous_order AS FLOAT64) AS INT64) AS order_id
+        FROM \`${DATASET}.vw_sle_active_orders\`
+        WHERE previous_order IS NOT NULL
+          AND is_paid_in = FALSE
+          AND is_fee_only_cancellation = FALSE
+      )
       SELECT AVG(COALESCE(total_sale, 0)) AS avg_sale
-      FROM \`${DATASET}.sales_orders\`
-      WHERE selling_company = 'Salt Lake Express'
-        AND (activity_type IS NULL OR activity_type = 'Sale')
+      FROM \`${DATASET}.vw_sle_active_orders\`
+      WHERE is_paid_in = FALSE
+        AND is_fee_only_cancellation = FALSE
+        AND order_id NOT IN (SELECT order_id FROM rebook_originals)
         AND DATE(purchase_date) BETWEEN @start_date AND @end_date
         AND (promotion_code IS NULL OR TRIM(promotion_code) = '')
         AND COALESCE(total_sale, 0) > 0
@@ -269,15 +288,12 @@ export async function fetchPromoCode(
     (o) => o.selling_agent && o.selling_agent.trim() !== "",
   ).length;
 
-  // ROI (only if campaignCost provided)
+  // Descriptive cost context only; this does not establish incrementality or profit.
   let roi: PromoCodeMetrics["roi"] | undefined;
   if (campaignCost && campaignCost > 0) {
-    const grossProfit = grossRevenue * GROSS_MARGIN;
     roi = {
       revenueReturn: safeDivide(grossRevenue, campaignCost),
-      grossProfitReturn: safeDivide(grossProfit, campaignCost),
-      costPerAcquisition: safeDivide(campaignCost, newCustomers),
-      netProfit: grossProfit - campaignCost,
+      spendPerFirstPurchaser: safeDivide(campaignCost, newCustomers),
     };
   }
 

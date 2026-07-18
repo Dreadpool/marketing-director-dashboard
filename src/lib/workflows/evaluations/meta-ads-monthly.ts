@@ -1,18 +1,9 @@
 import type { EvaluationStepDef } from "./types";
 
-export const SLE_THRESHOLDS = {
-  cpa_on_target: 9,
-  cpa_elevated: 14,
-  roas_floor: 3.0,
+export const DIAGNOSTIC_THRESHOLDS = {
   frequency_fatigue: 3.0,
   cpm_mom_increase: 0.3,
   ctr_mom_decrease: 0.2,
-  blended_cac_ceiling: 22,
-  over_attribution: 1.3,
-  gp_per_order: 35.23,
-  gross_margin: 0.43,
-  learning_budget_per_adset: 6000,
-  monthly_budget: 6900,
 } as const;
 
 export const META_ADS_EVALUATION_STEPS: EvaluationStepDef[] = [
@@ -20,18 +11,10 @@ export const META_ADS_EVALUATION_STEPS: EvaluationStepDef[] = [
     id: "step1-decision-metrics",
     label: "Decision Metrics",
     description:
-      "Check CPA, ROAS, and purchase volume against SLE thresholds. Determines whether to enter the CPA diagnostic sub-flow.",
+      "Review platform-reported CPA, ROAS, and purchase volume without treating them as profitability proof.",
     spineStep: 1,
     order: 0,
     condition: { type: "always" },
-    thresholds: {
-      cpa_on_target: `<$${SLE_THRESHOLDS.cpa_on_target} (3:1+ GP ratio after 1.3x over-attribution)`,
-      cpa_elevated: `$${SLE_THRESHOLDS.cpa_on_target}-$${SLE_THRESHOLDS.cpa_elevated} (2:1 to 3:1 GP ratio)`,
-      cpa_high: `>$${SLE_THRESHOLDS.cpa_elevated} (below 2:1, losing money)`,
-      roas_floor: `${SLE_THRESHOLDS.roas_floor}x (GP breakeven after COGS + over-attribution)`,
-      retargeting_vs_prospecting:
-        "Retargeting CPA should be lower than prospecting CPA",
-    },
   },
   {
     id: "d1-frequency",
@@ -41,9 +24,9 @@ export const META_ADS_EVALUATION_STEPS: EvaluationStepDef[] = [
     spineStep: null,
     parentStepId: "step1-decision-metrics",
     order: 1,
-    condition: { type: "cpa-off-target" },
+    condition: { type: "always" },
     thresholds: {
-      frequency_7day: `>${SLE_THRESHOLDS.frequency_fatigue} in 7 days = elevated (risk factor, not verdict)`,
+      frequency_7day: `>${DIAGNOSTIC_THRESHOLDS.frequency_fatigue} in 7 days = elevated (risk factor, not verdict)`,
       compound_required:
         "Frequency alone is not a problem. Actionable only when combined with CTR decline (D3) or CPM increase (D2).",
       context:
@@ -58,9 +41,9 @@ export const META_ADS_EVALUATION_STEPS: EvaluationStepDef[] = [
     spineStep: null,
     parentStepId: "step1-decision-metrics",
     order: 2,
-    condition: { type: "cpa-off-target" },
+    condition: { type: "always" },
     thresholds: {
-      cpm_mom_increase: `>${SLE_THRESHOLDS.cpm_mom_increase * 100}% MoM increase`,
+      cpm_mom_increase: `>${DIAGNOSTIC_THRESHOLDS.cpm_mom_increase * 100}% MoM increase`,
       diagnosis:
         "Auction getting more expensive. Audience saturated or seasonal competition.",
     },
@@ -73,9 +56,9 @@ export const META_ADS_EVALUATION_STEPS: EvaluationStepDef[] = [
     spineStep: null,
     parentStepId: "step1-decision-metrics",
     order: 3,
-    condition: { type: "cpa-off-target" },
+    condition: { type: "always" },
     thresholds: {
-      ctr_mom_decrease: `>${SLE_THRESHOLDS.ctr_mom_decrease * 100}% MoM decrease`,
+      ctr_mom_decrease: `>${DIAGNOSTIC_THRESHOLDS.ctr_mom_decrease * 100}% MoM decrease`,
       diagnosis:
         "People ignoring the creative. Ad not grabbing attention or not relevant to audience.",
     },
@@ -88,7 +71,7 @@ export const META_ADS_EVALUATION_STEPS: EvaluationStepDef[] = [
     spineStep: null,
     parentStepId: "step1-decision-metrics",
     order: 4,
-    condition: { type: "cpa-off-target" },
+    condition: { type: "always" },
     thresholds: {
       pattern:
         "Clicks stable or up + purchases down = not an ads problem (landing page, booking flow, pricing, or offer)",
@@ -102,7 +85,7 @@ export const META_ADS_EVALUATION_STEPS: EvaluationStepDef[] = [
     spineStep: null,
     parentStepId: "step1-decision-metrics",
     order: 5,
-    condition: { type: "cpa-off-target" },
+    condition: { type: "always" },
     thresholds: {
       creative_fatigue: "freq↑ + CTR↓ + CPA↑",
       audience_saturation: "CPM↑ + freq stable + CPA↑",
@@ -116,7 +99,7 @@ export const META_ADS_EVALUATION_STEPS: EvaluationStepDef[] = [
     id: "step2-backend-verification",
     label: "Backend Verification",
     description:
-      "Cross-reference Meta-reported purchases with actual SLE bookings, blended CAC, and MER.",
+      "Cross-reference Meta-reported purchases with actual SLE bookings and marketing spend.",
     spineStep: 2,
     order: 6,
     condition: { type: "phase2-placeholder" },
@@ -134,15 +117,13 @@ export const META_ADS_EVALUATION_STEPS: EvaluationStepDef[] = [
     id: "step4-creative-health",
     label: "Creative Health",
     description:
-      "Classify every ad and ad set by health status. Review kill and underperforming ads by name. Determine which need creative refresh vs which should be paused.",
+      "Review each ad and ad set for engagement failures, relative underperformance, and degrading trends. Do not infer profitability or prescribe spend changes from fixed thresholds.",
     spineStep: 4,
     order: 8,
     condition: { type: "always" },
     thresholds: {
-      kill_trigger: "Ads with spend >= $27 and zero purchases, or CTR < 0.5%, or video hook rate < 15%",
-      underperforming: "Ads with purchases > 0 and CPA > $14 (losing money after over-attribution)",
-      learning_pct_warning: "If >50% of spend is in learning ads, portfolio is understeered",
-      healthy_target: "70%+ of spend should be in healthy ads for a stable account",
+      engagement_warning: "CTR below 0.5% after 1,000 impressions, or video hook rate below 15%",
+      relative_efficiency: "Compare an ad's CPA with its campaign average; do not infer profitability",
     },
   },
   {
@@ -166,11 +147,11 @@ export const META_ADS_EVALUATION_STEPS: EvaluationStepDef[] = [
 ];
 
 export function resolveActiveSteps(
-  cpaIsOffTarget: boolean,
+  _legacyCpaIsOffTarget: boolean,
 ): string[] {
   return META_ADS_EVALUATION_STEPS.filter((step) => {
     if (step.condition.type === "always") return true;
-    if (step.condition.type === "cpa-off-target") return cpaIsOffTarget;
+    if (step.condition.type === "cpa-off-target") return _legacyCpaIsOffTarget;
     if (step.condition.type === "phase2-placeholder") return false;
     return false;
   }).map((s) => s.id);
@@ -188,6 +169,6 @@ export function getMainSpineSteps(): EvaluationStepDef[] {
 
 export function getDiagnosticSteps(): EvaluationStepDef[] {
   return META_ADS_EVALUATION_STEPS.filter(
-    (s) => s.spineStep === null && s.condition.type === "cpa-off-target",
+    (s) => s.spineStep === null,
   );
 }

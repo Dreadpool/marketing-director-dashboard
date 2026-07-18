@@ -217,12 +217,10 @@ export async function fetchMetaAds(
   const accountCtr = safeDivide(totalClicks, totalImpressions) * 100;
   const accountFreq = safeDivide(totalImpressions, totalReach);
 
-  // CPA thresholds based on $35.23 GP/order, 43% margin, 1.3x over-attribution
   const cpaStatus: MetaAdsMetrics["account_health"]["cpa_status"] =
-    accountCpa < 9 ? "on-target" : accountCpa < 14 ? "elevated" : "high";
-  // ROAS floor: 3.0x = GP breakeven after COGS + 1.3x over-attribution
+    "unbenchmarked";
   const roasStatus: MetaAdsMetrics["account_health"]["roas_status"] =
-    accountRoas >= 3.0 ? "above-target" : "below-target";
+    "unbenchmarked";
 
   // 5. Map campaign rows
   function mapCampaignRow(row: MetaAdsInsightRow): MetaAdsCampaignRow {
