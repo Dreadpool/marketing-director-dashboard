@@ -1,8 +1,1 @@
-{
-  "crons": [
-    {
-      "path": "/api/cron/poll-meta-outcomes",
-      "schedule": "0 15 * * *"
-    }
-  ]
-}
+{}
