@@ -5,7 +5,7 @@ import type { GoogleAdsCampaignRow } from "@/lib/schemas/sources/google-ads";
 const DEVELOPER_TOKEN = process.env.GOOGLE_ADS_DEVELOPER_TOKEN ?? "";
 const LOGIN_CUSTOMER_ID = process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID ?? "4381990003";
 const CUSTOMER_ID = process.env.GOOGLE_ADS_CUSTOMER_ID ?? "7716669181";
-const API_VERSION = "v20";
+const API_VERSION = "v24";
 
 export type ConnectionStatus = {
   ok: boolean;
@@ -24,38 +24,52 @@ async function getAccessToken(): Promise<string> {
   return token;
 }
 
-/** Execute a GAQL query via the Google Ads REST API (v20) */
-async function gaqlQuery(query: string): Promise<Record<string, unknown>[]> {
+/** Execute a GAQL query via the Google Ads REST API. */
+export async function gaqlQuery(
+  query: string,
+): Promise<Record<string, unknown>[]> {
   const token = await getAccessToken();
-
-  const resp = await fetch(
-    `https://googleads.googleapis.com/${API_VERSION}/customers/${CUSTOMER_ID}/googleAds:search`,
-    {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "developer-token": DEVELOPER_TOKEN,
-        "login-customer-id": LOGIN_CUSTOMER_ID,
-        "Content-Type": "application/json",
+  const rows: Record<string, unknown>[] = [];
+  const seenTokens = new Set<string>();
+  let pageToken: string | undefined;
+  do {
+    const resp = await fetch(
+      `https://googleads.googleapis.com/${API_VERSION}/customers/${CUSTOMER_ID}/googleAds:search`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "developer-token": DEVELOPER_TOKEN,
+          "login-customer-id": LOGIN_CUSTOMER_ID,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ query, ...(pageToken ? { pageToken } : {}) }),
+        signal: AbortSignal.timeout(60_000),
       },
-      body: JSON.stringify({ query }),
-    },
-  );
+    );
 
-  if (!resp.ok) {
-    const body = await resp.text();
-    let message = `Google Ads API ${resp.status}`;
-    try {
-      const err = JSON.parse(body);
-      message = err.error?.message ?? message;
-    } catch {
-      message = body.substring(0, 200);
+    if (!resp.ok) {
+      const body = await resp.text();
+      let message = `Google Ads API ${resp.status}`;
+      try {
+        const err = JSON.parse(body);
+        message = err.error?.message ?? message;
+      } catch {
+        message = body.substring(0, 200);
+      }
+      throw new Error(message);
     }
-    throw new Error(message);
-  }
 
-  const data = await resp.json();
-  return (data.results as Record<string, unknown>[]) ?? [];
+    const data = await resp.json();
+    if (data.results !== undefined && !Array.isArray(data.results))
+      throw new Error("Invalid Google Ads results");
+    rows.push(...(data.results ?? []));
+    pageToken = data.nextPageToken || undefined;
+    if (pageToken && seenTokens.has(pageToken))
+      throw new Error("Google Ads repeated a results page");
+    if (pageToken) seenTokens.add(pageToken);
+  } while (pageToken);
+  return rows;
 }
 
 /** Health check: simple query with LIMIT 1 */
