@@ -42,3 +42,6 @@ next-env.d.ts
 .superpowers/
 .worktrees/
 $HOME/
+
+# Project-owned private automation state, run evidence, and logs
+/automations/hiring-ads-weekly-snapshot/runtime/
