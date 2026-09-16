@@ -2,7 +2,6 @@ import { GoogleAuth } from "google-auth-library";
 import type { MonthPeriod } from "@/lib/schemas/types";
 import type { GoogleAdsCampaignRow } from "@/lib/schemas/sources/google-ads";
 
-const DEVELOPER_TOKEN = process.env.GOOGLE_ADS_DEVELOPER_TOKEN ?? "";
 const LOGIN_CUSTOMER_ID = process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID ?? "4381990003";
 const CUSTOMER_ID = process.env.GOOGLE_ADS_CUSTOMER_ID ?? "7716669181";
 const API_VERSION = "v24";
@@ -14,7 +13,9 @@ export type ConnectionStatus = {
 };
 
 async function getAccessToken(): Promise<string> {
+  const credentialsJson = process.env.GOOGLE_CREDENTIALS_JSON;
   const auth = new GoogleAuth({
+    ...(credentialsJson ? { credentials: JSON.parse(credentialsJson) } : {}),
     scopes: ["https://www.googleapis.com/auth/adwords"],
   });
   const client = await auth.getClient();
@@ -39,7 +40,6 @@ export async function gaqlQuery(
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
-          "developer-token": DEVELOPER_TOKEN,
           "login-customer-id": LOGIN_CUSTOMER_ID,
           "Content-Type": "application/json",
         },

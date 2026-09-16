@@ -35,7 +35,6 @@ Built first for Salt Lake Express (SLE) marketing operations. Designed to suppor
 - `BIGQUERY_DATASET` -- BigQuery dataset (default: `tds_sales`)
 - `META_ACCESS_TOKEN` -- Meta Ads system user token (never expires, `ads_read` scope)
 - `META_AD_ACCOUNT_ID` -- Meta Ad Account ID (default: `act_1599255740369627`)
-- `GOOGLE_ADS_DEVELOPER_TOKEN` -- Google Ads API developer token
 - `GOOGLE_ADS_LOGIN_CUSTOMER_ID` -- Google Ads manager account ID (default: `4381990003`)
 - `GOOGLE_ADS_CUSTOMER_ID` -- Google Ads client account ID (default: `7716669181`)
 - `POSTGRES_URL` -- Neon Postgres connection string
