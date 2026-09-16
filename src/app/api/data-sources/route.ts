@@ -9,8 +9,8 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const hasMetaCreds = !!process.env.META_ACCESS_TOKEN;
   const hasGoogleAdsCreds =
-    !!process.env.GOOGLE_ADS_DEVELOPER_TOKEN &&
-    !!process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    !!process.env.GOOGLE_APPLICATION_CREDENTIALS ||
+    !!process.env.GOOGLE_CREDENTIALS_JSON;
   const hasBqCreds =
     !!process.env.GOOGLE_APPLICATION_CREDENTIALS ||
     !!process.env.GOOGLE_CREDENTIALS_JSON;
