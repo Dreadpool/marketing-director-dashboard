@@ -52,6 +52,8 @@ Built first for Salt Lake Express (SLE) marketing operations. Designed to suppor
 ## Roadmap
 
 ### Completed
+
+- [x] 2026-11-02: Home opens Workflows. Removed the duplicate calendar UI and route-performance homepage. The header links to Jacob’s dashboard; Google Calendar owns the responsibility schedule.
 - [x] Shared metric schema (types, transformers, normalized interfaces)
 - [x] BigQuery data service + dashboard KPI wiring
 - [x] Data source status page (`/settings/data-sources`)
@@ -156,11 +158,10 @@ Built first for Salt Lake Express (SLE) marketing operations. Designed to suppor
 
 ## Routes
 
-- `/` -- Dashboard (KPI cards from BigQuery + Meta + Google)
+- `/` -- Opens Workflows; the header links to Jacob’s route-performance dashboard.
 - `/workflows` -- Workflow list with cadence badges and due status
 - `/workflows/[slug]` -- Workflow detail (run, view results, edit prompts)
 - `/action-items` -- Centralized action items across all workflows
-- `/calendar` -- Calendar view of upcoming/due workflows
 - `/settings/data-sources` -- Data source connection status
 - API: `/api/dashboard`, `/api/data-sources`, `/api/workflows/[slug]/run`, `/api/workflows/[slug]/runs`, `/api/workflows/[slug]/runs/[runId]`, `/api/workflows/[slug]/steps/[stepId]/prompt`, `/api/workflows/calendar`, `/api/action-items`
 

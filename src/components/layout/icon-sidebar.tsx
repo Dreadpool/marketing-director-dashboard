@@ -6,7 +6,6 @@ import {
   LayoutDashboard,
   GitBranch,
   CheckSquare,
-  CalendarDays,
   Settings,
   Sparkles,
   MessageSquare,
@@ -37,7 +36,6 @@ export function IconSidebar({ onToggleChat, isChatOpen }: IconSidebarProps) {
     { icon: LayoutDashboard, label: "Dashboard", href: "/" },
     { icon: GitBranch, label: "Workflows", href: "/workflows" },
     { icon: CheckSquare, label: "Action Items", href: "/action-items" },
-    { icon: CalendarDays, label: "Calendar", href: "/calendar" },
   ];
 
   const bottomItems: SidebarItem[] = [

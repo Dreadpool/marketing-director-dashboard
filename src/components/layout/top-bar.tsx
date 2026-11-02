@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { ArrowUpRight, ChevronRight } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { getWorkflowBySlug } from "@/lib/workflows";
 
@@ -63,11 +63,22 @@ export function TopBar() {
         })}
       </nav>
 
-      <Avatar className="h-7 w-7">
-        <AvatarFallback className="bg-gold/15 text-xs font-medium text-gold">
-          BP
-        </AvatarFallback>
-      </Avatar>
+      <div className="flex items-center gap-4">
+        <a
+          href="https://mmc-ridership-summaries.vercel.app/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-sm font-medium text-gold hover:underline"
+        >
+          Jacob’s dashboard
+          <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+        </a>
+        <Avatar className="h-7 w-7">
+          <AvatarFallback className="bg-gold/15 text-xs font-medium text-gold">
+            BP
+          </AvatarFallback>
+        </Avatar>
+      </div>
     </div>
   );
 }
