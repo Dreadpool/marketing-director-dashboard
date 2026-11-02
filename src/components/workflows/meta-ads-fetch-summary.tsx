@@ -205,9 +205,7 @@ function HeadlineKPIs({ health }: { health: MetaAdsMetrics["account_health"] }) 
   return (
     <div className="space-y-3">
       <p className="text-[11px] text-muted-foreground/60">
-        CPA, ROAS, purchases, and revenue are reported by Meta. SLE&apos;s
-        profitability benchmark is pending a route-economics rerun, so these
-        numbers are diagnostic rather than profit verdicts.
+        Percent changes compare the selected month with the previous month.
       </p>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
       <MetricCard
