@@ -2,9 +2,7 @@
 
 ## Product Vision
 
-A workflow orchestration dashboard that surfaces the right marketing tasks at the right time, pre-loaded with the right data and AI context. Not a BI tool. The product knows what analysis needs to happen when, pulls data automatically, and provides Claude-powered AI pre-loaded with workflow-specific frameworks.
-
-Built first for Salt Lake Express (SLE) marketing operations. Designed to support other organizations as a SaaS product in the future.
+Marketing data retrieval and review workspace for Salt Lake Express. Select a period to open saved data; use Load/Update data to retrieve from source. No hosted AI API calls. Analysis is done by Brady and his own tools.
 
 ## Tech Stack
 
@@ -12,7 +10,7 @@ Built first for Salt Lake Express (SLE) marketing operations. Designed to suppor
 - **Backend**: Next.js API Routes + Server Actions (no separate backend)
 - **Database**: Neon Postgres via Drizzle ORM (app state only)
 - **Data Source of Truth**: BigQuery (sales, customers, revenue)
-- **AI**: Grok 4.1 Fast Reasoning via xAI API (workflow analysis steps)
+- **AI**: None. Do not add model API clients or keys.
 - **Charts**: Recharts
 - **Animations**: Framer Motion
 - **Fonts**: Space Grotesk (headings), IBM Plex Sans (body)
@@ -38,8 +36,6 @@ Built first for Salt Lake Express (SLE) marketing operations. Designed to suppor
 - `GOOGLE_ADS_LOGIN_CUSTOMER_ID` -- Google Ads manager account ID (default: `4381990003`)
 - `GOOGLE_ADS_CUSTOMER_ID` -- Google Ads client account ID (default: `7716669181`)
 - `POSTGRES_URL` -- Neon Postgres connection string
-- `XAI_API_KEY` -- xAI API key (Grok 4.1 Fast Reasoning for workflow steps)
-- `ANTHROPIC_API_KEY` -- Anthropic API key (Claude Sonnet 4.6 powers the customer-facing AI interviewer at `/interview/[token]`)
 - `HUBSPOT_SMTP_USER` -- HubSpot SMTP API username for transactional email (interview invites, thank-yous, CSR notifications). Generated from Marketing → Email → Transactional → SMTP API.
 - `HUBSPOT_SMTP_PASSWORD` -- HubSpot SMTP API password (shown only once at token creation)
 - `HUBSPOT_SMTP_HOST` -- SMTP host (default `smtp.hubapi.com`; use `smtp-eu1.hubapi.com` for EU)
@@ -52,6 +48,8 @@ Built first for Salt Lake Express (SLE) marketing operations. Designed to suppor
 ## Roadmap
 
 ### Completed
+
+- [x] 2026-11-02: Data-only workflows. Saved month results open automatically; explicit updates retrieve from source. Removed model report/evaluation calls, AI interviews/drafting, creative sniff check, chat panel, SDK and app AI credentials. Existing data preserved. New interview invitations closed.
 
 - [x] 2026-11-02: Home opens Workflows. Removed the duplicate calendar UI and route-performance homepage. The header links to Jacob’s dashboard; Google Calendar owns the responsibility schedule.
 - [x] Shared metric schema (types, transformers, normalized interfaces)
@@ -160,10 +158,10 @@ Built first for Salt Lake Express (SLE) marketing operations. Designed to suppor
 
 - `/` -- Opens Workflows; the header links to Jacob’s route-performance dashboard.
 - `/workflows` -- Workflow list with cadence badges and due status
-- `/workflows/[slug]` -- Workflow detail (run, view results, edit prompts)
+- `/workflows/[slug]` -- Workflow detail (retrieve data and view saved results)
 - `/action-items` -- Centralized action items across all workflows
 - `/settings/data-sources` -- Data source connection status
-- API: `/api/dashboard`, `/api/data-sources`, `/api/workflows/[slug]/run`, `/api/workflows/[slug]/runs`, `/api/workflows/[slug]/runs/[runId]`, `/api/workflows/[slug]/steps/[stepId]/prompt`, `/api/workflows/calendar`, `/api/action-items`
+- API: `/api/dashboard`, `/api/data-sources`, `/api/workflows/[slug]/run`, `/api/workflows/[slug]/runs`, `/api/workflows/[slug]/runs/[runId]`, `/api/workflows/calendar`, `/api/action-items`
 
 ## Conventions
 
@@ -189,18 +187,10 @@ Built first for Salt Lake Express (SLE) marketing operations. Designed to suppor
 - ISR caching (4hr) for read-heavy routes, `force-dynamic` for writes/long-running
 
 ### Workflow Engine
-- 3 step types: `fetch` → `analyze` → `recommend`
-- Fetch calls data services via `Promise.allSettled` (BigQuery required, platforms optional)
-- AI steps call Grok 4.1 Fast Reasoning (xAI) with editable framework prompts (stored in Postgres, fallback in `src/lib/workflows/prompts/`)
-- Each step's output chains into next via `previousStepOutputs`
-- Step failures don't abort the run (partial results allowed)
-- Action items parsed from recommend step: `ACTION:`, `PRIORITY:`, `CATEGORY:` markers
-
-### Adding a New Workflow
-1. Add definition to `src/lib/workflows.ts` (slug, title, steps, cadence)
-2. Create executor in `src/lib/workflows/executors/` implementing `FetchExecutor`
-3. Create default prompts in `src/lib/workflows/prompts/`
-4. Register executor in `executors/index.ts`
+- Reporting workflows execute fetch steps only, always retrieving from sources on explicit runs.
+- Saved runs open without triggering an API retrieval. Retrieval timestamps live on output data, never inferred from cached run completion time.
+- No hosted model API calls or keys. Interview collection is closed; saved campaigns remain readable.
+- To add a data workflow: define it in `src/lib/workflows.ts`, add a fetch executor, and register it in `executors/index.ts`.
 
 ## Data Sources
 

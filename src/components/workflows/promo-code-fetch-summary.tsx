@@ -129,9 +129,6 @@ export function PromoCodeFetchSummary({ data }: { data: PromoCodeMetrics }) {
             No orders found for promo code{" "}
             <span className="font-mono font-semibold text-foreground">{promoCode}</span>.
           </p>
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            The AI analysis below will suggest similar codes if any exist.
-          </p>
         </div>
       )}
 

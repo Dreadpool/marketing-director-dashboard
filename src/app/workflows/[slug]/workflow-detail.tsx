@@ -1,21 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Play, Loader2, BookOpen, ClipboardCheck, Info } from "lucide-react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { RefreshCw, Loader2, BookOpen } from "lucide-react";
 import { PeriodSelector } from "@/components/workflows/period-selector";
-import { StepProgress } from "@/components/workflows/step-progress";
 import { StepResult } from "@/components/workflows/step-result";
-import { ActionItems } from "@/components/workflows/action-items";
 import { RunHistory } from "@/components/workflows/run-history";
 import { formatCadence, getCurrentDuePeriod } from "@/lib/workflows/cadence";
 import type { Workflow } from "@/lib/workflows";
-import { EvaluationWizard } from "@/components/workflows/evaluation-wizard";
+import { latestPeriodRun, getDataRetrievedAt } from "@/lib/workflows/saved-data";
 
 interface StepRun {
   id: string;
@@ -69,59 +62,70 @@ export function WorkflowDetail({ workflow }: WorkflowDetailProps) {
   const now = new Date();
   const [year, setYear] = useState(duePeriod?.year ?? now.getFullYear());
   const [month, setMonth] = useState(duePeriod?.month ?? now.getMonth() + 1);
-  const [running, setRunning] = useState(false);
+  const [posting, setPosting] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [currentRun, setCurrentRun] = useState<RunDetail | null>(null);
   const [runs, setRuns] = useState<RunSummary[]>([]);
-  const [selectedRunId, setSelectedRunId] = useState<string | undefined>();
-  const [evaluationMode, setEvaluationMode] = useState(false);
+  const [runsLoaded, setRunsLoaded] = useState(false);
+  const [selectedRunId, setSelectedRunId] = useState<string>();
+  const [error, setError] = useState<string | null>(null);
   const [promoCode, setPromoCode] = useState("");
   const [campaignCost, setCampaignCost] = useState("");
-  const [forceRefresh, setForceRefresh] = useState(false);
+  const isPromo = workflow.slug === "promo-code-analysis";
+  const activeRunId = selectedRunId ?? (isPromo ? undefined : latestPeriodRun(runs, year, month)?.id);
+  const visibleRun = currentRun?.id === activeRunId ? currentRun : null;
+  const running = posting || (visibleRun?.status === "running" && !error);
+  const retrievedAt = getDataRetrievedAt(visibleRun?.steps?.find((s) => s.stepId === "fetch")?.outputData);
+  const monthName = new Date(year, month - 1).toLocaleString("en-US", { month: "long" });
 
   const loadRuns = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/workflows/${workflow.slug}/runs`);
-      const data = await res.json();
-      setRuns(data.runs ?? []);
-    } catch (err) {
-      console.error("Failed to load runs:", err);
-    }
+    const res = await fetch(`/api/workflows/${workflow.slug}/runs`);
+    if (!res.ok) throw new Error("Could not load saved data. Try again.");
+    const data = await res.json();
+    setRuns(data.runs ?? []);
+    setRunsLoaded(true);
   }, [workflow.slug]);
 
   useEffect(() => {
-    loadRuns();
+    loadRuns().catch((err) => { setError(err.message); setLoading(false); });
   }, [loadRuns]);
 
-  async function loadRunDetail(runId: string) {
-    try {
-      const res = await fetch(
-        `/api/workflows/${workflow.slug}/runs/${runId}`,
-      );
-      const data = await res.json();
-      setCurrentRun(data);
-      setSelectedRunId(runId);
-    } catch (err) {
-      console.error("Failed to load run detail:", err);
-    }
-  }
-
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Clean up polling on unmount
   useEffect(() => {
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, []);
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout>;
+    setCurrentRun(null);
+    setLoading(!!activeRunId || !runsLoaded);
+    if (!activeRunId) return () => controller.abort();
+
+    async function read() {
+      try {
+        const res = await fetch(`/api/workflows/${workflow.slug}/runs/${activeRunId}`, { signal: controller.signal });
+        if (!res.ok) throw new Error("Could not load this report. Try again.");
+        const detail: RunDetail = await res.json();
+        if (controller.signal.aborted) return;
+        setCurrentRun(detail);
+        setLoading(false);
+        if (detail.status === "running") {
+          timer = setTimeout(read, 2000);
+        } else {
+          await loadRuns();
+        }
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        setLoading(false);
+        setError(err instanceof Error ? err.message : "Could not load data.");
+      }
+    }
+    read();
+    return () => { controller.abort(); clearTimeout(timer); };
+  }, [activeRunId, runsLoaded, workflow.slug, loadRuns]);
 
   async function handleRun() {
-    setRunning(true);
-    setCurrentRun(null);
-
+    setPosting(true);
+    setError(null);
     try {
       const bodyPayload: Record<string, unknown> = { period: { year, month } };
-      if (forceRefresh) bodyPayload.forceRefresh = true;
-      if (workflow.slug === "promo-code-analysis" && promoCode.trim()) {
+      if (isPromo) {
         bodyPayload.params = {
           promoCode: promoCode.trim().toUpperCase(),
           ...(campaignCost ? { campaignCost: parseFloat(campaignCost) } : {}),
@@ -132,93 +136,16 @@ export function WorkflowDetail({ workflow }: WorkflowDetailProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(bodyPayload),
       });
-
       const data = await res.json();
-
-      if (!res.ok) {
-        console.error("Workflow execution failed:", data.error);
-        setRunning(false);
-        return;
-      }
-
-      // Start polling for progressive updates
-      const runId = data.id;
-      setSelectedRunId(runId);
-
-      // Load initial state immediately
-      await loadRunDetail(runId);
-
-      // Clear any existing polling interval before starting a new one
-      if (pollRef.current) clearInterval(pollRef.current);
-
-      pollRef.current = setInterval(async () => {
-        try {
-          const pollRes = await fetch(
-            `/api/workflows/${workflow.slug}/runs/${runId}`,
-          );
-          const detail = await pollRes.json();
-          setCurrentRun(detail);
-
-          if (detail.status === "completed" || detail.status === "failed") {
-            if (pollRef.current) clearInterval(pollRef.current);
-            pollRef.current = null;
-            setRunning(false);
-            await loadRuns();
-          }
-        } catch (err) {
-          console.error("Polling error:", err);
-        }
-      }, 2000);
+      if (!res.ok) throw new Error(data.error ?? "Could not retrieve data. Try again.");
+      setLoading(true);
+      setSelectedRunId(data.id);
     } catch (err) {
-      console.error("Failed to run workflow:", err);
-      setRunning(false);
+      setError(err instanceof Error ? err.message : "Could not retrieve data.");
+    } finally {
+      setPosting(false);
     }
   }
-
-  async function handleToggleAction(id: string, completed: boolean) {
-    try {
-      await fetch("/api/action-items", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, completed }),
-      });
-
-      if (currentRun) {
-        setCurrentRun({
-          ...currentRun,
-          actionItems: (currentRun.actionItems ?? []).map((item) =>
-            item.id === id ? { ...item, completed } : item,
-          ),
-        });
-      }
-    } catch (err) {
-      console.error("Failed to toggle action item:", err);
-    }
-  }
-
-  // Evaluation wizard mode (meta-ads-analysis only)
-  if (evaluationMode && currentRun) {
-    return (
-      <EvaluationWizard
-        parentRunId={currentRun.id}
-        slug={workflow.slug}
-        period={{ year, month }}
-        onBack={() => setEvaluationMode(false)}
-      />
-    );
-  }
-
-  // Build step statuses for the progress bar
-  const stepStatuses = workflow.steps.map((step) => {
-    const stepRun = currentRun?.steps?.find((s) => s.stepId === step.id);
-    return {
-      id: step.id,
-      label: step.label,
-      status: running
-        ? stepRun?.status ?? "pending"
-        : stepRun?.status ?? "pending",
-    };
-  });
 
   return (
     <div className="space-y-6">
@@ -299,15 +226,15 @@ export function WorkflowDetail({ workflow }: WorkflowDetailProps) {
               </div>
               <button
                 type="submit"
-                disabled={running || !promoCode.trim()}
+                disabled={running || loading || !promoCode.trim()}
                 className="inline-flex h-9 items-center gap-2 rounded-md bg-gold px-4 text-sm font-semibold text-background transition-colors hover:bg-gold/90 disabled:opacity-50"
               >
                 {running ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <Play className="h-4 w-4" />
+                  <RefreshCw className="h-4 w-4" />
                 )}
-                Run Analysis
+                {running ? "Retrieving data…" : "Load data"}
               </button>
             </div>
             <p className="mt-1.5 text-xs text-muted-foreground/60">
@@ -315,11 +242,13 @@ export function WorkflowDetail({ workflow }: WorkflowDetailProps) {
             </p>
           </form>
         ) : (
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-3">
             <PeriodSelector
               year={year}
               month={month}
               onChange={(y, m) => {
+                setSelectedRunId(undefined);
+                setError(null);
                 setYear(y);
                 setMonth(m);
               }}
@@ -327,92 +256,60 @@ export function WorkflowDetail({ workflow }: WorkflowDetailProps) {
             />
             <button
               onClick={handleRun}
-              disabled={running || workflow.status !== "active"}
+              disabled={running || loading || workflow.status !== "active"}
               className="flex items-center gap-2 rounded-md bg-gold px-4 py-2 text-sm font-medium text-gold-foreground transition-colors hover:bg-gold/90 disabled:opacity-50"
             >
               {running ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <Play className="h-4 w-4" />
+                <RefreshCw className="h-4 w-4" />
               )}
-              {running ? "Running..." : "Run Analysis"}
+              {running ? "Retrieving data…" : loading ? "Loading…" : visibleRun ? "Update data" : `Load ${monthName} data`}
             </button>
-            <label className="flex items-center gap-1.5 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={forceRefresh}
-                onChange={(e) => setForceRefresh(e.target.checked)}
-                disabled={running}
-                className="rounded border-border accent-gold"
-              />
-              <span className="text-xs text-muted-foreground">Fresh data</span>
-              <Tooltip>
-                <TooltipTrigger>
-                  <Info className="h-3 w-3 text-muted-foreground/50" />
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="max-w-[240px] text-xs">
-                  Bypass cached data and re-fetch from Meta API. Use after ad account changes or dashboard code updates.
-                </TooltipContent>
-              </Tooltip>
-            </label>
+
           </div>
         )}
       </div>
 
-      {/* Step Progress */}
-      {(running || currentRun) && <StepProgress steps={stepStatuses} />}
+      <div role="status" aria-live="polite" className="text-sm text-muted-foreground">
+        {loading ? "Loading saved data…" : running ? "Retrieving source data…" : retrievedAt ? (
+          <>Data retrieved <time dateTime={retrievedAt}>{new Date(retrievedAt).toLocaleString()}</time></>
+        ) : !visibleRun && !isPromo ? `No saved data for ${monthName} ${year}.` : null}
+      </div>
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
 
       {/* Step Results */}
-      {currentRun?.steps?.map((stepRun) => {
+      {visibleRun?.steps?.map((stepRun) => {
         const stepDef = workflow.steps.find((s) => s.id === stepRun.stepId);
         if (!stepDef) return null;
 
         return (
           <StepResult
             key={stepRun.id}
-            stepId={stepRun.stepId}
             label={stepDef.label}
             status={stepRun.status}
-            aiOutput={stepRun.aiOutput}
             outputData={stepRun.outputData}
             error={stepRun.error}
-            workflowSlug={workflow.slug}
-            stepType={stepDef.type}
           />
         );
       })}
 
-      {/* Walk Through Evaluation button (meta-ads-analysis only, after fetch completes) */}
-      {workflow.slug === "meta-ads-analysis" &&
-        currentRun &&
-        currentRun.steps?.some(
-          (s) => s.stepId === "fetch" && s.status === "completed",
-        ) && (
-          <button
-            onClick={() => setEvaluationMode(true)}
-            className="flex items-center gap-2 rounded-md border border-gold/20 bg-gold/5 px-4 py-2.5 text-sm font-medium text-gold transition-colors hover:bg-gold/10"
-          >
-            <ClipboardCheck className="h-4 w-4" />
-            Walk Through Evaluation
-          </button>
-        )}
-
-      {/* Action Items */}
-      {currentRun && currentRun.actionItems?.length > 0 && (
-        <div>
-          <h2 className="mb-3 text-sm font-medium">Action Items</h2>
-          <ActionItems
-            items={currentRun.actionItems}
-            onToggle={handleToggleAction}
-          />
-        </div>
-      )}
-
       {/* Run History */}
       <RunHistory
         runs={runs}
-        workflowSlug={workflow.slug}
-        onSelectRun={loadRunDetail}
+        onSelectRun={(runId) => {
+          if (running) return;
+          const run = runs.find((r) => r.id === runId);
+          if (!run) return;
+          setYear(run.periodYear);
+          setMonth(run.periodMonth);
+          setSelectedRunId(runId);
+          setError(null);
+          if (isPromo) {
+            setPromoCode(String(run.inputParams?.promoCode ?? ""));
+            setCampaignCost(String(run.inputParams?.campaignCost ?? ""));
+          }
+        }}
         onDeleteRun={async (runId) => {
           if (!window.confirm("Delete this run and its data?")) return;
           try {
@@ -423,7 +320,7 @@ export function WorkflowDetail({ workflow }: WorkflowDetailProps) {
               console.error("Failed to delete run:", await res.text());
               return;
             }
-            if (selectedRunId === runId) {
+            if (activeRunId === runId) {
               setCurrentRun(null);
               setSelectedRunId(undefined);
             }
@@ -432,7 +329,7 @@ export function WorkflowDetail({ workflow }: WorkflowDetailProps) {
             console.error("Failed to delete run:", err);
           }
         }}
-        selectedRunId={selectedRunId}
+        selectedRunId={activeRunId}
       />
     </div>
   );

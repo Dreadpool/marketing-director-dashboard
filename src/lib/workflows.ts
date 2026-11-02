@@ -66,18 +66,6 @@ export const workflows: Workflow[] = [
         type: "fetch",
         dataSources: ["google_sheets"],
       },
-      {
-        id: "analyze",
-        label: "Initial Analysis",
-        description: "Visibility scoring, tier distribution, rank changes",
-        type: "analyze",
-      },
-      {
-        id: "recommend",
-        label: "Recommendations",
-        description: "SEO priorities and content opportunities",
-        type: "recommend",
-      },
     ],
   },
   {
@@ -95,18 +83,6 @@ export const workflows: Workflow[] = [
         label: "Fetch Data",
         description: "Pull email campaign metrics",
         type: "fetch",
-      },
-      {
-        id: "analyze",
-        label: "Initial Analysis",
-        description: "Open rates, click rates, list growth, segmentation",
-        type: "analyze",
-      },
-      {
-        id: "recommend",
-        label: "Recommendations",
-        description: "Email optimization and audience targeting actions",
-        type: "recommend",
       },
     ],
   },
@@ -126,25 +102,13 @@ export const workflows: Workflow[] = [
         description: "Pull upcoming events and venue schedules",
         type: "fetch",
       },
-      {
-        id: "analyze",
-        label: "Initial Analysis",
-        description: "Event calendar review, past flyer performance",
-        type: "analyze",
-      },
-      {
-        id: "recommend",
-        label: "Recommendations",
-        description: "Flyer briefs and event promotion plan",
-        type: "recommend",
-      },
     ],
   },
   {
     slug: "meta-ads-analysis",
     title: "Meta Ads Analysis",
     description:
-      "Campaign performance diagnostics, creative fatigue detection, audience insights, and prioritized action items.",
+      "Campaign, ad set, creative, and audience performance.",
     icon: "megaphone",
     status: "active",
     cadence: { frequency: "monthly", dueRule: { type: "day-of-month", day: 10 } },
@@ -156,19 +120,6 @@ export const workflows: Workflow[] = [
         description: "Pull campaign data from Meta Ads API",
         type: "fetch",
         dataSources: ["meta_ads"],
-      },
-      {
-        id: "analyze",
-        label: "Initial Analysis",
-        description:
-          "Campaign performance, creative metrics, audience efficiency",
-        type: "analyze",
-      },
-      {
-        id: "recommend",
-        label: "Recommendations",
-        description: "Prioritized action items for Meta campaigns",
-        type: "recommend",
       },
     ],
   },
@@ -188,18 +139,6 @@ export const workflows: Workflow[] = [
         description: "Pull campaign data from Google Ads API + BigQuery",
         type: "fetch",
         dataSources: ["google_ads", "bigquery"],
-      },
-      {
-        id: "analyze",
-        label: "Initial Analysis",
-        description: "Spend summaries, search terms, geographic performance",
-        type: "analyze",
-      },
-      {
-        id: "recommend",
-        label: "Recommendations",
-        description: "Prioritized action items for Google campaigns",
-        type: "recommend",
       },
     ],
   },
@@ -221,20 +160,6 @@ export const workflows: Workflow[] = [
         type: "fetch",
         dataSources: ["bigquery", "quickbooks_gl"],
       },
-      {
-        id: "analyze",
-        label: "Initial Analysis",
-        description:
-          "Revenue breakdown, payment analysis, purchaser segmentation, promo codes, and spend per first observed purchaser",
-        type: "analyze",
-      },
-      {
-        id: "recommend",
-        label: "Recommendations",
-        description:
-          "Budget, pricing, retention, operations, and customer-care action items",
-        type: "recommend",
-      },
     ],
   },
   {
@@ -254,19 +179,13 @@ export const workflows: Workflow[] = [
         type: "fetch",
         dataSources: ["bigquery"],
       },
-      {
-        id: "analyze",
-        label: "AI Analysis",
-        description: "Campaign effectiveness assessment and ROI verdict",
-        type: "analyze",
-      },
     ],
   },
   {
     slug: "customer-interviews",
     title: "Customer Interviews",
     description:
-      "Run JTBD switch interviews against a customer segment. Plan with /plan-customer-interviews in Claude Code, dashboard handles delivery and AI-driven conversations, analyze with /analyze-customer-interviews when threshold hits.",
+      "Saved customer interview campaigns and responses. New interviews are closed.",
     icon: "megaphone",
     status: "active",
     cadence: { frequency: "on-demand", dueRule: { type: "on-demand" } },
@@ -281,7 +200,7 @@ export const workflows: Workflow[] = [
       {
         id: "collect",
         label: "Collect",
-        description: "Customers complete the AI-driven interview",
+        description: "Review saved responses",
         type: "view",
       },
       {

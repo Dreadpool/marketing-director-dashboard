@@ -8,7 +8,6 @@ import {
   CheckSquare,
   Settings,
   Sparkles,
-  MessageSquare,
 } from "lucide-react";
 import {
   Tooltip,
@@ -24,12 +23,7 @@ interface SidebarItem {
   onClick?: () => void;
 }
 
-interface IconSidebarProps {
-  onToggleChat: () => void;
-  isChatOpen: boolean;
-}
-
-export function IconSidebar({ onToggleChat, isChatOpen }: IconSidebarProps) {
+export function IconSidebar() {
   const pathname = usePathname();
 
   const topItems: SidebarItem[] = [
@@ -39,11 +33,6 @@ export function IconSidebar({ onToggleChat, isChatOpen }: IconSidebarProps) {
   ];
 
   const bottomItems: SidebarItem[] = [
-    {
-      icon: MessageSquare,
-      label: isChatOpen ? "Hide Chat" : "Show Chat",
-      onClick: onToggleChat,
-    },
     { icon: Settings, label: "Settings", href: "/settings/data-sources" },
   ];
 

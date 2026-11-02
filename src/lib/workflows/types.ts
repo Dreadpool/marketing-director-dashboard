@@ -1,6 +1,6 @@
 import type { DataSource } from "@/lib/schemas/types";
 
-export type StepType = "fetch" | "analyze" | "recommend" | "view" | "action";
+export type StepType = "fetch" | "view" | "action";
 
 export type DueRule =
   | { type: "day-of-month"; day: number }

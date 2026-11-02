@@ -5,34 +5,22 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { AiMarkdown } from "@/components/ui/ai-markdown";
-import { PromptEditor } from "./prompt-editor";
 import { FetchStepSummary } from "./fetch-step-summary";
 
 interface StepResultProps {
-  stepId: string;
   label: string;
   status: string;
-  aiOutput: string | null;
   outputData: unknown;
   error: string | null;
-  workflowSlug: string;
-  stepType: string;
 }
 
 export function StepResult({
-  stepId,
   label,
   status,
-  aiOutput,
   outputData,
   error,
-  workflowSlug,
-  stepType,
 }: StepResultProps) {
-  const [expanded, setExpanded] = useState(
-    status === "completed" || stepType === "fetch",
-  );
+  const [expanded, setExpanded] = useState(true);
 
   const statusColor =
     status === "completed"
@@ -68,13 +56,9 @@ export function StepResult({
               {error}
             </div>
           )}
-          {stepType === "fetch" && outputData != null ? (
+          {outputData != null ? (
             <FetchStepSummary data={outputData} />
           ) : null}
-          {aiOutput && <AiMarkdown content={aiOutput} />}
-          {stepType !== "fetch" && (
-            <PromptEditor workflowSlug={workflowSlug} stepId={stepId} />
-          )}
         </CardContent>
       )}
     </Card>

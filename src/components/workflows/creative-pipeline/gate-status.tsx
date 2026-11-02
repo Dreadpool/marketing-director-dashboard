@@ -5,7 +5,6 @@ export function GateStatus({ gates }: { gates: GateReport }) {
     ...(gates.brandVoice ? [{ key: 'brand-voice', result: gates.brandVoice }] : []),
     { key: 'duplicate', result: gates.duplicate },
     { key: 'matrix-diversity', result: gates.matrixDiversity },
-    ...(gates.sniffTest ? [{ key: 'sniff-test', result: gates.sniffTest }] : []),
   ];
   return (
     <div className="border border-slate-800 rounded-lg p-5 bg-slate-900/30">

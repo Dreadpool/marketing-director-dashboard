@@ -19,7 +19,7 @@ const ibmPlexSans = IBM_Plex_Sans({
 export const metadata: Metadata = {
   title: "Marketing Director Dashboard",
   description:
-    "Workflow orchestration dashboard for marketing directors. Surfaces the right tasks at the right time, pre-loaded with data and AI context.",
+    "Marketing data and workflows.",
 };
 
 export default function RootLayout({

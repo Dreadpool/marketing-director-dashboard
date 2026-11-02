@@ -24,6 +24,7 @@ export function PeriodSelector({
   return (
     <div className="flex items-center gap-2">
       <select
+        aria-label="Month"
         value={month}
         onChange={(e) => onChange(year, Number(e.target.value))}
         disabled={disabled}
@@ -36,6 +37,7 @@ export function PeriodSelector({
         ))}
       </select>
       <select
+        aria-label="Year"
         value={year}
         onChange={(e) => onChange(Number(e.target.value), month)}
         disabled={disabled}

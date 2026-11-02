@@ -4,13 +4,10 @@ import {
   workflowStepRuns,
   periodMetrics,
   actionItems,
-  workflowStepPrompts,
 } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { getWorkflowBySlug } from "@/lib/workflows";
-import { callXai } from "./xai-client";
 import { getExecutor } from "./executors";
-import { getDefaultPrompt } from "./prompts";
 import type { MonthPeriod } from "@/lib/schemas/types";
 
 export type WorkflowRunResult = {
@@ -34,140 +31,6 @@ export type StepRunResult = {
   startedAt: Date | null;
   completedAt: Date | null;
 };
-
-/** Load the framework prompt for a step from DB, falling back to defaults */
-async function loadPrompt(
-  workflowSlug: string,
-  stepId: string,
-): Promise<string | null> {
-  const rows = await db
-    .select()
-    .from(workflowStepPrompts)
-    .where(
-      and(
-        eq(workflowStepPrompts.workflowSlug, workflowSlug),
-        eq(workflowStepPrompts.stepId, stepId),
-      ),
-    )
-    .limit(1);
-
-  if (rows.length > 0) {
-    return rows[0].frameworkPrompt;
-  }
-
-  return getDefaultPrompt(workflowSlug, stepId);
-}
-
-/** Load historical metrics for MoM and YoY context */
-async function loadHistoricalMetrics(
-  workflowSlug: string,
-  period: MonthPeriod,
-): Promise<{ previousMonth?: unknown; previousYear?: unknown }> {
-  const prevMonth =
-    period.month === 1
-      ? { year: period.year - 1, month: 12 }
-      : { year: period.year, month: period.month - 1 };
-
-  const prevYear = { year: period.year - 1, month: period.month };
-
-  const [momRows, yoyRows] = await Promise.all([
-    db
-      .select()
-      .from(periodMetrics)
-      .where(
-        and(
-          eq(periodMetrics.workflowSlug, workflowSlug),
-          eq(periodMetrics.periodYear, prevMonth.year),
-          eq(periodMetrics.periodMonth, prevMonth.month),
-        ),
-      )
-      .limit(1),
-    db
-      .select()
-      .from(periodMetrics)
-      .where(
-        and(
-          eq(periodMetrics.workflowSlug, workflowSlug),
-          eq(periodMetrics.periodYear, prevYear.year),
-          eq(periodMetrics.periodMonth, prevYear.month),
-        ),
-      )
-      .limit(1),
-  ]);
-
-  return {
-    previousMonth: momRows[0]?.metrics ?? undefined,
-    previousYear: yoyRows[0]?.metrics ?? undefined,
-  };
-}
-
-/** Schema constraints for action_items varchar columns */
-const PRIORITY_MAX_LENGTH = 10;
-const CATEGORY_MAX_LENGTH = 50;
-const ALLOWED_PRIORITIES = ["critical", "high", "medium", "low"] as const;
-
-/** Normalize a raw priority string to one of the allowed values, or null. */
-function normalizePriority(raw: string | null): string | null {
-  if (!raw) return null;
-  const lower = raw.toLowerCase();
-  for (const p of ALLOWED_PRIORITIES) {
-    if (lower.includes(p)) return p;
-  }
-  // Fallback: truncate to column width so a novel value does not crash insert
-  return lower.slice(0, PRIORITY_MAX_LENGTH);
-}
-
-/** Normalize a raw category string to fit the varchar column. */
-function normalizeCategory(raw: string | null): string | null {
-  if (!raw) return null;
-  return raw.slice(0, CATEGORY_MAX_LENGTH);
-}
-
-/** Parse action items from the recommend step's AI output */
-function parseActionItems(
-  aiOutput: string,
-): { text: string; priority: string | null; category: string | null }[] {
-  const items: {
-    text: string;
-    priority: string | null;
-    category: string | null;
-  }[] = [];
-
-  const lines = aiOutput.split("\n");
-  let currentAction: string | null = null;
-  let currentPriority: string | null = null;
-  let currentCategory: string | null = null;
-
-  const stripMd = (s: string) => s.replace(/\*+/g, "").replace(/_+/g, "").trim();
-
-  const flush = () => {
-    if (!currentAction) return;
-    items.push({
-      text: currentAction,
-      priority: normalizePriority(currentPriority),
-      category: normalizeCategory(currentCategory),
-    });
-  };
-
-  for (const line of lines) {
-    const trimmed = stripMd(line);
-
-    if (trimmed.startsWith("ACTION:")) {
-      flush();
-      currentAction = trimmed.slice(7).trim();
-      currentPriority = null;
-      currentCategory = null;
-    } else if (trimmed.startsWith("PRIORITY:") && currentAction) {
-      currentPriority = trimmed.slice(9).trim().toLowerCase();
-    } else if (trimmed.startsWith("CATEGORY:") && currentAction) {
-      currentCategory = trimmed.slice(9).trim().toLowerCase();
-    }
-  }
-
-  flush();
-
-  return items;
-}
 
 /** Create the run and step records. Returns the run ID for polling. */
 export async function initWorkflowRun(
@@ -211,7 +74,6 @@ export async function executeWorkflowSteps(
   runId: string,
   slug: string,
   initialPeriod: MonthPeriod,
-  options?: { forceRefresh?: boolean },
 ): Promise<void> {
   let period = initialPeriod;
   const workflow = getWorkflowBySlug(slug)!;
@@ -230,9 +92,6 @@ export async function executeWorkflowSteps(
     .where(eq(workflowStepRuns.runId, runId))
     .orderBy(workflowStepRuns.stepOrder);
 
-  // Load historical data for comparisons
-  const historical = await loadHistoricalMetrics(slug, period);
-
   const previousStepOutputs: Record<string, unknown> = {};
 
   for (const stepDef of workflow.steps) {
@@ -245,77 +104,10 @@ export async function executeWorkflowSteps(
       .where(eq(workflowStepRuns.id, stepRow.id));
 
     try {
-      let outputData: unknown = null;
-      let aiOutput: string | null = null;
-
-      if (stepDef.type === "fetch") {
-        // Check period cache before calling the API
-        // Skip cache for workflows with inputParams (e.g., promo-code-analysis)
-        // since the same period can produce different results for different inputs.
-        // Also skip when forceRefresh is set (after executor code changes).
-        const useCache = !params && !options?.forceRefresh;
-        let cached: Array<{ metrics: unknown }> = [];
-
-        if (useCache) {
-          cached = await db
-            .select({ metrics: periodMetrics.metrics })
-            .from(periodMetrics)
-            .where(
-              and(
-                eq(periodMetrics.workflowSlug, slug),
-                eq(periodMetrics.periodYear, period.year),
-                eq(periodMetrics.periodMonth, period.month),
-              ),
-            )
-            .limit(1);
-        }
-
-        if (useCache && cached.length > 0 && cached[0].metrics) {
-          console.log(
-            `[engine] Using cached fetch data for ${slug} ${period.year}-${period.month}`,
-          );
-          outputData = cached[0].metrics;
-        } else {
-          outputData = await executor(period, params);
-        }
-      } else {
-        // AI-powered step
-        const prompt = await loadPrompt(slug, stepDef.id);
-        if (!prompt) {
-          throw new Error(`No prompt found for step: ${stepDef.id}`);
-        }
-
-        // Build context from previous steps + historical data
-        const contextParts: string[] = [];
-
-        if (Object.keys(previousStepOutputs).length > 0) {
-          contextParts.push(
-            "## Previous Step Results\n\n" +
-              JSON.stringify(previousStepOutputs, null, 2),
-          );
-        }
-
-        if (historical.previousMonth) {
-          contextParts.push(
-            "## Previous Month Metrics (for MoM comparison)\n\n" +
-              JSON.stringify(historical.previousMonth, null, 2),
-          );
-        }
-
-        if (historical.previousYear) {
-          contextParts.push(
-            "## Same Month Last Year (for YoY comparison)\n\n" +
-              JSON.stringify(historical.previousYear, null, 2),
-          );
-        }
-
-        const userMessage = `Analyze the data for ${period.year}-${String(period.month).padStart(2, "0")}.\n\n${contextParts.join("\n\n")}`;
-
-        const text = await callXai(prompt, userMessage, 4096);
-
-        aiOutput = text;
-        outputData = { analysis: text };
-      }
+      // An explicit run always retrieves source data. Saved runs are opened separately.
+      if (stepDef.type !== "fetch") throw new Error("Only data fetch steps can run");
+      const fetched = await executor(period, params);
+      const outputData = { ...fetched, dataRetrievedAt: new Date().toISOString() };
 
       // Mark step completed
       const completedAt = new Date();
@@ -324,7 +116,6 @@ export async function executeWorkflowSteps(
         .set({
           status: "completed",
           outputData: outputData as Record<string, unknown>,
-          aiOutput,
           completedAt,
         })
         .where(eq(workflowStepRuns.id, stepRow.id));
@@ -350,25 +141,6 @@ export async function executeWorkflowSteps(
             .update(workflowRuns)
             .set({ periodYear: dp.year, periodMonth: dp.month })
             .where(eq(workflowRuns.id, runId));
-        }
-      }
-
-      // Parse action items from recommend step
-      if (stepDef.type === "recommend" && aiOutput) {
-        const parsed = parseActionItems(aiOutput);
-        if (parsed.length > 0) {
-          await db.insert(actionItems).values(
-            parsed.map((item) => ({
-              runId,
-              stepId: stepDef.id,
-              workflowSlug: slug,
-              periodYear: period.year,
-              periodMonth: period.month,
-              text: item.text,
-              priority: item.priority,
-              category: item.category,
-            })),
-          );
         }
       }
 
