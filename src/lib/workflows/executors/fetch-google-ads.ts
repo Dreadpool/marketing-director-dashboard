@@ -14,7 +14,7 @@ import type {
 import type { GoogleAdsCampaignRow } from "@/lib/schemas/sources/google-ads";
 import { microsToUSD, percentChange } from "@/lib/schemas/utils";
 import { getMonthlySpend } from "@/lib/services/google-ads";
-import { getSalesOrders } from "@/lib/services/bigquery-sales";
+import { getAdBookingCount } from "@/lib/services/bigquery-sales";
 
 export const GOOGLE_ADS_THRESHOLDS = {
   ground_truth_divergence: 0.30,
@@ -261,7 +261,7 @@ export async function fetchGoogleAds(
       getMonthlySpend(period),
       getMonthlySpend(priorMonthPeriod),
       getMonthlySpend(yoyPeriod),
-      getSalesOrders(period),
+      getAdBookingCount(period),
     ]);
 
   // Current month is REQUIRED
@@ -274,7 +274,7 @@ export async function fetchGoogleAds(
   const currentRows = currentResult.value;
   const priorMonthRows = priorMonthResult.status === "fulfilled" ? priorMonthResult.value : null;
   const priorYearRows = priorYearResult.status === "fulfilled" ? priorYearResult.value : null;
-  const salesOrders = salesResult.status === "fulfilled" ? salesResult.value : null;
+  const bookingCount = salesResult.status === "fulfilled" ? salesResult.value : null;
 
   // Track source metadata
   const loadedSources: string[] = ["google_ads_current"];
@@ -317,7 +317,7 @@ export async function fetchGoogleAds(
     };
   }
 
-  if (salesOrders) {
+  if (bookingCount !== null) {
     loadedSources.push("bigquery_sales");
     sourceDetails.bigquery_sales = {
       displayName: "BigQuery Sales Orders",
@@ -345,7 +345,7 @@ export async function fetchGoogleAds(
 
   // Ground truth
   const totalConversions = campaigns.reduce((s, c) => s + c.conversions, 0);
-  const bigqueryBookings = salesOrders ? salesOrders.length : 0;
+  const bigqueryBookings = bookingCount ?? 0;
   const groundTruth = computeGroundTruth(totalConversions, bigqueryBookings);
 
   // Trends: aggregate prior periods

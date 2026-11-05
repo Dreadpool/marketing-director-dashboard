@@ -1,3 +1,4 @@
+import { savedMarketingReport } from "./saved-marketing-report";
 import { db } from "@/db";
 import {
   workflowRuns,
@@ -232,6 +233,13 @@ export async function getRunDetails(runId: string) {
       .where(eq(actionItems.runId, runId)),
   ]);
 
+  if (["monthly-analytics-review", "promo-code-analysis"].includes(run.workflowSlug)) {
+    const reportSteps = steps.filter(step => step.stepId === "fetch").map(step => ({
+      ...step, inputData: null, aiOutput: null, userResponse: null,
+      outputData: savedMarketingReport(run.workflowSlug, step.outputData),
+    }));
+    return { ...run, steps: reportSteps, actionItems: [] };
+  }
   return { ...run, steps, actionItems: items };
 }
 

@@ -62,7 +62,7 @@ export async function GET() {
     sources: [
       {
         name: "BigQuery",
-        description: "Sales orders, customer data, revenue (ground truth)",
+        description: "Booking counts and purchasing customers",
         status: bq?.ok ? "connected" : "error",
         latencyMs: bq?.latencyMs,
         error: bq?.error,

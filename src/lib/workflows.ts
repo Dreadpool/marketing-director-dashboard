@@ -146,7 +146,7 @@ export const workflows: Workflow[] = [
     slug: "monthly-analytics-review",
     title: "Monthly Analytics Review",
     description:
-      "Unified monthly report combining revenue, purchasing emails, marketing spend, payment analysis, and promo codes.",
+      "Booking counts, first and returning purchasers, marketing spend, and acquisition cost.",
     icon: "calendar",
     status: "active",
     cadence: { frequency: "monthly", dueRule: { type: "day-of-month", day: 10 } },
@@ -156,7 +156,7 @@ export const workflows: Workflow[] = [
         id: "fetch",
         label: "Fetch Data",
         description:
-          "Pull sales orders from BigQuery, ad spend from QuickBooks GL, CardPointe settlements",
+          "Count bookings and purchasers in BigQuery and retrieve ad spend from QuickBooks GL",
         type: "fetch",
         dataSources: ["bigquery", "quickbooks_gl"],
       },
@@ -166,7 +166,7 @@ export const workflows: Workflow[] = [
     slug: "promo-code-analysis",
     title: "Promo Code Analysis",
     description:
-      "Campaign ROI analysis for a specific promo code: usage, revenue, new customers, and effectiveness. Enter a code and optional campaign cost.",
+      "Review promo-code usage, discounts, and first-time purchasers. Enter a code and optional campaign cost.",
     icon: "ticket",
     status: "active",
     cadence: { frequency: "on-demand", dueRule: { type: "on-demand" } },

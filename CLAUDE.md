@@ -9,7 +9,7 @@ Marketing data retrieval and review workspace for Salt Lake Express. Select a pe
 - **Frontend**: Next.js 15 (App Router), TypeScript, Tailwind CSS v4, shadcn/ui (Base Nova)
 - **Backend**: Next.js API Routes + Server Actions (no separate backend)
 - **Database**: Neon Postgres via Drizzle ORM (app state only)
-- **Data Source of Truth**: BigQuery (sales, customers, revenue)
+- **Data Source of Truth**: BigQuery (booking counts, customers, marketing costs)
 - **AI**: None. Do not add model API clients or keys.
 - **Charts**: Recharts
 - **Animations**: Framer Motion
@@ -48,6 +48,8 @@ Marketing data retrieval and review workspace for Salt Lake Express. Select a pe
 ## Roadmap
 
 ### Completed
+
+- 2026-11-05: Company revenue belongs in Jacob’s MMC dashboard. Monthly Analytics and Promo Code Analysis report bookings, purchasing customers, and marketing costs. Historical report storage is preserved; the read API projects marketing fields only.
 
 - [x] 2026-11-02: Data-only workflows. Saved month results open automatically; explicit updates retrieve from source. Removed model report/evaluation calls, AI interviews/drafting, creative sniff check, chat panel, SDK and app AI credentials. Existing data preserved. New interview invitations closed.
 
