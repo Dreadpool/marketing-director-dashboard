@@ -24,7 +24,7 @@ export default async function WorkflowPage({ params }: WorkflowPageProps) {
       </Link>
 
       {workflow?.status === "active" ? (
-        <WorkflowDetail workflow={workflow} />
+        <WorkflowDetail key={workflow.slug} workflow={workflow} />
       ) : (
         <>
           <div className="mb-8">

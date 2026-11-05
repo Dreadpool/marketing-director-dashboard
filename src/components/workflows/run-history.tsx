@@ -22,7 +22,6 @@ const MONTH_NAMES = [
 
 interface RunHistoryProps {
   runs: Run[];
-  workflowSlug: string;
   onSelectRun: (runId: string) => void;
   onDeleteRun: (runId: string) => void;
   selectedRunId?: string;
@@ -30,7 +29,6 @@ interface RunHistoryProps {
 
 export function RunHistory({
   runs,
-  workflowSlug,
   onSelectRun,
   onDeleteRun,
   selectedRunId,
@@ -39,12 +37,11 @@ export function RunHistory({
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-medium">Run History</CardTitle>
+          <CardTitle className="text-sm font-medium">Saved data</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            No runs yet. Select a period and click &quot;Run Analysis&quot; to
-            get started.
+            No saved data yet.
           </p>
         </CardContent>
       </Card>
@@ -54,7 +51,7 @@ export function RunHistory({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm font-medium">Run History</CardTitle>
+        <CardTitle className="text-sm font-medium">Saved data</CardTitle>
       </CardHeader>
       <CardContent className="space-y-1">
         {runs.map((run) => {

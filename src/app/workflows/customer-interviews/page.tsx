@@ -5,7 +5,6 @@ import { desc } from "drizzle-orm";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 
@@ -33,18 +32,12 @@ export default async function CustomerInterviewsPage() {
             <p className="text-xs uppercase tracking-widest text-slate-500">workflow</p>
             <h1 className="mt-1 text-3xl font-medium tracking-tight">Customer Interviews</h1>
             <p className="mt-3 text-slate-400 max-w-2xl text-sm">
-              Run structured Jobs-to-be-Done switch interviews against any customer segment.
-              The dashboard handles delivery and runs the interviews; you review the results when
-              they&apos;re ready.
+              New interviews are closed. Saved campaigns and responses are available below.
             </p>
           </div>
-          <Link href="/workflows/customer-interviews/new">
-            <Button>+ New campaign</Button>
-          </Link>
         </div>
       </header>
 
-      <HowItWorks />
 
       <h2 className="text-sm font-medium uppercase tracking-widest text-slate-500 mt-12 mb-4">
         Campaigns
@@ -53,13 +46,6 @@ export default async function CustomerInterviewsPage() {
       {campaigns.length === 0 && (
         <Card className="p-12 text-center border-dashed">
           <p className="text-slate-300">No campaigns yet.</p>
-          <p className="mt-2 text-sm text-slate-500 max-w-md mx-auto">
-            Click <strong>New campaign</strong> above to pick a segment, draft the interview
-            questions, and start sending invites. The whole setup takes about 5 minutes.
-          </p>
-          <Link href="/workflows/customer-interviews/new">
-            <Button className="mt-6">Start your first campaign</Button>
-          </Link>
         </Card>
       )}
 
@@ -118,57 +104,5 @@ export default async function CustomerInterviewsPage() {
         })}
       </div>
     </div>
-  );
-}
-
-function HowItWorks() {
-  const stages = [
-    {
-      n: 1,
-      title: "Plan",
-      time: "5 min",
-      description:
-        "Pick a segment from BigQuery, review AI-drafted interview questions, set a loyalty-point reward.",
-      who: "You",
-    },
-    {
-      n: 2,
-      title: "Collect",
-      time: "5–10 days",
-      description:
-        "Customers click their invite, chat with an AI interviewer trained to follow your guide. Responses log here automatically.",
-      who: "Dashboard",
-    },
-    {
-      n: 3,
-      title: "Analyze",
-      time: "30 min",
-      description:
-        "When responses hit your threshold, send the campaign to your analyst. They produce a brief with themes, quotes, and recommendations.",
-      who: "Your analyst",
-    },
-  ];
-  return (
-    <Card className="p-6 bg-slate-900/30">
-      <p className="text-xs uppercase tracking-widest text-slate-500 mb-4">How it works</p>
-      <div className="grid md:grid-cols-3 gap-6">
-        {stages.map((s) => (
-          <div key={s.n} className="space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="size-7 rounded-full bg-slate-800 text-slate-200 text-xs font-medium grid place-items-center">
-                {s.n}
-              </span>
-              <h3 className="text-base font-medium text-slate-100">{s.title}</h3>
-              <span className="text-xs text-slate-500">· {s.time}</span>
-            </div>
-            <p className="text-sm text-slate-400">{s.description}</p>
-            <p className="text-xs text-slate-500">
-              <span className="text-slate-400">Who: </span>
-              {s.who}
-            </p>
-          </div>
-        ))}
-      </div>
-    </Card>
   );
 }

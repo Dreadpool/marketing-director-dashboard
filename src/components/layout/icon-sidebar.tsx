@@ -6,10 +6,8 @@ import {
   LayoutDashboard,
   GitBranch,
   CheckSquare,
-  CalendarDays,
   Settings,
   Sparkles,
-  MessageSquare,
 } from "lucide-react";
 import {
   Tooltip,
@@ -25,27 +23,16 @@ interface SidebarItem {
   onClick?: () => void;
 }
 
-interface IconSidebarProps {
-  onToggleChat: () => void;
-  isChatOpen: boolean;
-}
-
-export function IconSidebar({ onToggleChat, isChatOpen }: IconSidebarProps) {
+export function IconSidebar() {
   const pathname = usePathname();
 
   const topItems: SidebarItem[] = [
     { icon: LayoutDashboard, label: "Dashboard", href: "/" },
     { icon: GitBranch, label: "Workflows", href: "/workflows" },
     { icon: CheckSquare, label: "Action Items", href: "/action-items" },
-    { icon: CalendarDays, label: "Calendar", href: "/calendar" },
   ];
 
   const bottomItems: SidebarItem[] = [
-    {
-      icon: MessageSquare,
-      label: isChatOpen ? "Hide Chat" : "Show Chat",
-      onClick: onToggleChat,
-    },
     { icon: Settings, label: "Settings", href: "/settings/data-sources" },
   ];
 

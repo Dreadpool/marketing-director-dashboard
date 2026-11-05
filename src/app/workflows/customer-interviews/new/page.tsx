@@ -1,5 +1,5 @@
-import { CampaignWizard } from "./CampaignWizard";
+import { redirect } from "next/navigation";
 
 export default function NewCampaignPage() {
-  return <CampaignWizard />;
+  redirect("/workflows/customer-interviews");
 }

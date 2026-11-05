@@ -10,8 +10,6 @@ export interface PromoCodeMetrics {
   promoCode: string;
   dateRange: { start: string; end: string; days: number };
   totalOrders: number;
-  grossRevenue: number;
-  avgOrderValue: number;
   uniqueCustomers: number;
   newCustomers: number;
   returningCustomers: number;
@@ -19,15 +17,11 @@ export interface PromoCodeMetrics {
   ordersPerCustomer: number;
   totalDiscounted: number;
   avgDiscountPerOrder: number;
-  baselineAov: number;
-  topRoutes: Array<{ route: string; orders: number; revenue: number }>;
+  topRoutes: Array<{ route: string; orders: number }>;
   weeklyUsage: Array<{ weekLabel: string; weekStart: string; orders: number }>;
   channelBreakdown: { web: number; agent: number };
   campaignCost?: number;
-  roi?: {
-    revenueReturn: number;
-    spendPerFirstPurchaser?: number;
-  };
+  spendPerFirstPurchaser?: number;
   similarCodes?: Array<{ code: string; orders: number }>;
   derivedPeriod?: { year: number; month: number };
   metadata: { generatedAt: string; provenanceNote: string };
@@ -57,7 +51,6 @@ export async function fetchPromoCode(
         order_id,
         LOWER(TRIM(purchaser_email)) AS email,
         DATE(purchase_date) AS purchase_date,
-        COALESCE(total_sale, 0) AS total_sale,
         COALESCE(amount_discounted, 0) AS amount_discounted,
         COALESCE(trip_origin_stop, '') AS dep_city,
         COALESCE(trip_destination_stop, '') AS arr_city,
@@ -76,7 +69,6 @@ export async function fetchPromoCode(
     order_id: string;
     email: string;
     purchase_date: { value: string };
-    total_sale: number;
     amount_discounted: number;
     dep_city: string;
     arr_city: string;
@@ -118,8 +110,6 @@ export async function fetchPromoCode(
       promoCode: promoCode.toUpperCase().trim(),
       dateRange: { start: "", end: "", days: 0 },
       totalOrders: 0,
-      grossRevenue: 0,
-      avgOrderValue: 0,
       uniqueCustomers: 0,
       newCustomers: 0,
       returningCustomers: 0,
@@ -127,7 +117,6 @@ export async function fetchPromoCode(
       ordersPerCustomer: 0,
       totalDiscounted: 0,
       avgDiscountPerOrder: 0,
-      baselineAov: 0,
       topRoutes: [],
       weeklyUsage: [],
       channelBreakdown: { web: 0, agent: 0 },
@@ -167,32 +156,7 @@ export async function fetchPromoCode(
       })
     : Promise.resolve([[]]);
 
-  // Query 3: Baseline AOV (same date range, no promo code)
-  const baselinePromise = bq.query({
-    query: `
-      WITH rebook_originals AS (
-        SELECT DISTINCT CAST(CAST(previous_order AS FLOAT64) AS INT64) AS order_id
-        FROM \`${DATASET}.vw_sle_active_orders\`
-        WHERE previous_order IS NOT NULL
-          AND is_paid_in = FALSE
-          AND is_fee_only_cancellation = FALSE
-      )
-      SELECT AVG(COALESCE(total_sale, 0)) AS avg_sale
-      FROM \`${DATASET}.vw_sle_active_orders\`
-      WHERE is_paid_in = FALSE
-        AND is_fee_only_cancellation = FALSE
-        AND order_id NOT IN (SELECT order_id FROM rebook_originals)
-        AND DATE(purchase_date) BETWEEN @start_date AND @end_date
-        AND (promotion_code IS NULL OR TRIM(promotion_code) = '')
-        AND COALESCE(total_sale, 0) > 0
-    `,
-    params: { start_date: startDate, end_date: endDate },
-  });
-
-  const [firstPurchaseResult, baselineResult] = await Promise.allSettled([
-    firstPurchasePromise,
-    baselinePromise,
-  ]);
+  const [firstPurchaseResult] = await Promise.allSettled([firstPurchasePromise]);
 
   // Process first purchase data
   const firstPurchaseMap = new Map<string, string>();
@@ -226,16 +190,8 @@ export async function fetchPromoCode(
     // If no firstEverDate or it's earlier → returning (conservative default)
   }
 
-  // Baseline AOV
-  let baselineAov = 0;
-  if (baselineResult.status === "fulfilled") {
-    const rows = baselineResult.value[0] as Array<{ avg_sale: number }>;
-    baselineAov = rows[0]?.avg_sale ?? 0;
-  }
-
   // Compute metrics
   const totalOrders = orders.length;
-  const grossRevenue = orders.reduce((sum, o) => sum + Number(o.total_sale), 0);
   const totalDiscounted = orders.reduce(
     (sum, o) => sum + Number(o.amount_discounted),
     0,
@@ -244,12 +200,11 @@ export async function fetchPromoCode(
   const returningCustomers = uniqueCustomers - newCustomers;
 
   // Route distribution
-  const routeMap = new Map<string, { orders: number; revenue: number }>();
+  const routeMap = new Map<string, { orders: number }>();
   for (const o of orders) {
     const route = o.dep_city && o.arr_city ? `${o.dep_city} → ${o.arr_city}` : "Unknown";
-    const existing = routeMap.get(route) ?? { orders: 0, revenue: 0 };
+    const existing = routeMap.get(route) ?? { orders: 0 };
     existing.orders++;
-    existing.revenue += Number(o.total_sale);
     routeMap.set(route, existing);
   }
   const topRoutes = [...routeMap.entries()]
@@ -288,23 +243,10 @@ export async function fetchPromoCode(
     (o) => o.selling_agent && o.selling_agent.trim() !== "",
   ).length;
 
-  // Descriptive cost context only; this does not establish incrementality or profit.
-  let roi: PromoCodeMetrics["roi"] | undefined;
-  if (campaignCost && campaignCost > 0) {
-    roi = {
-      revenueReturn: safeDivide(grossRevenue, campaignCost),
-      ...(newCustomers > 0
-        ? { spendPerFirstPurchaser: campaignCost / newCustomers }
-        : {}),
-    };
-  }
-
   return {
     promoCode: promoCode.toUpperCase().trim(),
     dateRange: { start: startDate, end: endDate, days: daysDiff },
     totalOrders,
-    grossRevenue,
-    avgOrderValue: safeDivide(grossRevenue, totalOrders),
     uniqueCustomers,
     newCustomers,
     returningCustomers,
@@ -312,7 +254,6 @@ export async function fetchPromoCode(
     ordersPerCustomer: safeDivide(totalOrders, uniqueCustomers),
     totalDiscounted,
     avgDiscountPerOrder: safeDivide(totalDiscounted, totalOrders),
-    baselineAov,
     topRoutes,
     weeklyUsage,
     channelBreakdown: {
@@ -320,7 +261,7 @@ export async function fetchPromoCode(
       agent: agentOrders,
     },
     campaignCost,
-    roi,
+    spendPerFirstPurchaser: campaignCost && campaignCost > 0 && newCustomers > 0 ? campaignCost / newCustomers : undefined,
     derivedPeriod: {
       year: new Date(endDate).getFullYear(),
       month: new Date(endDate).getMonth() + 1,

@@ -87,19 +87,16 @@ export function PromoCodeFetchSummary({ data }: { data: PromoCodeMetrics }) {
     promoCode,
     dateRange,
     totalOrders,
-    grossRevenue,
-    avgOrderValue,
     uniqueCustomers,
     newCustomers,
     newCustomerPct,
     ordersPerCustomer,
     totalDiscounted,
     avgDiscountPerOrder,
-    baselineAov,
     topRoutes,
     weeklyUsage,
     campaignCost,
-    roi,
+    spendPerFirstPurchaser,
   } = data;
 
   const isEmpty = totalOrders === 0;
@@ -129,23 +126,15 @@ export function PromoCodeFetchSummary({ data }: { data: PromoCodeMetrics }) {
             No orders found for promo code{" "}
             <span className="font-mono font-semibold text-foreground">{promoCode}</span>.
           </p>
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            The AI analysis below will suggest similar codes if any exist.
-          </p>
         </div>
       )}
 
       {/* Headline KPI grid — hidden when empty */}
       {!isEmpty && (
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <KpiCard
             label="Total Orders"
             value={num.format(totalOrders)}
-          />
-          <KpiCard
-            label="Booking Value"
-            value={usd.format(grossRevenue)}
-            secondary={`Avg ${usd2.format(avgOrderValue)}/order`}
           />
           <KpiCard
             label="First Observed Purchasers"
@@ -162,7 +151,7 @@ export function PromoCodeFetchSummary({ data }: { data: PromoCodeMetrics }) {
       )}
 
       {/* Descriptive campaign-cost context; not a profit or incrementality verdict. */}
-      {!isEmpty && campaignCost && roi && (
+      {!isEmpty && campaignCost != null && campaignCost > 0 && (
         <div className="rounded-lg border border-gold/20 bg-gold/5 px-5 py-4 space-y-3">
           <p className="text-[11px] uppercase tracking-wider text-gold font-semibold">
             Campaign Cost Context
@@ -170,19 +159,11 @@ export function PromoCodeFetchSummary({ data }: { data: PromoCodeMetrics }) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
-                Revenue Return
-              </p>
-              <p className="text-2xl font-bold font-heading tabular-nums">
-                {roi.revenueReturn.toFixed(1)}x
-              </p>
-            </div>
-            <div>
-              <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
                 Spend / First Observed Purchaser
               </p>
               <p className="text-2xl font-bold font-heading tabular-nums">
-                {roi.spendPerFirstPurchaser !== undefined
-                  ? usd2.format(roi.spendPerFirstPurchaser)
+                {spendPerFirstPurchaser !== undefined
+                  ? usd2.format(spendPerFirstPurchaser)
                   : "No first observed purchasers"}
               </p>
             </div>
@@ -212,18 +193,6 @@ export function PromoCodeFetchSummary({ data }: { data: PromoCodeMetrics }) {
                 <span className="text-xs text-muted-foreground">Avg discount/order</span>
                 <span className="text-sm font-semibold tabular-nums">
                   {usd2.format(avgDiscountPerOrder)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">AOV with promo</span>
-                <span className="text-sm font-semibold tabular-nums">
-                  {usd2.format(avgOrderValue)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">AOV baseline (no promo)</span>
-                <span className="text-sm font-semibold tabular-nums">
-                  {baselineAov > 0 ? usd2.format(baselineAov) : "-"}
                 </span>
               </div>
             </div>

@@ -57,7 +57,6 @@ export interface GateReport {
   brandVoice?: GateResult;
   duplicate: GateResult;
   matrixDiversity: GateResult;
-  sniffTest?: GateResult;
 }
 
 export interface InputsLoaded {

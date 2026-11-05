@@ -1,7 +1,7 @@
 import type { ParsedBrief, GateResult } from '../types';
 
 export function runDuplicateGate(
-  current: ParsedBrief[],
+  current: Pick<ParsedBrief, "briefId" | "conceptName">[],
   priorConceptNames: string[]
 ): GateResult {
   const normalize = (s: string) => s.trim().toLowerCase();

@@ -2,7 +2,7 @@ import type { ParsedBrief, GateResult } from '../types';
 
 const MINIMUM_DISTINCT_CELLS = 10;
 
-export function runMatrixDiversityGate(briefs: ParsedBrief[]): GateResult {
+export function runMatrixDiversityGate(briefs: Pick<ParsedBrief, "matrixCell">[]): GateResult {
   const cells = new Set(briefs.map(b => b.matrixCell));
   const passed = cells.size >= MINIMUM_DISTINCT_CELLS;
   const failures: string[] = passed

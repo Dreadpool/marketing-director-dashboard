@@ -4,7 +4,6 @@ import { creativeBriefs, creativePipelineRuns } from '@/db/schema';
 import { eq, sql, desc } from 'drizzle-orm';
 import { runDuplicateGate } from '@/lib/workflows/creative-pipeline/gates/duplicate';
 import { runMatrixDiversityGate } from '@/lib/workflows/creative-pipeline/gates/matrix-diversity';
-import { runSniffTestGate } from '@/lib/workflows/creative-pipeline/gates/sniff-test';
 import type { InputsLoaded } from '@/lib/workflows/creative-pipeline/types';
 
 export const dynamic = 'force-dynamic';
@@ -15,7 +14,6 @@ export async function GET(
 ) {
   try {
     const { cycleId } = await params;
-    const runSniff = req.nextUrl.searchParams.get('sniff') === '1';
     const briefs = await db
       .select()
       .from(creativeBriefs)
@@ -33,12 +31,9 @@ export async function GET(
     const priorNames = priorRows.map(r => r.conceptName);
 
     const gates: Record<string, unknown> = {
-      duplicate: runDuplicateGate(briefs as any, priorNames),
-      matrixDiversity: runMatrixDiversityGate(briefs as any),
+      duplicate: runDuplicateGate(briefs, priorNames),
+      matrixDiversity: runMatrixDiversityGate(briefs),
     };
-    if (runSniff) {
-      gates.sniffTest = await runSniffTestGate(briefs as any);
-    }
 
     const latestRun = await db
       .select()
