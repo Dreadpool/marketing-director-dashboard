@@ -132,7 +132,7 @@ snapshot.rows = [{ market: "Boise <script>", platform: "Google Ads", status: "Ac
     ["Unknown", "Unknown"],
   ] as const)("labels %s as %s without inferring current delivery from weekly spend", (state, label) => {
     const snapshot = live();
-    snapshot.rows = [{ market: "Test market", platform: "Google Ads", status: "Inactive", reason: "no_delivery", spend: 0, impressions: 0, clicks: 0, hiringConversionRate: "Not tracked", notes: "", sourceIds: ["test"], google: { campaignId: "1", campaignName: "Hiring", adGroupId: "test", adGroupName: "Test market", currentState: state, locationInterests: [], presence: "Presence", deliveryStatus: "Unknown", coverageCheck: "No approved rule", campaignTargets: [], issues: [] } }];
+    snapshot.rows = [{ market: "Test market", platform: "Google Ads", status: "Inactive", reason: "inactive_no_delivery", spend: 0, impressions: 0, clicks: 0, hiringConversionRate: "Not tracked", notes: "", sourceIds: ["test"], google: { campaignId: "1", campaignName: "Hiring", adGroupId: "test", adGroupName: "Test market", currentState: state, locationInterests: [], presence: "Presence", deliveryStatus: "Unknown", coverageCheck: "No approved rule", campaignTargets: [], issues: [] } }];
     const html = renderHiringAdsEmail(snapshot);
     expect(html).toContain(`>${label}</strong>`);
     expect(html).toContain("Weekly clicks");

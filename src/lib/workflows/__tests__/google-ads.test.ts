@@ -7,7 +7,6 @@ import type {
 } from "@/lib/schemas/sources/google-ads-metrics";
 import {
   classifySegment,
-  GOOGLE_ADS_THRESHOLDS,
 } from "@/lib/workflows/executors/fetch-google-ads";
 
 describe("Google Ads metrics types", () => {
@@ -39,14 +38,6 @@ describe("Google Ads metrics types", () => {
     expect(trend.segment).toBe("non-brand");
     expect(trend.cpa.current).toBe(6);
     expect(trend.cvr.yoy_change).toBe(-0.22);
-  });
-});
-
-describe("GOOGLE_ADS_THRESHOLDS", () => {
-  it("contains measurement checks but no retired profit thresholds", () => {
-    expect(GOOGLE_ADS_THRESHOLDS.ground_truth_divergence).toBe(0.3);
-    expect(GOOGLE_ADS_THRESHOLDS).not.toHaveProperty("cpa_on_target");
-    expect(GOOGLE_ADS_THRESHOLDS).not.toHaveProperty("roas_floor");
   });
 });
 
@@ -88,14 +79,14 @@ describe("isGoogleAdsMetrics type guard", () => {
     const data = {
       account_health: {},
       campaigns: [],
-      ground_truth: {},
+      trends: {},
       segment_trends: [],
       metadata: {},
     };
     expect(isGoogleAdsMetrics(data)).toBe(true);
   });
 
-  it("returns false for Meta Ads data (has signals, no ground_truth)", () => {
+  it("returns false for Meta Ads data (has signals, no Google trends)", () => {
     const data = {
       account_health: {},
       campaigns: [],
@@ -142,10 +133,10 @@ describe("Google Ads prompts", () => {
     expect(p).toContain("non-brand");
   });
 
-  it("analyze prompt references ground truth comparison", () => {
+  it("analyze prompt does not require company TDS reporting", () => {
     const p = googleAdsPrompts.analyze;
-    expect(p).toContain("BigQuery");
-    expect(p).toContain("ground truth");
+    expect(p).not.toContain("BigQuery");
+    expect(p).not.toContain("ground truth");
   });
 
   it("recommend prompt uses ACTION/PRIORITY/CATEGORY format", () => {

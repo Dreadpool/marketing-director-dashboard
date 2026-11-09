@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@/db", () => ({ db: { select: mocks.select, update: mocks.update, insert: mocks.insert, delete: mocks.remove } }));
 vi.mock("../executors", () => ({ getExecutor: () => mocks.executor }));
-import { executeWorkflowSteps } from "../engine";
+import { executeWorkflowSteps, initWorkflowRun, getRunDetails } from "../engine";
 import { workflows } from "@/lib/workflows";
 import { actionItems } from "@/db/schema";
 
@@ -43,5 +43,20 @@ describe("data-only execution", () => {
     for (const workflow of workflows.filter((w) => w.steps.some((s) => s.type === "fetch"))) {
       expect(workflow.steps.map((s) => s.type)).toEqual(["fetch"]);
     }
+  });
+});
+
+describe("retired TDS reporting", () => {
+  it.each(["monthly-analytics-review", "promo-code-analysis"])("blocks %s initialization and delayed execution before IO", async slug => {
+    await expect(initWorkflowRun(slug, { year: 2026, month: 10 })).rejects.toThrow();
+    await expect(executeWorkflowSteps("old-run", slug, { year: 2026, month: 10 })).rejects.toThrow();
+    expect(mocks.executor).not.toHaveBeenCalled();
+    expect(mocks.select).not.toHaveBeenCalled();
+    expect(mocks.insert).not.toHaveBeenCalled();
+  });
+  it("suppresses a saved report by stored slug before loading private step outputs", async () => {
+    mocks.select.mockReturnValue({ from: () => ({ where: () => ({ limit: async () => [{ id: "retired-run", workflowSlug: "monthly-analytics-review" }] }) }) });
+    expect(await getRunDetails("retired-run")).toBeNull();
+    expect(mocks.select).toHaveBeenCalledTimes(1);
   });
 });

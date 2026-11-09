@@ -9,7 +9,7 @@ Marketing data retrieval and review workspace for Salt Lake Express. Select a pe
 - **Frontend**: Next.js 15 (App Router), TypeScript, Tailwind CSS v4, shadcn/ui (Base Nova)
 - **Backend**: Next.js API Routes + Server Actions (no separate backend)
 - **Database**: Neon Postgres via Drizzle ORM (app state only)
-- **Data Source of Truth**: BigQuery (booking counts, customers, marketing costs)
+- **Data Source of Truth**: Ad platforms and QuickBooks GL; company reporting links to MMC Ridership Summaries
 - **AI**: None. Do not add model API clients or keys.
 - **Charts**: Recharts
 - **Animations**: Framer Motion
@@ -30,7 +30,6 @@ Marketing data retrieval and review workspace for Salt Lake Express. Select a pe
 - `GOOGLE_APPLICATION_CREDENTIALS` -- Path to BigQuery service account JSON (local dev)
 - `GOOGLE_CREDENTIALS_JSON` -- Inline service account JSON string (deployment, e.g. Vercel)
 - `BIGQUERY_PROJECT_ID` -- GCP project ID (default: `jovial-root-443516-a7`)
-- `BIGQUERY_DATASET` -- BigQuery dataset (default: `tds_sales`)
 - `META_ACCESS_TOKEN` -- Meta Ads system user token (never expires, `ads_read` scope)
 - `META_AD_ACCOUNT_ID` -- Meta Ad Account ID (default: `act_1599255740369627`)
 - `GOOGLE_ADS_LOGIN_CUSTOMER_ID` -- Google Ads manager account ID (default: `4381990003`)
@@ -48,6 +47,8 @@ Marketing data retrieval and review workspace for Salt Lake Express. Select a pe
 ## Roadmap
 
 ### Completed
+
+- 2026-11-09: TDS reporting is link-only. Retired Monthly Analytics, Promo Code and Google Ads' warehouse booking comparison, including historical read projections. Saved database records remain. Closed unused interview audience preview endpoints consistently with already-closed invitations; saved campaigns/responses remain. Ad-platform metrics remain platform-owned.
 
 - 2026-11-05: Company revenue belongs in Jacob’s MMC dashboard. Monthly Analytics and Promo Code Analysis report bookings, purchasing customers, and marketing costs. Historical report storage is preserved; the read API projects marketing fields only.
 
@@ -198,13 +199,14 @@ Marketing data retrieval and review workspace for Salt Lake Express. Select a pe
 
 | Source | API | Data | Ground Truth |
 |--------|-----|------|-------------|
-| BigQuery | @google-cloud/bigquery | Sales orders, customers, revenue, CardPointe | Yes |
 | Meta Ads | facebook-nodejs-business-sdk | Campaign performance, creative, spend | No |
 | Google Ads | google-ads-api (GAQL) | Campaign spend, search terms, geo | No |
 | GA4 | googleapis | Sessions, traffic, conversions | No |
 | QuickBooks GL | @google-cloud/bigquery | Ad spend, operating expenses (quickbooks_gl dataset) | Yes |
 
-## TDS Data Model (sales_orders)
+## Archived TDS findings (no current runtime dependency)
+
+The November 9 reporting retirement removed these query paths. The following April notes are historical evidence, not current query guidance; use the SLE BigQuery guide for canonical data.
 
 Understanding of the `tds_sales.sales_orders` table, confirmed by querying BigQuery (2026-04-02). Pending TDS support ticket for open questions.
 

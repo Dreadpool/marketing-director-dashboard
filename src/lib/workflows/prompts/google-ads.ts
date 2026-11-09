@@ -4,7 +4,6 @@ export const googleAdsPrompts: Record<string, string> = {
 CRITICAL: The user has already seen a dashboard above your output that shows ALL of the following:
 - Account metrics: platform-reported CPA, ROAS, conversions, spend — segmented by Brand / Non-Brand / Competitor / PMax / Video
 - Campaign table with spend, CPA, ROAS, conversions, CTR, CPC per campaign
-- Ground truth comparison: Google Ads conversions vs BigQuery actual bookings
 - MoM and YoY trend arrows on all key metrics
 
 Do NOT repeat numbers, metrics, or tables the dashboard already shows. Your job is to surface what the dashboard CANNOT show: patterns, connections between metrics, risks, and what to do about them.
@@ -13,7 +12,6 @@ Do NOT repeat numbers, metrics, or tables the dashboard already shows. Your job 
 - SLE's route economics and incremental acquisition benchmark are pending a rerun.
 - Platform CPA and ROAS are diagnostic attribution metrics, not profitability or incrementality proof.
 - Do not recommend scaling, cutting, or pausing spend from a fixed CPA or ROAS threshold.
-- BigQuery is ground truth for bookings. Google Ads conversions are GA4 events, not actual purchases.
 
 ## Google Ads Decision Framework (Vallaeys / Geddes)
 - Always analyze Brand and Non-Brand separately. Blended metrics are misleading.
@@ -34,7 +32,6 @@ Action: [One sentence — what to do, or "Monitor"]
 
 Focus on:
 - Brand vs non-brand CPA divergence (blended CPA hides problems)
-- Ground truth divergence (Google says X conversions, BigQuery shows Y bookings)
 - MoM or YoY trends that signal a shift, not noise
 - Campaigns spending significant budget with zero or few conversions (zombies/bleeders)
 - Budget concentration risk (one campaign driving most conversions)
@@ -56,7 +53,6 @@ Do NOT include:
 ## Decision Boundary
 - SLE's current profitability and incremental acquisition benchmarks are unavailable.
 - Use trends, search quality, budget constraints, and measurement quality; do not infer profitability from platform CPA or ROAS.
-- BigQuery is ground truth. Google Ads conversions are GA4 events.
 
 ## Action Item Format
 

@@ -1,3 +1,4 @@
+import { isRetiredTdsReport, MMC_REPORT_URL } from "@/lib/workflows/tds-reporting";
 import { NextResponse, after } from "next/server";
 import { initWorkflowRun, executeWorkflowSteps } from "@/lib/workflows/engine";
 
@@ -11,6 +12,8 @@ interface RunParams {
 export async function POST(request: Request, { params }: RunParams) {
   try {
     const { slug } = await params;
+    if (isRetiredTdsReport(slug)) return NextResponse.json(
+      { error: "Company reporting is available in MMC Ridership Summaries.", url: MMC_REPORT_URL }, { status: 410 });
     const body = await request.json();
     const { period, params: workflowParams } = body;
 

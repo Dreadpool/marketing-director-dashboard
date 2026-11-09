@@ -1,47 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { savedMarketingReport } from "./saved-marketing-report";
 
-describe("historical marketing reports", () => {
-  it("preserves saved counts while withholding company sales and customer-level records", () => {
-    const report = savedMarketingReport("monthly-analytics-review", {
-      current_month: {
-        revenue: { net_bookings: 999, total_orders: 7, unique_customers: 5 },
-        customers: { new_customers: 1 },
-        top_customers: { top_10_list: [{ email: "private@example.com" }] },
-        marketing: { ad_spend: 0, cac: 0 },
-      },
-      metadata: { missing_sources: ["quickbooks_gl"] },
-    });
-    expect(report).toMatchObject({
-      current: {
-        orders: 7,
-        purchasers: 5,
-        newPurchasers: 1,
-        adSpend: null,
-        costPerNewPurchaser: null,
-      },
-    });
-    expect(JSON.stringify(report)).not.toMatch(
-      /999|private@example|net_bookings/,
-    );
+describe("historical reporting boundaries", () => {
+  it.each(["monthly-analytics-review", "promo-code-analysis"])("withholds %s without mutating its stored snapshot", slug => {
+    const snapshot = { totalOrders: 3, current: { orders: 7 }, private: "retained" };
+    expect(savedMarketingReport(slug, snapshot)).toBeNull();
+    expect(snapshot).toEqual({ totalOrders: 3, current: { orders: 7 }, private: "retained" });
   });
-
-  it("preserves promo counts and cost per purchaser without exposing old nested sales values", () => {
-    const report = savedMarketingReport("promo-code-analysis", {
-      promoCode: "TEST",
-      totalOrders: 3,
-      grossRevenue: 999,
-      baselineAov: 50,
-      roi: { revenueReturn: 2, spendPerFirstPurchaser: 5 },
-      topRoutes: [{ route: "A", orders: 3, revenue: 600 }],
-    });
-    expect(report).toMatchObject({
-      totalOrders: 3,
-      spendPerFirstPurchaser: 5,
-      topRoutes: [{ route: "A", orders: 3 }],
-    });
-    expect(JSON.stringify(report)).not.toMatch(
-      /revenue|grossRevenue|baselineAov/,
-    );
+  it("retains Google platform metrics while removing historical TDS comparisons", () => {
+    const platform = { total_spend: 123, total_conversions: 8 };
+    const snapshot = { account_health: platform, campaigns: [], trends: {},
+      ground_truth: { bigquery_bookings: 999 }, unexpectedLegacyReport: { orders: 999 },
+      metadata: { generated_at: "2026-10-01", loaded_sources: ["google_ads_current", "bigquery_sales"],
+        missing_sources: ["bigquery_sales"], source_details: { google_ads_current: { status: "ok" }, bigquery_sales: { message: "999 bookings" } } } };
+    const result = savedMarketingReport("google-ads-analysis", snapshot);
+    expect(result).toMatchObject({ account_health: platform, metadata: { loaded_sources: ["google_ads_current"], missing_sources: [] } });
+    expect(JSON.stringify(result)).not.toMatch(/999|ground_truth|bigquery_sales|unexpectedLegacyReport/);
+    expect(snapshot.ground_truth.bigquery_bookings).toBe(999);
   });
 });
