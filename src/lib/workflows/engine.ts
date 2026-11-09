@@ -1,3 +1,4 @@
+import { isRetiredTdsReport } from "./tds-reporting";
 import { savedMarketingReport } from "./saved-marketing-report";
 import { db } from "@/db";
 import {
@@ -39,6 +40,7 @@ export async function initWorkflowRun(
   period: MonthPeriod,
   params?: Record<string, unknown>,
 ): Promise<{ runId: string }> {
+  if (isRetiredTdsReport(slug)) throw new Error("Company reporting is available in MMC Ridership Summaries.");
   const workflow = getWorkflowBySlug(slug);
   if (!workflow) throw new Error(`Workflow not found: ${slug}`);
   if (workflow.status !== "active")
@@ -77,8 +79,11 @@ export async function executeWorkflowSteps(
   initialPeriod: MonthPeriod,
 ): Promise<void> {
   let period = initialPeriod;
-  const workflow = getWorkflowBySlug(slug)!;
-  const executor = getExecutor(slug)!;
+  const workflow = getWorkflowBySlug(slug);
+  const executor = getExecutor(slug);
+  if (isRetiredTdsReport(slug) || !workflow || !executor) {
+    throw new Error("Workflow is not available.");
+  }
 
   // Load inputParams from the run record
   const [runRecord] = await db
@@ -204,6 +209,7 @@ export async function executeWorkflowSteps(
 
 /** Get all runs for a workflow */
 export async function getWorkflowRuns(slug: string) {
+  if (isRetiredTdsReport(slug)) return [];
   return db
     .select()
     .from(workflowRuns)
@@ -219,7 +225,7 @@ export async function getRunDetails(runId: string) {
     .where(eq(workflowRuns.id, runId))
     .limit(1);
 
-  if (!run) return null;
+  if (!run || isRetiredTdsReport(run.workflowSlug)) return null;
 
   const [steps, items] = await Promise.all([
     db
@@ -233,7 +239,7 @@ export async function getRunDetails(runId: string) {
       .where(eq(actionItems.runId, runId)),
   ]);
 
-  if (["monthly-analytics-review", "promo-code-analysis"].includes(run.workflowSlug)) {
+  if (run.workflowSlug === "google-ads-analysis") {
     const reportSteps = steps.filter(step => step.stepId === "fetch").map(step => ({
       ...step, inputData: null, aiOutput: null, userResponse: null,
       outputData: savedMarketingReport(run.workflowSlug, step.outputData),

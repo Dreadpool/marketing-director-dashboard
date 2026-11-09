@@ -1,7 +1,8 @@
+import { archivedTdsActionWorkflows } from "@/lib/workflows/tds-reporting";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { actionItems } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, notInArray } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -11,18 +12,11 @@ export async function GET(request: Request) {
     const workflowSlug = searchParams.get("workflow");
     const completedFilter = searchParams.get("completed");
 
-    let query = db.select().from(actionItems).orderBy(desc(actionItems.createdAt));
-
-    if (workflowSlug) {
-      query = query.where(eq(actionItems.workflowSlug, workflowSlug)) as typeof query;
-    }
-
-    if (completedFilter !== null) {
-      const isCompleted = completedFilter === "true";
-      query = query.where(eq(actionItems.completed, isCompleted)) as typeof query;
-    }
-
-    const items = await query;
+    const filters = [notInArray(actionItems.workflowSlug, archivedTdsActionWorkflows)];
+    if (workflowSlug) filters.push(eq(actionItems.workflowSlug, workflowSlug));
+    if (completedFilter !== null) filters.push(eq(actionItems.completed, completedFilter === "true"));
+    const items = await db.select().from(actionItems).where(and(...filters))
+      .orderBy(desc(actionItems.createdAt));
     return NextResponse.json({ items });
   } catch (err) {
     console.error("Failed to fetch action items:", err);
@@ -53,7 +47,7 @@ export async function PATCH(request: Request) {
         completed,
         completedAt: completed ? new Date() : null,
       })
-      .where(eq(actionItems.id, id))
+      .where(and(eq(actionItems.id, id), notInArray(actionItems.workflowSlug, archivedTdsActionWorkflows)))
       .returning();
 
     if (!updated) {

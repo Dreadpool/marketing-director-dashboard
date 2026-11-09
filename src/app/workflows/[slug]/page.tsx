@@ -1,3 +1,4 @@
+import { isRetiredTdsReport, MMC_REPORT_URL } from "@/lib/workflows/tds-reporting";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,6 +11,16 @@ interface WorkflowPageProps {
 
 export default async function WorkflowPage({ params }: WorkflowPageProps) {
   const { slug } = await params;
+  if (isRetiredTdsReport(slug)) return (
+    <Card><CardContent className="space-y-4 py-10">
+      <h1 className="font-heading text-2xl font-semibold">MMC Ridership Summaries</h1>
+      <p className="text-muted-foreground">Open Jacob’s dashboard for company reporting.</p>
+      <a href={MMC_REPORT_URL} target="_blank" rel="noopener noreferrer"
+        className="inline-flex rounded-md bg-gold px-4 py-2 font-medium text-background hover:bg-gold/90">
+        Open MMC Ridership Summaries
+      </a>
+    </CardContent></Card>
+  );
   const workflow = getWorkflowBySlug(slug);
   const title = workflow?.title ?? formatSlugToTitle(slug);
 

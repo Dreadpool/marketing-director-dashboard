@@ -5,7 +5,6 @@ import type {
   GoogleAdsCampaignMetrics,
   GoogleAdsSegmentHealth,
   GoogleAdsAccountHealth,
-  GoogleAdsGroundTruth,
   GoogleAdsTrend,
   GoogleAdsPeriod,
   GoogleAdsSourceDetail,
@@ -14,11 +13,7 @@ import type {
 import type { GoogleAdsCampaignRow } from "@/lib/schemas/sources/google-ads";
 import { microsToUSD, percentChange } from "@/lib/schemas/utils";
 import { getMonthlySpend } from "@/lib/services/google-ads";
-import { getAdBookingCount } from "@/lib/services/bigquery-sales";
 
-export const GOOGLE_ADS_THRESHOLDS = {
-  ground_truth_divergence: 0.30,
-} as const;
 
 // --- Helpers ---
 
@@ -160,30 +155,6 @@ function computeAccountHealth(
   };
 }
 
-function computeGroundTruth(
-  googleConversions: number,
-  bigqueryBookings: number,
-): GoogleAdsGroundTruth {
-  // Both zero = no data, not a divergence
-  if (googleConversions === 0 && bigqueryBookings === 0) {
-    return {
-      bigquery_bookings: 0,
-      google_ads_conversions: 0,
-      attribution_ratio: 1,
-      divergence_flag: false,
-    };
-  }
-
-  const ratio = safeDivide(googleConversions, bigqueryBookings);
-  const divergence = Math.abs(ratio - 1);
-
-  return {
-    bigquery_bookings: bigqueryBookings,
-    google_ads_conversions: googleConversions,
-    attribution_ratio: ratio,
-    divergence_flag: divergence > GOOGLE_ADS_THRESHOLDS.ground_truth_divergence,
-  };
-}
 
 function computeTrend(
   current: number,
@@ -255,13 +226,12 @@ export async function fetchGoogleAds(
   const priorMonthPeriod = getPriorMonthPeriod(period);
   const yoyPeriod = getYoYPeriod(period);
 
-  // Fetch all 4 sources in parallel
-  const [currentResult, priorMonthResult, priorYearResult, salesResult] =
+  // Fetch all 3 periods in parallel
+  const [currentResult, priorMonthResult, priorYearResult] =
     await Promise.allSettled([
       getMonthlySpend(period),
       getMonthlySpend(priorMonthPeriod),
       getMonthlySpend(yoyPeriod),
-      getAdBookingCount(period),
     ]);
 
   // Current month is REQUIRED
@@ -274,7 +244,6 @@ export async function fetchGoogleAds(
   const currentRows = currentResult.value;
   const priorMonthRows = priorMonthResult.status === "fulfilled" ? priorMonthResult.value : null;
   const priorYearRows = priorYearResult.status === "fulfilled" ? priorYearResult.value : null;
-  const bookingCount = salesResult.status === "fulfilled" ? salesResult.value : null;
 
   // Track source metadata
   const loadedSources: string[] = ["google_ads_current"];
@@ -317,23 +286,6 @@ export async function fetchGoogleAds(
     };
   }
 
-  if (bookingCount !== null) {
-    loadedSources.push("bigquery_sales");
-    sourceDetails.bigquery_sales = {
-      displayName: "BigQuery Sales Orders",
-      status: "ok",
-    };
-  } else {
-    missingSources.push("bigquery_sales");
-    sourceDetails.bigquery_sales = {
-      displayName: "BigQuery Sales Orders",
-      status: "warning",
-      message: salesResult.status === "rejected"
-        ? String(salesResult.reason)
-        : "No data",
-    };
-  }
-
   // Map and filter campaigns (only those with spend > 0 or conversions > 0)
   const allCampaigns = currentRows.map(mapCampaignRow);
   const campaigns = allCampaigns.filter(
@@ -342,11 +294,6 @@ export async function fetchGoogleAds(
 
   // Account health
   const accountHealth = computeAccountHealth(campaigns);
-
-  // Ground truth
-  const totalConversions = campaigns.reduce((s, c) => s + c.conversions, 0);
-  const bigqueryBookings = bookingCount ?? 0;
-  const groundTruth = computeGroundTruth(totalConversions, bigqueryBookings);
 
   // Trends: aggregate prior periods
   const currentSpend = aggregateMetric(currentRows, "cost_micros");
@@ -390,7 +337,6 @@ export async function fetchGoogleAds(
     period: periodInfo,
     account_health: accountHealth,
     campaigns,
-    ground_truth: groundTruth,
     trends: {
       cpa: computeTrend(currentCpa, priorMonthCpa, priorYearCpa),
       roas: computeTrend(currentRoas, priorMonthRoas, priorYearRoas),

@@ -33,7 +33,7 @@ export function isGoogleAdsMetrics(data: unknown): data is GoogleAdsMetrics {
     data !== null &&
     "account_health" in data &&
     "campaigns" in data &&
-    "ground_truth" in data
+    "trends" in data
   );
 }
 
@@ -521,7 +521,7 @@ export function GoogleAdsFetchSummary({
 }: {
   data: GoogleAdsMetrics;
 }) {
-  const { period, account_health, campaigns, ground_truth, metadata } = data;
+  const { period, account_health, campaigns, metadata } = data;
   const segment_trends = data.segment_trends ?? [];
   // Separate charters from main segments (different business unit)
   const mainSegments = account_health.segments.filter(
@@ -533,11 +533,6 @@ export function GoogleAdsFetchSummary({
   const trendBySegment = new Map(
     segment_trends.map((t) => [t.segment, t]),
   );
-
-  const channelContext =
-    ground_truth.bigquery_bookings > 0
-      ? `Google claims ${num.format(Math.round(ground_truth.google_ads_conversions))} of ${num.format(Math.round(ground_truth.bigquery_bookings))} total bookings (${Math.round((ground_truth.google_ads_conversions / ground_truth.bigquery_bookings) * 100)}%)`
-      : null;
 
   const segmentOrder: CampaignSegment[] = [
     "non-brand",
@@ -570,11 +565,6 @@ export function GoogleAdsFetchSummary({
             <div className="text-sm font-semibold">
               Total Spend: {usd.format(account_health.total_spend)}
             </div>
-            {channelContext && (
-              <div className="text-[10px] text-muted-foreground">
-                {channelContext}
-              </div>
-            )}
           </div>
         </div>
 

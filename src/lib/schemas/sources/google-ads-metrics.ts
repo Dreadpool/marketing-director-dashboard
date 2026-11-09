@@ -63,13 +63,6 @@ export type GoogleAdsCampaignMetrics = {
   avg_cpc: number;
 };
 
-export type GoogleAdsGroundTruth = {
-  bigquery_bookings: number;
-  google_ads_conversions: number;
-  attribution_ratio: number;
-  divergence_flag: boolean;
-};
-
 export type GoogleAdsTrend = {
   current: number;
   prior_month: number;
@@ -96,7 +89,6 @@ export type GoogleAdsMetrics = {
   period: GoogleAdsPeriod;
   account_health: GoogleAdsAccountHealth;
   campaigns: GoogleAdsCampaignMetrics[];
-  ground_truth: GoogleAdsGroundTruth;
   trends: {
     cpa: GoogleAdsTrend;
     roas: GoogleAdsTrend;

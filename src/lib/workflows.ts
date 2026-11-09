@@ -127,57 +127,18 @@ export const workflows: Workflow[] = [
     slug: "google-ads-analysis",
     title: "Google Ads Analysis",
     description:
-      "Campaign performance by segment (Brand/Non-Brand/Competitor/PMax), CPA/ROAS decision metrics, ground truth comparison, and MoM/YoY trends.",
+      "Campaign performance by segment (Brand/Non-Brand/Competitor/PMax), CPA/ROAS decision metrics, and MoM/YoY trends.",
     icon: "search",
     status: "active",
     cadence: { frequency: "monthly", dueRule: { type: "day-of-month", day: 10 } },
-    dataSources: ["google_ads", "bigquery"],
+    dataSources: ["google_ads"],
     steps: [
       {
         id: "fetch",
         label: "Fetch Data",
-        description: "Pull campaign data from Google Ads API + BigQuery",
+        description: "Pull campaign data from Google Ads API",
         type: "fetch",
-        dataSources: ["google_ads", "bigquery"],
-      },
-    ],
-  },
-  {
-    slug: "monthly-analytics-review",
-    title: "Monthly Analytics Review",
-    description:
-      "Booking counts, first and returning purchasers, marketing spend, and acquisition cost.",
-    icon: "calendar",
-    status: "active",
-    cadence: { frequency: "monthly", dueRule: { type: "day-of-month", day: 10 } },
-    dataSources: ["bigquery", "quickbooks_gl"],
-    steps: [
-      {
-        id: "fetch",
-        label: "Fetch Data",
-        description:
-          "Count bookings and purchasers in BigQuery and retrieve ad spend from QuickBooks GL",
-        type: "fetch",
-        dataSources: ["bigquery", "quickbooks_gl"],
-      },
-    ],
-  },
-  {
-    slug: "promo-code-analysis",
-    title: "Promo Code Analysis",
-    description:
-      "Review promo-code usage, discounts, and first-time purchasers. Enter a code and optional campaign cost.",
-    icon: "ticket",
-    status: "active",
-    cadence: { frequency: "on-demand", dueRule: { type: "on-demand" } },
-    dataSources: ["bigquery"],
-    steps: [
-      {
-        id: "fetch",
-        label: "Fetch Promo Data",
-        description: "Pull all orders with this promo code from BigQuery",
-        type: "fetch",
-        dataSources: ["bigquery"],
+        dataSources: ["google_ads"],
       },
     ],
   },
@@ -189,7 +150,7 @@ export const workflows: Workflow[] = [
     icon: "megaphone",
     status: "active",
     cadence: { frequency: "on-demand", dueRule: { type: "on-demand" } },
-    dataSources: ["bigquery"],
+    dataSources: [],
     steps: [
       {
         id: "plan",

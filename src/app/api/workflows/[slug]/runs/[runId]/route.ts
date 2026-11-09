@@ -17,10 +17,10 @@ interface RunDetailParams {
 
 export async function GET(_request: Request, { params }: RunDetailParams) {
   try {
-    const { runId } = await params;
+    const { slug, runId } = await params;
     const run = await getRunDetails(runId);
 
-    if (!run) {
+    if (!run || run.workflowSlug !== slug) {
       return NextResponse.json({ error: "Run not found" }, { status: 404 });
     }
 
