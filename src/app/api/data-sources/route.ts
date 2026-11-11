@@ -9,9 +9,11 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const hasMetaCreds = !!process.env.META_ACCESS_TOKEN;
   const hasGoogleAdsCreds =
+    process.env.VERCEL_ENV === "production" ||
     !!process.env.GOOGLE_APPLICATION_CREDENTIALS ||
     !!process.env.GOOGLE_CREDENTIALS_JSON;
   const hasBqCreds =
+    process.env.VERCEL_ENV === "production" ||
     !!process.env.GOOGLE_APPLICATION_CREDENTIALS ||
     !!process.env.GOOGLE_CREDENTIALS_JSON;
 
