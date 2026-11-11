@@ -14,7 +14,7 @@ import openpyxl
 DOWNLOADS_DIR = os.path.expanduser(
     "~/Downloads/cardpointe reports-1 year of revenue and refunds"
 )
-CREDENTIALS = os.path.expanduser("~/credentials/bigquery-service-account.json")
+CREDENTIALS = os.path.expanduser("~/credentials/sle-jacob-bq-readonly-service-account.json")
 PROJECT_ID = "jovial-root-443516-a7"
 DATASET = "tds_sales"
 
