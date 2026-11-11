@@ -15,7 +15,6 @@ import openpyxl
 DOWNLOADS_DIR = os.path.expanduser(
     "~/Downloads/cardpointe reports-1 year of revenue and refunds"
 )
-CREDENTIALS = os.path.expanduser("~/credentials/bigquery-service-account.json")
 PROJECT_ID = "jovial-root-443516-a7"
 DATASET = "tds_sales"
 TABLE = "cardpointe_authorizations"
@@ -127,7 +126,6 @@ def parse_auth_files():
 
 def load_to_bigquery(rows, dry_run=False):
     """Create table and MERGE rows into BigQuery."""
-    os.environ.setdefault("GOOGLE_APPLICATION_CREDENTIALS", CREDENTIALS)
     client = bigquery.Client(project=PROJECT_ID)
 
     if dry_run:

@@ -8,7 +8,7 @@ Usage: python3 scripts/compare_cancels_vs_refunds.py
 import os
 from google.cloud import bigquery
 
-CREDENTIALS = os.path.expanduser("~/credentials/bigquery-service-account.json")
+CREDENTIALS = os.path.expanduser("~/credentials/sle-jacob-bq-readonly-service-account.json")
 os.environ.setdefault("GOOGLE_APPLICATION_CREDENTIALS", CREDENTIALS)
 
 PROJECT_ID = "jovial-root-443516-a7"

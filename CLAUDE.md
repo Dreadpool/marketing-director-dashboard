@@ -275,7 +275,7 @@ TDS changed how records are stored. Three distinct eras in the data:
 
 To run ad hoc queries against BigQuery from this project:
 ```bash
-GOOGLE_APPLICATION_CREDENTIALS="/Users/brady/credentials/bigquery-service-account.json" npx tsx -e "
+GOOGLE_APPLICATION_CREDENTIALS="/Users/brady/credentials/sle-jacob-bq-readonly-service-account.json" npx tsx -e "
 const { BigQuery } = require('@google-cloud/bigquery');
 const bq = new BigQuery({ projectId: 'jovial-root-443516-a7' });
 async function main() {
