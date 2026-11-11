@@ -1,3 +1,4 @@
+import { googleClientOptions } from "@/lib/vercel-google";
 /**
  * SEO Ranking Analysis fetch executor.
  *
@@ -56,19 +57,7 @@ let sheetsClient: SheetsClient | null = null;
 
 function getSheetsClient(): SheetsClient {
   if (!sheetsClient) {
-    const credentialsJson = process.env.GOOGLE_CREDENTIALS_JSON;
-    let auth;
-    if (credentialsJson) {
-      const credentials = JSON.parse(credentialsJson);
-      auth = new google.auth.GoogleAuth({
-        credentials,
-        scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
-      });
-    } else {
-      auth = new google.auth.GoogleAuth({
-        scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
-      });
-    }
+    const auth = new google.auth.GoogleAuth({ ...googleClientOptions(), scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"] });
     const sheets = google.sheets({ version: "v4", auth });
     sheetsClient = sheets.spreadsheets;
   }
@@ -86,19 +75,7 @@ function getSearchConsoleClient(): SearchConsoleClient | null {
   if (!siteUrls) return null;
 
   if (!gscClient) {
-    const credentialsJson = process.env.GOOGLE_CREDENTIALS_JSON;
-    let auth;
-    if (credentialsJson) {
-      const credentials = JSON.parse(credentialsJson);
-      auth = new google.auth.GoogleAuth({
-        credentials,
-        scopes: ["https://www.googleapis.com/auth/webmasters.readonly"],
-      });
-    } else {
-      auth = new google.auth.GoogleAuth({
-        scopes: ["https://www.googleapis.com/auth/webmasters.readonly"],
-      });
-    }
+    const auth = new google.auth.GoogleAuth({ ...googleClientOptions(), scopes: ["https://www.googleapis.com/auth/webmasters.readonly"] });
     gscClient = google.searchconsole({ version: "v1", auth });
   }
   return gscClient;

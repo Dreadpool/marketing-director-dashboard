@@ -1,3 +1,4 @@
+import { googleClientOptions } from "@/lib/vercel-google";
 import { GoogleAuth } from "google-auth-library";
 import type { MonthPeriod } from "@/lib/schemas/types";
 import type { GoogleAdsCampaignRow } from "@/lib/schemas/sources/google-ads";
@@ -13,9 +14,8 @@ export type ConnectionStatus = {
 };
 
 async function getAccessToken(): Promise<string> {
-  const credentialsJson = process.env.GOOGLE_CREDENTIALS_JSON;
   const auth = new GoogleAuth({
-    ...(credentialsJson ? { credentials: JSON.parse(credentialsJson) } : {}),
+    ...googleClientOptions(),
     scopes: ["https://www.googleapis.com/auth/adwords"],
   });
   const client = await auth.getClient();
